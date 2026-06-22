@@ -1,0 +1,40 @@
+device: cuda
+
+paths:
+  data: data/raw/sentinel2
+  checkpoints: checkpoints
+  outputs: outputs
+  logs: logs
+
+dataset:
+  name: sentinel2
+  image_size: 256
+  batch_size: 8
+  num_workers: 2
+
+model:
+  in_channels: 1
+  out_channels: 3
+  generator_features: [64, 128, 256, 512, 512, 512, 512, 512]
+
+training:
+  epochs: 80
+  decay_start: 64
+  patience: 50
+  grad_clip: 10.0
+  sample_every: 5
+  amp: true
+  
+  optimizer:
+    lr: 0.0002
+    beta1: 0.5
+    beta2: 0.999
+  
+  lambda_adv: 1.0
+  lambda_l1: 80.0
+  lambda_perc: 10.0
+  lambda_ssim: 3.0
+
+logging:
+  use_wandb: false
+  project_name: InfraNova-AI

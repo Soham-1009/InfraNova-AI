@@ -1,0 +1,7 @@
+streamlit
+torch
+torchvision
+pillow
+numpy
+opencv-python
+streamlit-image-comparisonpip 

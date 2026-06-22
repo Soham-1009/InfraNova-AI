@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Large files - NEVER commit
+*.pth
+*.zip
+*.tar.gz
+*.arrow
+*.parquet
+data/cache/
+data/raw/sentinel2/
+checkpoints/best/*.pth
+checkpoints/latest/*.pth
+data/cache/blanchon___euro_sat_msi/
+
+# Outputs
+logs/wandb/
+logs/tensorboard/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
