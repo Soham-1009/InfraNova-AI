@@ -75,13 +75,18 @@ class GeneratorUNet(nn.Module):
     """
     Pix2Pix U-Net Generator.
 
-    Input:  [B, 1, 256, 256]
-    Output: [B, 3, 256, 256]
+    Input:
+        [B, in_channels, 256, 256]
+    Output:
+        [B, 3, 256, 256]
+
+    Default in_channels is 10 for multispectral input, but the model remains
+    backward compatible with the original 1-channel pipeline.
     """
 
     def __init__(
         self,
-        in_channels: int = 1,
+        in_channels: int = 10,
         out_channels: int = 3,
         features: Optional[List[int]] = None,
     ) -> None:
@@ -90,7 +95,6 @@ class GeneratorUNet(nn.Module):
         if features is None:
             features = [64, 128, 256, 512, 512, 512, 512, 512]
 
-        # Encoder
         self.down1 = DownBlock(in_channels, features[0], use_norm=False)
         self.down2 = DownBlock(features[0], features[1])
         self.down3 = DownBlock(features[1], features[2])
@@ -100,7 +104,6 @@ class GeneratorUNet(nn.Module):
         self.down7 = DownBlock(features[5], features[6])
         self.down8 = DownBlock(features[6], features[7], use_norm=False)
 
-        # Decoder
         self.up1 = UpBlock(features[7], features[6], use_dropout=True)
         self.up2 = UpBlock(features[6] * 2, features[5], use_dropout=True)
         self.up3 = UpBlock(features[5] * 2, features[4], use_dropout=True)
@@ -123,13 +126,9 @@ class GeneratorUNet(nn.Module):
 
     @staticmethod
     def _init_weights(module: nn.Module) -> None:
+        """Kaiming initialization for convolution layers."""
         if isinstance(module, (nn.Conv2d, nn.ConvTranspose2d)):
-            nn.init.kaiming_normal_(
-                module.weight,
-                a=0.2,
-                mode="fan_in",
-                nonlinearity="leaky_relu",
-            )
+            nn.init.kaiming_normal_(module.weight, a=0.2, mode="fan_in", nonlinearity="leaky_relu")
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
 

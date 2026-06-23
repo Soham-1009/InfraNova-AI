@@ -1,10 +1,3 @@
-"""
-Sentinel-2 IR-RGB Dataset for Pix2Pix Training.
-
-Author: Soham Deshpande
-Project: ISRO BAH 2026 - InfraNova AI
-"""
-
 import logging
 import random
 from pathlib import Path
@@ -20,23 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Sentinel2Dataset(Dataset):
-    """
-    Sentinel-2 IR -> RGB Dataset for Pix2Pix Training.
-    
-    Args:
-        root_dir: Path to dataset root
-        split: 'train', 'val', or 'test'
-        image_size: Target size (resized from 64x64)
-        transform: Albumentations Compose object
-        paired: True for Pix2Pix, False for CycleGAN
-    
-    Returns:
-        dict: {
-            'ir':   Tensor [1, H, W] in [-1, 1] float32,
-            'rgb':  Tensor [3, H, W] in [-1, 1] float32,
-            'name': str
-        }
-    """
+    """Sentinel-2 IR -> RGB Dataset for Pix2Pix Training."""
     
     def __init__(
         self,
@@ -73,17 +50,17 @@ class Sentinel2Dataset(Dataset):
                         "rgb": self.rgb_dir / ir_file.name,
                     })
             
-            logger.info(
-                "Loaded %d paired samples for %s split",
-                len(self.samples),
-                split,
-            )
-            
             if len(self.samples) == 0:
                 raise ValueError(
                     f"No paired samples found! "
                     f"Check {self.ir_dir} and {self.rgb_dir}"
                 )
+            
+            logger.info(
+                "Loaded %d paired samples for %s split",
+                len(self.samples),
+                split,
+            )
         else:
             logger.info(
                 "Loaded %d IR and %d RGB images in unpaired mode",
@@ -97,14 +74,12 @@ class Sentinel2Dataset(Dataset):
         return max(len(self.ir_files), len(self.rgb_files))
     
     def _load_ir(self, path: Path) -> np.ndarray:
-        """Load IR image as grayscale numpy array."""
         image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
         if image is None:
             raise ValueError(f"Failed to load IR image: {path}")
         return image
     
     def _load_rgb(self, path: Path) -> np.ndarray:
-        """Load RGB image, convert BGR -> RGB."""
         image = cv2.imread(str(path), cv2.IMREAD_COLOR)
         if image is None:
             raise ValueError(f"Failed to load RGB image: {path}")
@@ -116,7 +91,6 @@ class Sentinel2Dataset(Dataset):
         return tensor.float() / 127.5 - 1.0
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        """Returns dict with keys 'ir', 'rgb', 'name'."""
         max_retries = 5
         retries = 0
         
@@ -144,11 +118,9 @@ class Sentinel2Dataset(Dataset):
                     if ir_tensor.dim() == 2:
                         ir_tensor = ir_tensor.unsqueeze(0)
                     
-                    # Normalize after augmentation
                     ir_tensor = self._normalize_to_range(ir_tensor)
                     rgb_tensor = self._normalize_to_range(rgb_tensor)
                 else:
-                    # No transform - manual conversion
                     ir_tensor = self._normalize_to_range(
                         torch.from_numpy(ir_image)
                     ).unsqueeze(0)
