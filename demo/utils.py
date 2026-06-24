@@ -101,7 +101,29 @@ def save_output(image: Image.Image, filename: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
     return str(path)
-
+    
+def visualize_tir_as_thermal(image: Union[Image.Image, np.ndarray]) -> Image.Image:
+    """
+    Convert grayscale TIR to thermal colormap for better visualization.
+    
+    Args:
+        image: PIL grayscale or numpy array.
+    
+    Returns:
+        PIL RGB image with thermal colormap applied.
+    """
+    if isinstance(image, Image.Image):
+        arr = np.array(image.convert("L"))
+    else:
+        arr = image if image.ndim == 2 else image[:, :, 0]
+    
+    # Apply thermal colormap (cv2.COLORMAP_JET or COLORMAP_INFERNO)
+    colored = cv2.applyColorMap(arr, cv2.COLORMAP_INFERNO)
+    
+    # Convert BGR to RGB
+    colored_rgb = cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
+    
+    return Image.fromarray(colored_rgb)
 
 def load_sample_images(sample_dir: str = "demo/assets/samples") -> List[Image.Image]:
     """

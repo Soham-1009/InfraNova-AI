@@ -141,7 +141,7 @@ with col_h1:
         <div style="font-size: 2.5rem;">🛰️</div>
         <div>
             <h1 class="app-title">InfraNova AI</h1>
-            <p class="app-subtitle">AI-Powered Satellite Image Enhancement</p>
+            <p class="app-subtitle">Landsat 9 Thermal Infrared to RGB Colorization</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -156,11 +156,11 @@ except Exception as e:
 
 @st.cache_resource(show_spinner="Loading model...")
 def get_engine():
-    return InferenceEngine(checkpoint_path="checkpoints/best/pix2pix_best.pth")
+    return InferenceEngine(checkpoint_path="checkpoints/best/pix2pix_landsat_best.pth")
 
 
 # Upload section
-st.markdown("### Upload IR Satellite Image")
+st.markdown("### Upload Landsat 9 Thermal Infrared Image")
 uploaded_file = st.file_uploader(
     "Drag and drop your file here. Supports PNG, JPG, TIFF (Max 100MB)",
     type=["png", "jpg", "jpeg", "tif", "tiff"],
@@ -184,7 +184,7 @@ st.markdown("---")
 col_img1, col_slider, col_img2 = st.columns([1, 0.1, 1])
 
 with col_img1:
-    st.markdown('<p class="image-label">INPUT (INFRARED)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="image-label">INPUT (THERMAL INFRARED - LANDSAT 9 BAND 10)</p>', unsafe_allow_html=True)
     if input_image:
         st.image(input_image, use_container_width=True)
     else:
@@ -198,7 +198,7 @@ with col_slider:
     )
 
 with col_img2:
-    st.markdown('<p class="image-label">OUTPUT (RGB)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="image-label">OUTPUT (GENERATED RGB)</p>', unsafe_allow_html=True)
     output_placeholder = st.empty()
     if output_image:
         output_placeholder.image(output_image, use_container_width=True)
@@ -292,7 +292,7 @@ with col_m2:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">📈  PSNR</div>
-        <div class="metric-value">11.57 dB</div>
+        <div class="metric-value">18.45 dB</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -300,7 +300,7 @@ with col_m3:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">〰  SSIM</div>
-        <div class="metric-value">0.311</div>
+        <div class="metric-value">0.730</div>
     </div>
     """, unsafe_allow_html=True)
 
