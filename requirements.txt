@@ -1,25 +1,43 @@
+# Deep Learning Core
 torch
 torchvision
 torchaudio
+
+# Image Processing
 opencv-python
 Pillow
-albumentations
-scikit-image
+tifffile
+rasterio
+imagecodecs
+
+# Data Processing
 numpy
-tqdm
+scipy
 PyYAML
-tensorboard
-wandb
+tqdm
+
+# Satellite Data
+earthengine-api
+geemap
+datasets
+
+# Model Training
 torchmetrics
 lpips
-pytorch-fid
-scipy
-streamlit
-gradio
-ultralytics
+
+# Augmentation
+albumentations
+
+# Visualization
 matplotlib
-seaborn
-pandas
+
+# Demo
+streamlit
+streamlit-image-comparison
+
+# Logging (optional)
+wandb
+
+# Notebook support
 jupyter
-black
-pytest
+ipykernel
