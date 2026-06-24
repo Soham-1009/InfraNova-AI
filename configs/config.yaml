@@ -10,7 +10,7 @@ dataset:
   image_size: 256
   input_channels: 1
   output_channels: 3
-  num_workers: 2
+  num_workers: 0
 
 training:
   epochs: 150
