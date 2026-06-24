@@ -1,7 +1,16 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
 venv/
+env/
+.venv/
 
 # Large files - NEVER commit
 *.pth
@@ -9,17 +18,56 @@ venv/
 *.tar.gz
 *.arrow
 *.parquet
+*.tif
+*.tiff
+*.h5
+*.pkl
+
+# Old Sentinel-2 data (no longer used)
 data/cache/
 data/raw/sentinel2/
+data/multispectral/
+data/samples/
+
+# Landsat 9 data (too large for GitHub)
+data/landsat9/input/
+data/landsat9/patches/
+data/landsat9/splits/
+
+# Earth Engine cache
+.config/earthengine/
+
+# Model checkpoints
 checkpoints/best/*.pth
 checkpoints/latest/*.pth
-data/cache/blanchon___euro_sat_msi/
+checkpoints/final/*.pth
 
-# Outputs
+# Training outputs
 logs/wandb/
 logs/tensorboard/
+logs/*.csv
+logs/*.png
+
+# Generated visualizations (training samples)
+outputs/visualizations/epoch_*.png
+outputs/predictions/
+
+# Old pipeline backup
+_old_sentinel2_pipeline/
 
 # IDE
 .vscode/
 .idea/
+*.swp
 .DS_Store
+Thumbs.db
+
+# OS
+*.log
+*.tmp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Hugging Face cache
+~/.cache/huggingface/

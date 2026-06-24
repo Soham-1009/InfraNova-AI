@@ -1,40 +1,55 @@
-device: cuda
-
-paths:
-  data: data/raw/sentinel2
-  checkpoints: checkpoints
-  outputs: outputs
-  logs: logs
+project:
+  name: "InfraNova AI"
+  task: "colorization"
+  modality: "landsat9_tir_to_rgb"
+  seed: 42
 
 dataset:
-  name: sentinel2
+  name: "landsat9"
+  root_dir: "data/landsat9/splits"
   image_size: 256
-  batch_size: 8
+  input_channels: 1
+  output_channels: 3
   num_workers: 2
 
-model:
-  in_channels: 1
-  out_channels: 3
-  generator_features: [64, 128, 256, 512, 512, 512, 512, 512]
-
 training:
-  epochs: 80
-  decay_start: 64
-  patience: 50
-  grad_clip: 10.0
-  sample_every: 5
+  epochs: 150
+  batch_size: 8
+  decay_start_epoch: 120
+  patience: 30
   amp: true
-  
+  grad_clip: 1.0
+  sample_every: 5
+  resume_from: ""
+
   optimizer:
     lr: 0.0002
     beta1: 0.5
     beta2: 0.999
-  
-  lambda_adv: 1.0
-  lambda_l1: 80.0
-  lambda_perc: 10.0
-  lambda_ssim: 3.0
+
+  # DeepSeek-tuned weights for TIR (different from NIR)
+  loss:
+    lambda_adv: 1.0
+    lambda_l1: 50.0
+    lambda_perc: 20.0
+    lambda_ssim: 3.0
 
 logging:
   use_wandb: false
-  project_name: InfraNova-AI
+  csv_path: "logs/training.csv"
+
+paths:
+  checkpoints: "checkpoints"
+  best_checkpoint: "checkpoints/best/pix2pix_landsat_best.pth"
+  latest_checkpoint: "checkpoints/latest/pix2pix_landsat_latest.pth"
+  final_checkpoint: "checkpoints/final/pix2pix_landsat_final.pth"
+  logs: "logs"
+  outputs: "outputs"
+  visualizations: "outputs/visualizations"
+
+inference:
+  image_size: 256
+  percentile_low: 2.0
+  percentile_high: 98.0
+  tta: true
+  save_format: "tiff"
