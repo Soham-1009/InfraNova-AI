@@ -7,7 +7,7 @@ import os
 import time
 from pathlib import Path
 
-EE_PROJECT_ID = "infranova-ai"  # Your project ID
+EE_PROJECT_ID = "infranova-ai"  # Update if your project ID differs
 
 REGIONS = {
     # Existing 20 Indian cities
@@ -306,12 +306,11 @@ REGIONS = {
 
 print(f"Total regions: {len(REGIONS)}")
 
+
 BANDS = ['SR_B2', 'SR_B3', 'SR_B4', 'ST_B10']
 START_DATE = '2024-01-01'
 END_DATE = '2024-06-30'
-
-# Buffer in meters - smaller buffer for direct download compatibility
-BUFFER_METERS = 15000  # 15km buffer (was 50km - too large)
+BUFFER_METERS = 15000
 
 
 def export_region(region_id, region_info):
@@ -333,11 +332,11 @@ def export_region(region_id, region_info):
     print(f"  Found {count} images")
     
     if count == 0:
+        print(f"  No clear images available for {region_info['name']}")
         return None
     
     image = collection.first().clip(region)
     
-    # Export each band separately
     tasks = []
     for band in BANDS:
         task_name = f"{region_id}_{band}"
@@ -361,29 +360,35 @@ def monitor_tasks(all_tasks):
     """Monitor export tasks until complete."""
     print("\n" + "="*60)
     print("Monitoring export tasks...")
-    print("This may take 5-15 minutes")
+    print("This may take 6-8 hours for 200 regions")
     print("="*60)
     
     while True:
         all_done = True
+        running = 0
+        completed = 0
+        failed = 0
+        
         for task_name, task in all_tasks:
             status = task.status()
             state = status['state']
             
             if state in ['READY', 'RUNNING']:
                 all_done = False
-                print(f"  {task_name}: {state}")
+                running += 1
             elif state == 'COMPLETED':
-                pass
+                completed += 1
             elif state == 'FAILED':
-                print(f"  {task_name}: FAILED - {status.get('error_message', 'Unknown')}")
+                failed += 1
+        
+        total = len(all_tasks)
+        print(f"  Status: {completed}/{total} done, {running} running, {failed} failed")
         
         if all_done:
             print("\nAll tasks completed!")
             break
         
-        print("Waiting 30 seconds...")
-        time.sleep(30)
+        time.sleep(60)  # Check every minute
 
 
 def main():
@@ -396,9 +401,7 @@ def main():
     if output_check.exists():
         for d in output_check.iterdir():
             if d.is_dir():
-                # Region name is folder name without "_product" suffix
                 region_name = d.name.replace('_product', '')
-                # Check if all 4 bands exist
                 tif_count = len(list(d.glob("*.tif")))
                 if tif_count == 4:
                     existing.add(region_name)
@@ -406,20 +409,39 @@ def main():
     print(f"Skipping {len(existing)} already downloaded regions")
     
     all_tasks = []
+    skipped = 0
+    
     for region_id, region_info in REGIONS.items():
         if region_id in existing:
-            print(f"  Skipping {region_info['name']} (already downloaded)")
+            skipped += 1
             continue
         tasks = export_region(region_id, region_info)
         if tasks:
             all_tasks.extend(tasks)
     
+    print(f"\nSkipped {skipped} existing regions")
+    
     if not all_tasks:
-        print("Nothing new to download")
+        print("Nothing new to download - all regions already have data")
         return
     
-    print(f"\nStarted {len(all_tasks)} export tasks")
+    print(f"\nStarted {len(all_tasks)} export tasks total")
+    print("\nIMPORTANT: Files will be saved to your Google Drive")
+    print("Folder: InfraNova_Landsat9")
+    print("\nMonitor at: https://code.earthengine.google.com/tasks")
+    
     monitor_tasks(all_tasks)
     
+    print("\n" + "="*60)
+    print("DOWNLOAD COMPLETE")
+    print("="*60)
+    print("\nNext steps:")
+    print("1. Go to: https://drive.google.com")
+    print("2. Find folder: InfraNova_Landsat9")
+    print("3. Download new files")
+    print("4. Run organize_files.py")
+    print("5. Run process_landsat_patches.py")
+
+
 if __name__ == '__main__':
     main()
