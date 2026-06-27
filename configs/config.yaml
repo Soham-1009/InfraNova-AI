@@ -13,10 +13,10 @@ dataset:
   num_workers: 0
 
 training:
-  epochs: 150
+  epochs: 250
   batch_size: 8
-  decay_start_epoch: 120
-  patience: 30
+  decay_start_epoch: 230
+  patience: 40
   amp: true
   grad_clip: 1.0
   sample_every: 5

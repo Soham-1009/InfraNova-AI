@@ -9,20 +9,20 @@ from torchvision.models import VGG19_Weights, vgg19
 
 
 class GANLoss(nn.Module):
-    """
-    GAN loss using BCEWithLogitsLoss for numerical stability.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self, label_smoothing: float = 0.1) -> None:
         super().__init__()
         self.criterion = nn.BCEWithLogitsLoss()
+        self.smoothing = label_smoothing
 
     def forward(
         self,
         predictions: torch.Tensor,
         target_is_real: bool,
     ) -> torch.Tensor:
-        target = torch.ones_like(predictions) if target_is_real else torch.zeros_like(predictions)
+        if target_is_real:
+            target = torch.ones_like(predictions) * (1.0 - self.smoothing)
+        else:
+            target = torch.zeros_like(predictions) + self.smoothing
         return self.criterion(predictions, target)
 
 

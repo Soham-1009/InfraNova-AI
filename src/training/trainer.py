@@ -43,6 +43,7 @@ class Trainer:
         self.beta2 = float(optim_cfg.get("beta2", 0.999))
         self.grad_clip = float(training_cfg.get("grad_clip", 1.0))
         self.sample_every = int(training_cfg.get("sample_every", 5))
+        self.total_epochs = int(training_cfg.get("epochs", 150))
 
         self.checkpoint_dir = Path(
             config.get("paths", {}).get("checkpoints", "checkpoints")
@@ -55,14 +56,17 @@ class Trainer:
         self.visual_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
+        # Generator optimizer - full learning rate
         self.optimizer_g = torch.optim.Adam(
             self.model.generator.parameters(),
             lr=self.lr,
             betas=(self.beta1, self.beta2),
         )
+
+        # Discriminator optimizer - half learning rate to prevent overpowering
         self.optimizer_d = torch.optim.Adam(
             self.model.discriminator.parameters(),
-            lr=self.lr,
+            lr=self.lr * 0.5,
             betas=(self.beta1, self.beta2),
         )
 
@@ -98,12 +102,12 @@ class Trainer:
 
         self.scheduler_g = LinearLRScheduler(
             self.optimizer_g,
-            total_epochs=int(training_cfg.get("epochs", 150)),
+            total_epochs=self.total_epochs,
             decay_start_epoch=int(training_cfg.get("decay_start", 100)),
         )
         self.scheduler_d = LinearLRScheduler(
             self.optimizer_d,
-            total_epochs=int(training_cfg.get("epochs", 150)),
+            total_epochs=self.total_epochs,
             decay_start_epoch=int(training_cfg.get("decay_start", 100)),
         )
 
@@ -178,12 +182,20 @@ class Trainer:
             ir = batch["ir"]
             rgb = batch["rgb"]
 
+            # ---- Train Discriminator ----
             self.optimizer_d.zero_grad(set_to_none=True)
 
             with autocast('cuda', enabled=self.scaler.is_enabled()):
                 fake_rgb = self.model.generate(ir).detach()
-                real_pred = self.model.discriminate(ir, rgb)
-                fake_pred = self.model.discriminate(ir, fake_rgb)
+
+                # Add noise to prevent discriminator overpowering
+                noise_std = max(0.1 * (1 - epoch / self.total_epochs), 0.01)
+                ir_noisy = ir + torch.randn_like(ir) * noise_std
+                rgb_noisy = rgb + torch.randn_like(rgb) * noise_std
+                fake_rgb_noisy = fake_rgb + torch.randn_like(fake_rgb) * noise_std
+
+                real_pred = self.model.discriminate(ir_noisy, rgb_noisy)
+                fake_pred = self.model.discriminate(ir_noisy, fake_rgb_noisy)
 
                 real_loss = self.criterion.gan_loss(real_pred, True)
                 fake_loss = self.criterion.gan_loss(fake_pred, False)
@@ -197,6 +209,7 @@ class Trainer:
             self.scaler.step(self.optimizer_d)
             d_loss_last = d_loss.detach()
 
+            # ---- Train Generator (NO noise) ----
             self.optimizer_g.zero_grad(set_to_none=True)
 
             with autocast('cuda', enabled=self.scaler.is_enabled()):
