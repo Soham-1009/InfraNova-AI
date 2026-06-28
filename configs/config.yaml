@@ -20,7 +20,7 @@ training:
   amp: true
   grad_clip: 1.0
   sample_every: 5
-  resume_from: ""
+  resume_from: "checkpoints/best/pix2pix_landsat_best.pth"
 
   optimizer:
     lr: 0.0002
