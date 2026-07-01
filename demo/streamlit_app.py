@@ -168,24 +168,6 @@ with st.sidebar:
     st.write("Team: InfraNova AI")
     st.write("Hackathon: Bharatiya Antariksh Hackathon 2026")
 
-# Sample images
-sample_dir = Path("data/landsat9/splits/test")
-if sample_dir.exists():
-    import numpy as np
-    test_samples = sorted(list(sample_dir.iterdir()))[:4]
-    
-    if test_samples:
-        st.markdown("### Quick Test with Sample Images")
-        cols = st.columns(len(test_samples))
-        
-        for i, (col, sample) in enumerate(zip(cols, test_samples)):
-            with col:
-                tir = np.load(sample / 'tir_100m.npy')
-                tir_display = ((tir - tir.min()) / (tir.max() - tir.min() + 1e-8) * 255).astype(np.uint8)
-                st.image(tir_display, caption=f"Sample {i+1}", use_container_width=True)
-                if st.button(f"Use Sample {i+1}", key=f"sample_{i}"):
-                    st.session_state['input_image'] = Image.fromarray(tir_display)
-                    st.session_state['from_sample'] = True
 
 # Upload section
 st.markdown("---")
