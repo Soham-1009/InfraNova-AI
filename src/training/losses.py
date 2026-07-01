@@ -199,7 +199,7 @@ class CombinedLoss(nn.Module):
 
         self.gan_loss = GANLoss()
         self.l1_loss = PixelL1Loss()
-        self.perc_loss = VGGPerceptualLoss()
+        self.perc_loss = VGGPerceptualLoss() if self.lambda_perc > 0 else None
         self.ssim_loss = SSIMLoss()
 
     def forward(
@@ -221,7 +221,10 @@ class CombinedLoss(nn.Module):
         """
         adv = self.gan_loss(disc_fake_pred, True)
         l1 = self.l1_loss(fake_rgb, real_rgb)
-        perc = self.perc_loss(fake_rgb, real_rgb)
+        if self.perc_loss is not None and fake_rgb.size(1) == 3 and real_rgb.size(1) == 3:
+            perc = self.perc_loss(fake_rgb, real_rgb)
+        else:
+            perc = fake_rgb.new_tensor(0.0)
         ssim = self.ssim_loss(fake_rgb, real_rgb)
 
         total = (

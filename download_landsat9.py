@@ -3,7 +3,6 @@ Download Landsat 9 TIR + RGB data via Google Drive export.
 """
 
 import ee
-import os
 import time
 from pathlib import Path
 
@@ -304,7 +303,7 @@ REGIONS = {
     'death_valley': {'lat': 36.5, 'lon': -117.0, 'name': 'Death Valley'},
 }
 
-print(f"Total regions: {len(REGIONS)}")
+TOTAL_REGIONS = len(REGIONS)
 
 
 BANDS = ['SR_B2', 'SR_B3', 'SR_B4', 'ST_B10']
@@ -325,6 +324,7 @@ def export_region(region_id, region_info):
         .filterBounds(point)
         .filterDate(START_DATE, END_DATE)
         .filter(ee.Filter.lt('CLOUD_COVER', 20))
+        .sort('CLOUD_COVER')
         .select(BANDS)
     )
     
@@ -360,7 +360,7 @@ def monitor_tasks(all_tasks):
     """Monitor export tasks until complete."""
     print("\n" + "="*60)
     print("Monitoring export tasks...")
-    print("This may take 6-8 hours for 200 regions")
+    print(f"This may take several hours for {len(all_tasks)} band exports")
     print("="*60)
     
     while True:
@@ -394,6 +394,7 @@ def monitor_tasks(all_tasks):
 def main():
     ee.Initialize(project=EE_PROJECT_ID)
     print("Earth Engine initialized")
+    print(f"Total regions configured: {TOTAL_REGIONS}")
     
     # Skip already downloaded regions
     existing = set()
@@ -439,7 +440,7 @@ def main():
     print("1. Go to: https://drive.google.com")
     print("2. Find folder: InfraNova_Landsat9")
     print("3. Download new files")
-    print("4. Run organize_files.py")
+    print("4. Run organize_files.py --source <downloaded Drive folder>")
     print("5. Run process_landsat_patches.py")
 
 

@@ -10,13 +10,13 @@ from pathlib import Path
 # Patch size configuration
 PATCH_SIZE_200M = 64   # Input patch size at 200m
 PATCH_SIZE_100M = 128  # Output patch size at 100m (2x)
-STRIDE = 16            # 50% overlap
+STRIDE = 16            # 75% overlap
 
 
 def downscale_image(image, factor):
     h, w = image.shape[-2:]
-    new_h = int(h / factor)
-    new_w = int(w / factor)
+    new_h = max(1, int(h / factor))
+    new_w = max(1, int(w / factor))
     
     if image.ndim == 2:
         return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
@@ -38,7 +38,7 @@ def process_region(region_dir, output_dir):
     region_id = region_dir.name.replace('_product', '')
     print(f"\nProcessing {region_id}...")
     
-    files = list(region_dir.glob("*.tif"))
+    files = sorted(region_dir.glob("*.tif"))
     b2 = next((f for f in files if 'SR_B2' in f.name), None)
     b3 = next((f for f in files if 'SR_B3' in f.name), None)
     b4 = next((f for f in files if 'SR_B4' in f.name), None)
@@ -97,6 +97,11 @@ def main():
     input_dir = Path("data/landsat9/input")
     output_dir = Path("data/landsat9/patches")
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not input_dir.exists():
+        print(f"Input directory not found: {input_dir}")
+        print("Download and organize Landsat exports before processing patches.")
+        return
     
     regions = [d for d in input_dir.iterdir() if d.is_dir()]
     

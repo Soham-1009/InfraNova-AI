@@ -6,6 +6,21 @@ from typing import Any, Dict, Tuple, Union
 import torch
 
 
+def load_torch_checkpoint(path: Union[str, Path], map_location: Any = "cpu") -> Any:
+    """
+    Load a PyTorch checkpoint using the safer weights-only path when available.
+
+    PyTorch 2.4+ warns when `weights_only` is omitted. The fallback keeps older
+    PyTorch versions and legacy checkpoint files usable.
+    """
+    try:
+        return torch.load(path, map_location=map_location, weights_only=True)
+    except TypeError:
+        return torch.load(path, map_location=map_location)
+    except Exception:
+        return torch.load(path, map_location=map_location, weights_only=False)
+
+
 def save_checkpoint(
     model: torch.nn.Module,
     optimizer: Union[torch.optim.Optimizer, Dict[str, torch.optim.Optimizer]],
@@ -64,7 +79,7 @@ def load_checkpoint(
     Returns:
         (epoch, metrics)
     """
-    checkpoint = torch.load(path, map_location="cpu")
+    checkpoint = load_torch_checkpoint(path, map_location="cpu")
 
     model.load_state_dict(checkpoint["model_state_dict"])
 

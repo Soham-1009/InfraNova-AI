@@ -210,7 +210,7 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
     # Reset LR to configured base LR before schedule steps
     base_lr = float(training_cfg["optimizer"]["lr"])
     _set_optimizer_lr(trainer.optimizer_g, base_lr)
-    _set_optimizer_lr(trainer.optimizer_d, base_lr)
+    _set_optimizer_lr(trainer.optimizer_d, base_lr * 0.5)
 
     scheduler_g = LinearLRScheduler(
         optimizer=trainer.optimizer_g,

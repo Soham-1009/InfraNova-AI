@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in os.sys.path:
     os.sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.pix2pix.pix2pix import Pix2Pix
+from src.utils.checkpoint import load_torch_checkpoint
 from demo.utils import postprocess_output, preprocess_ir_image
 
 
@@ -30,7 +31,7 @@ class InferenceEngine:
 
     def __init__(
         self,
-        checkpoint_path: str = "checkpoints/best/pix2pix_best.pth",
+        checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
         device: Optional[str] = None,
         image_size: int = 256,
     ) -> None:
@@ -57,7 +58,7 @@ class InferenceEngine:
         # Create model on selected device
         model = Pix2Pix(device=self.device)
 
-        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
 
         # Support common checkpoint formats
         if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
@@ -122,8 +123,7 @@ class InferenceEngine:
             PIL RGB image.
         """
         model = self.load_model()
-        pil_image = self._to_pil_or_array(image)
-        ir_tensor = preprocess_ir_image(pil_image, image_size=self.image_size).to(self.device)
+        ir_tensor = preprocess_ir_image(image, image_size=self.image_size).to(self.device)
 
         if not use_tta:
             fake_rgb = model.generate(ir_tensor)
@@ -131,12 +131,6 @@ class InferenceEngine:
 
         # TTA: average predictions across a small set of geometric transforms.
         # For each transform, we invert the transform on the output before averaging.
-        aug_ops = [
-            ("orig", lambda x: x, lambda x: x),
-            ("hflip", torch.flip, torch.flip),
-            ("vflip", lambda x, dims: torch.flip(x, dims=dims), lambda x, dims: torch.flip(x, dims=dims)),
-        ]
-
         preds: List[torch.Tensor] = []
 
         # Original

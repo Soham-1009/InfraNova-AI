@@ -10,6 +10,7 @@ import torch
 from PIL import Image
 
 from src.models.pix2pix.pix2pix import Pix2Pix
+from src.utils.checkpoint import load_torch_checkpoint
 
 try:
     import rasterio
@@ -61,7 +62,7 @@ class LandsatColorizationInference:
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
         model = Pix2Pix(device=self.device, in_channels=1, out_channels=3)
-        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
 
         if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
             state_dict = checkpoint["model_state_dict"]
@@ -92,8 +93,11 @@ class LandsatColorizationInference:
             arr = image
             if arr.ndim == 2:
                 return arr
-            if arr.ndim == 3 and arr.shape[2] >= 1:
-                return arr[:, :, 0]
+            if arr.ndim == 3:
+                if arr.shape[0] in (1, 3, 4) and arr.shape[-1] not in (1, 3, 4):
+                    return arr[0]
+                if arr.shape[2] >= 1:
+                    return arr[:, :, 0]
             raise ValueError(f"Unsupported NumPy image shape: {arr.shape}")
 
         raise TypeError("Input must be PIL.Image.Image or numpy.ndarray")
@@ -116,6 +120,7 @@ class LandsatColorizationInference:
             arr = (arr - lo) / (hi - lo)
 
         arr = cv2.resize(arr, (self.image_size, self.image_size), interpolation=cv2.INTER_CUBIC)
+        arr = np.clip(arr, 0.0, 1.0)
         arr = arr * 2.0 - 1.0  # [-1, 1]
 
         tensor = torch.from_numpy(arr).float().unsqueeze(0).unsqueeze(0)  # [1, 1, H, W]
@@ -214,7 +219,7 @@ class LandsatColorizationInference:
             rgb = self._denormalize_rgb(y_mean)
             confidence = self._confidence_from_tta(preds_np)
 
-        pil_rgb = Image.fromarray(rgb, mode="RGB")
+        pil_rgb = Image.fromarray(rgb)
         bgr_for_tiff = rgb[:, :, ::-1].copy()  # Layer 1=B, Layer 2=G, Layer 3=R
 
         return {
@@ -253,7 +258,7 @@ class LandsatColorizationInference:
         else:
             # Fallback: PIL save. Band order is preserved in the array, but
             # raster semantics depend on the reader. Rasterio is preferred.
-            Image.fromarray(bgr_array[:, :, ::-1], mode="RGB").save(path)
+            Image.fromarray(bgr_array[:, :, ::-1]).save(path)
 
         return str(path)
 

@@ -4,4 +4,4 @@ torchvision
 pillow
 numpy
 opencv-python
-streamlit-image-comparisonpip 
+streamlit-image-comparison

@@ -1,71 +1,119 @@
 """
-Split patches into train/val/test sets.
+Split region patch folders into train/val/test sets.
+
+The split is region-level by default to avoid geography leakage: patches from
+one source region must not appear in both train and validation/test sets.
 """
 
+from __future__ import annotations
+
+import argparse
+import random
 import shutil
 from pathlib import Path
-import random
+from typing import Dict, List
+
 
 PATCHES_DIR = Path("data/landsat9/patches")
 OUTPUT_DIR = Path("data/landsat9/splits")
 
-# 80/10/10 split
 TRAIN_RATIO = 0.8
 VAL_RATIO = 0.1
-
-random.seed(42)
-
-
-def main():
-    # Collect all patches with their source region
-    all_patches = []
-    
-    for region_dir in PATCHES_DIR.iterdir():
-        if not region_dir.is_dir():
-            continue
-        for sample_dir in region_dir.glob("sample_*"):
-            all_patches.append((region_dir.name, sample_dir))
-    
-    print(f"Total patches found: {len(all_patches)}")
-    
-    # Shuffle
-    random.shuffle(all_patches)
-    
-    # Split
-    n_train = int(len(all_patches) * TRAIN_RATIO)
-    n_val = int(len(all_patches) * VAL_RATIO)
-    
-    train_patches = all_patches[:n_train]
-    val_patches = all_patches[n_train:n_train + n_val]
-    test_patches = all_patches[n_train + n_val:]
-    
-    print(f"Train: {len(train_patches)}")
-    print(f"Val:   {len(val_patches)}")
-    print(f"Test:  {len(test_patches)}")
-    
-    # Create split folders with symlinks (or copies)
-    for split_name, patches in [
-        ('train', train_patches),
-        ('val', val_patches),
-        ('test', test_patches),
-    ]:
-        split_dir = OUTPUT_DIR / split_name
-        split_dir.mkdir(parents=True, exist_ok=True)
-        
-        for idx, (region, sample_dir) in enumerate(patches):
-            target_name = f"{region}_{sample_dir.name}_{idx:05d}"
-            target_dir = split_dir / target_name
-            
-            if target_dir.exists():
-                continue
-            
-            # Copy patch folder
-            shutil.copytree(sample_dir, target_dir)
-        
-        print(f"  {split_name}: {len(list(split_dir.iterdir()))} folders")
-    
-    print("\nDone")
+SPLITS = ("train", "val", "test")
 
 
-if __name__ == '__main__':
+def collect_region_dirs(patches_dir: Path) -> List[Path]:
+    if not patches_dir.exists():
+        raise FileNotFoundError(f"Patch directory not found: {patches_dir}")
+
+    region_dirs = [
+        region_dir
+        for region_dir in sorted(patches_dir.iterdir())
+        if region_dir.is_dir() and any(region_dir.glob("sample_*"))
+    ]
+
+    if not region_dirs:
+        raise ValueError(f"No patch samples found in {patches_dir}")
+
+    return region_dirs
+
+
+def split_regions(region_dirs: List[Path], seed: int) -> Dict[str, List[Path]]:
+    shuffled = region_dirs[:]
+    rng = random.Random(seed)
+    rng.shuffle(shuffled)
+
+    n_total = len(shuffled)
+    n_train = int(n_total * TRAIN_RATIO)
+    n_val = int(n_total * VAL_RATIO)
+
+    return {
+        "train": shuffled[:n_train],
+        "val": shuffled[n_train : n_train + n_val],
+        "test": shuffled[n_train + n_val :],
+    }
+
+
+def prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
+    existing_splits = [output_dir / split for split in SPLITS if (output_dir / split).exists()]
+    if existing_splits and not overwrite:
+        existing = ", ".join(str(path) for path in existing_splits)
+        raise FileExistsError(
+            f"Existing split folders found: {existing}. "
+            "Use --overwrite to rebuild them."
+        )
+
+    if output_dir.exists() and overwrite:
+        shutil.rmtree(output_dir)
+
+    for split in SPLITS:
+        (output_dir / split).mkdir(parents=True, exist_ok=True)
+
+
+def copy_split(split_name: str, region_dirs: List[Path], output_dir: Path) -> int:
+    split_dir = output_dir / split_name
+    count = 0
+
+    for region_dir in region_dirs:
+        for sample_dir in sorted(region_dir.glob("sample_*")):
+            target_name = f"{region_dir.name}_{sample_dir.name}_{count:05d}"
+            shutil.copytree(sample_dir, split_dir / target_name)
+            count += 1
+
+    return count
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Create region-level Landsat patch splits.")
+    parser.add_argument("--patches-dir", default=str(PATCHES_DIR))
+    parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Delete existing split folders before creating new ones.",
+    )
+    args = parser.parse_args()
+
+    patches_dir = Path(args.patches_dir)
+    output_dir = Path(args.output_dir)
+
+    region_dirs = collect_region_dirs(patches_dir)
+    region_splits = split_regions(region_dirs, seed=args.seed)
+
+    print(f"Regions found: {len(region_dirs)}")
+    for split in SPLITS:
+        sample_count = sum(1 for region_dir in region_splits[split] for _ in region_dir.glob("sample_*"))
+        print(f"{split.title()}: {len(region_splits[split])} regions, {sample_count} patches")
+
+    prepare_output_dir(output_dir, overwrite=args.overwrite)
+
+    for split in SPLITS:
+        copied = copy_split(split, region_splits[split], output_dir)
+        print(f"  {split}: wrote {copied} folders")
+
+    print("Done")
+
+
+if __name__ == "__main__":
     main()

@@ -129,11 +129,12 @@ For RGB, we simply rescale from [0,255] to [−1,1] using \(x = I/127.5 - 1\), a
 
 ---
 
-### 6. Expected Training Dynamics for 1800 Samples
+### 6. Expected Training Dynamics for 9,936 Samples
 
-**Batch size 8, 100 epochs**:
-- Effective dataset size after augmentation ≈ 1800 × 8 (flips/rotations) ≈ 14 400 unique views per epoch.
-- Pix2Pix converges when it has seen 20–50 passes of the effective dataset. 14 400 × 30 ≈ 430 000 training steps. With batch size 8, that’s 430 000/8 ≈ 53 750 iterations. At 1800/8 = 225 iterations per epoch, this corresponds to ~240 epochs. So **100 epochs is a lower bound**; convergence may be borderline. I recommend training for **150 epochs** with early stopping, or using a larger batch size (if memory permits) to see more data per epoch.
+**Batch size 8, 250 epochs**:
+- The current Landsat 9 split contains 9,936 paired patches before geometric augmentation.
+- With batch size 8, the training split has roughly 994 iterations per epoch. A 250-epoch schedule gives enough optimizer steps for Pix2Pix convergence while still relying on validation SSIM and early stopping to avoid overfitting.
+- The learning rate stays constant through most of training and linearly decays after epoch 230, matching `configs/config.yaml`.
 
 **Expected loss curves shape:**
 - \(\mathcal{L}_D\): rapid drop, then gradual rise as generator improves, eventually stabilising ~0.2–0.5.
@@ -240,11 +241,11 @@ This comparative evaluation will convincingly prove the value of our approach.
 
 - **Physics‑aware loss weights:** \(\lambda_{\text{adv}}=1.0, \lambda_{L1}=50, \lambda_{\text{perc}}=20, \lambda_{\text{SSIM}}=3\).
 - **Normalisation:** Dataset‑wide percentile stretching for TIR, standard [−1,1] for RGB.
-- **Stratified split:** biome‑based group shuffle to ensure all climate types in all sets.
+- **Split strategy:** region‑level train/val/test splitting to prevent patches from the same geography leaking across evaluation sets. Add biome stratification once biome labels are available.
 - **Augmentation:** Flips, rotations, small Gaussian noise on TIR.
 - **Super‑resolution:** Joint 2× upscaling + colorisation in one U‑Net generator.
 - **Evaluation:** LPIPS, FID, object detection mAP, edge preservation index; SSIM only as secondary.
 - **Targets:** SSIM ≥0.25, PSNR ≥22 dB, LPIPS ≤0.25, detection mAP +25% over TIR baseline.
-- **Training:** 150 epochs, early stopping on \((1-\text{LPIPS})\times\text{SSIM}\).
+- **Training:** 250 epochs with linear LR decay from epoch 230 and early stopping on validation SSIM.
 
 These recommendations are mathematically sound and tuned for the thermal infrared domain. They will form the core methodology for our ISRO submission.

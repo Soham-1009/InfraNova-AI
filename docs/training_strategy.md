@@ -1,4 +1,4 @@
-## 1. Training Timeline (150 Epochs)
+## 1. Training Timeline (250 Epochs)
 
 Training a GAN is not like training a standard classifier; the loss curves will not smoothly drop to zero. Here is the expected visual progression:
 
@@ -6,7 +6,8 @@ Training a GAN is not like training a standard classifier; the loss curves will 
 - **Epoch 10-30 (First Colours):** Discriminator forces real colours. "Blobs" of green for vegetation and grey for roads appear, but boundaries bleed.
 - **Epoch 30-60 (Structural Improvement):** Model learns IR-to-geometry mapping. Building footprints and road networks become sharply defined.
 - **Epoch 60-100 (Fine Textures):** High-frequency details emerge. Canopy texture of trees, lane markings, vehicle outlines visible.
-- **Epoch 100-150 (Final Refinement):** Colour bleeding stops. Model achieves perceptual realism. Stop when validation SSIM plateaus.
+- **Epoch 100-230 (Final Refinement):** Colour bleeding stops. Model achieves perceptual realism while the learning rate is still constant.
+- **Epoch 230-250 (LR Decay):** Linearly decay the learning rate to stabilize the final checkpoint. Stop earlier if validation SSIM plateaus for the configured patience window.
 
 ---
 
@@ -76,7 +77,7 @@ Colab instances wipe data on disconnect. MUST save to Google Drive.
 
 Don't wait until Day 13. Capture during Day 5-7 training:
 
-1. **The Evolution GIF:** W&B logged images from Epoch 1, 10, 50, 150 stitched into 4-second GIF
+1. **The Evolution GIF:** W&B logged images from Epoch 1, 10, 50, 150, 250 stitched into 4-second GIF
 2. **The "Ah-Ha" Graph:** Screenshot of D and G equilibrium point (~Epoch 40)
 3. **Before/After Grids:** Raw IR vs generated RGB, highlight cases where human interpretation fails (dark road vs dark river)
 

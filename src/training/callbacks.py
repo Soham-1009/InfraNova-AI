@@ -38,7 +38,7 @@ class ModelCheckpoint:
         metrics: Dict[str, float],
         scaler: Optional[Any] = None,
     ) -> None:
-        latest_path = self.checkpoint_dir / "latest" / "pix2pix_latest.pth"
+        latest_path = self.checkpoint_dir / "latest" / "pix2pix_landsat_latest.pth"
         save_checkpoint(
             model=model,
             optimizer=optimizers,
@@ -51,7 +51,7 @@ class ModelCheckpoint:
         score = float(metrics.get(self.monitor, 0.0))
         if self._is_improved(score):
             self.best_score = score
-            best_path = self.checkpoint_dir / "best" / "pix2pix_best.pth"
+            best_path = self.checkpoint_dir / "best" / "pix2pix_landsat_best.pth"
             save_checkpoint(
                 model=model,
                 optimizer=optimizers,

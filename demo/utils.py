@@ -9,6 +9,17 @@ import torch
 from PIL import Image
 
 
+def _normalize_to_uint8(arr: np.ndarray, low: float = 2.0, high: float = 98.0) -> np.ndarray:
+    """Percentile-stretch a single-channel array to uint8 for display."""
+    arr = arr.astype(np.float32)
+    lo = np.percentile(arr, low)
+    hi = np.percentile(arr, high)
+    if hi - lo < 1e-6:
+        return np.zeros_like(arr, dtype=np.uint8)
+    arr = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
+    return (arr * 255.0).round().astype(np.uint8)
+
+
 def preprocess_ir_image(
     image: Union[Image.Image, np.ndarray],
     image_size: int = 256,
@@ -24,19 +35,24 @@ def preprocess_ir_image(
         Tensor of shape [1, 1, image_size, image_size] in [-1, 1].
     """
     if isinstance(image, Image.Image):
-        arr = np.array(image.convert("L"))
+        arr = np.array(image.convert("L"), dtype=np.float32)
     elif isinstance(image, np.ndarray):
-        arr = image
+        arr = image.astype(np.float32)
         if arr.ndim == 3:
-            arr = arr[:, :, 0]
-        if arr.dtype != np.uint8:
-            arr = np.clip(arr, 0, 255).astype(np.uint8)
+            arr = arr[0] if arr.shape[0] in (1, 3, 4) and arr.shape[-1] not in (1, 3, 4) else arr[:, :, 0]
     else:
         raise TypeError("image must be PIL.Image.Image or numpy.ndarray")
 
+    lo = np.percentile(arr, 2.0)
+    hi = np.percentile(arr, 98.0)
+    if hi - lo < 1e-6:
+        arr = np.zeros_like(arr, dtype=np.float32)
+    else:
+        arr = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
+
     arr = cv2.resize(arr, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
-    arr = arr.astype(np.float32) / 255.0
-    arr = (arr - 0.5) / 0.5  # [-1, 1]
+    arr = np.clip(arr, 0.0, 1.0)
+    arr = arr.astype(np.float32) * 2.0 - 1.0
 
     tensor = torch.from_numpy(arr).unsqueeze(0).unsqueeze(0)  # [1,1,H,W]
     return tensor
@@ -60,7 +76,7 @@ def postprocess_output(tensor: torch.Tensor) -> Image.Image:
     tensor = tensor.permute(1, 2, 0).numpy()
     tensor = (tensor * 255.0).round().astype(np.uint8)
 
-    return Image.fromarray(tensor, mode="RGB")
+    return Image.fromarray(tensor)
 
 
 def enhance_output(image: Image.Image) -> Image.Image:
@@ -116,6 +132,8 @@ def visualize_tir_as_thermal(image: Union[Image.Image, np.ndarray]) -> Image.Ima
         arr = np.array(image.convert("L"))
     else:
         arr = image if image.ndim == 2 else image[:, :, 0]
+        if arr.dtype != np.uint8:
+            arr = _normalize_to_uint8(arr)
     
     # Apply thermal colormap (cv2.COLORMAP_JET or COLORMAP_INFERNO)
     colored = cv2.applyColorMap(arr, cv2.COLORMAP_INFERNO)

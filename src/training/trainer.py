@@ -70,11 +70,12 @@ class Trainer:
             betas=(self.beta1, self.beta2),
         )
 
+        loss_cfg = training_cfg.get("loss", training_cfg)
         self.criterion = CombinedLoss(
-            lambda_adv=float(training_cfg.get("lambda_adv", 0.5)),
-            lambda_l1=float(training_cfg.get("lambda_l1", 100.0)),
-            lambda_perc=float(training_cfg.get("lambda_perc", 10.0)),
-            lambda_ssim=float(training_cfg.get("lambda_ssim", 3.0)),
+            lambda_adv=float(loss_cfg.get("lambda_adv", 0.5)),
+            lambda_l1=float(loss_cfg.get("lambda_l1", 100.0)),
+            lambda_perc=float(loss_cfg.get("lambda_perc", 10.0)),
+            lambda_ssim=float(loss_cfg.get("lambda_ssim", 3.0)),
         ).to(self.device)
 
         amp_enabled = bool(training_cfg.get("amp", True)) and self.device.type == "cuda"
@@ -103,12 +104,12 @@ class Trainer:
         self.scheduler_g = LinearLRScheduler(
             self.optimizer_g,
             total_epochs=self.total_epochs,
-            decay_start_epoch=int(training_cfg.get("decay_start", 100)),
+            decay_start_epoch=int(training_cfg.get("decay_start_epoch", 100)),
         )
         self.scheduler_d = LinearLRScheduler(
             self.optimizer_d,
             total_epochs=self.total_epochs,
-            decay_start_epoch=int(training_cfg.get("decay_start", 100)),
+            decay_start_epoch=int(training_cfg.get("decay_start_epoch", 100)),
         )
 
         self.start_epoch = 0
