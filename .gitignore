@@ -71,3 +71,5 @@ Thumbs.db
 
 # Hugging Face cache
 ~/.cache/huggingface/
+
+streamlit run demo/streamlit_app.py

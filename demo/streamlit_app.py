@@ -346,7 +346,7 @@ with col_m5:
     st.markdown("""
     <div class="metric-card">
         <div class="metric-label">🌍  Regions</div>
-        <div class="metric-value">276</div>
+        <div class="metric-value">250</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -364,7 +364,7 @@ with col_t1:
             <li>Satellite: Landsat 9 (NASA/USGS)</li>
             <li>Input: Band 10 Thermal Infrared (10.9 μm)</li>
             <li>Output: Bands 2,3,4 (Blue, Green, Red)</li>
-            <li>Regions: 100 Indian + 116 International + 60 Landscapes</li>
+            <li>Regions: 100 Indian + 90 International + 60 Landscapes</li>
             <li>Patches: 9,936 paired samples</li>
         </ul>
     </div>
