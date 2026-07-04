@@ -20,12 +20,84 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-st.markdown("""
+_, theme_col = st.columns([0.78, 0.22])
+with theme_col:
+    light_mode = st.toggle("Light mode", value=False, key="light_mode")
+
+if light_mode:
+    theme = {
+        "background": "radial-gradient(circle at top left, rgba(185, 116, 47, 0.22), transparent 34%), linear-gradient(135deg, #f7f2e8 0%, #edf3ef 52%, #f8efe4 100%)",
+        "panel": "rgba(255, 255, 255, 0.74)",
+        "panel_soft": "rgba(255, 255, 255, 0.52)",
+        "text": "#17201f",
+        "muted": "rgba(23, 32, 31, 0.64)",
+        "border": "rgba(45, 68, 64, 0.18)",
+        "button_bg": "#173f3a",
+        "button_hover": "#235f56",
+        "button_text": "#fffaf0",
+        "accent": "#a95824",
+        "shadow": "0 18px 58px rgba(42, 53, 50, 0.12)",
+    }
+else:
+    theme = {
+        "background": "radial-gradient(circle at top left, rgba(44, 119, 109, 0.35), transparent 34%), linear-gradient(135deg, #07100f 0%, #101816 52%, #1a1710 100%)",
+        "panel": "rgba(255, 255, 255, 0.055)",
+        "panel_soft": "rgba(255, 255, 255, 0.035)",
+        "text": "#f2f6f3",
+        "muted": "rgba(242, 246, 243, 0.66)",
+        "border": "rgba(255, 255, 255, 0.13)",
+        "button_bg": "#d88b3d",
+        "button_hover": "#ef9d48",
+        "button_text": "#111512",
+        "accent": "#e6a04a",
+        "shadow": "0 18px 58px rgba(0, 0, 0, 0.28)",
+    }
+
+theme_css = """
 <style>
+    :root {
+        --app-background: __background__;
+        --app-panel: __panel__;
+        --app-panel-soft: __panel_soft__;
+        --app-text: __text__;
+        --app-muted: __muted__;
+        --app-border: __border__;
+        --app-button-bg: __button_bg__;
+        --app-button-hover: __button_hover__;
+        --app-button-text: __button_text__;
+        --app-accent: __accent__;
+        --app-shadow: __shadow__;
+    }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
+
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarNav"],
+    [data-testid="collapsedControl"] {
+        display: none;
+    }
+
+    .stApp {
+        background: var(--app-background);
+        color: var(--app-text);
+    }
+
+    .stApp h1,
+    .stApp h2,
+    .stApp h3,
+    .stApp h4,
+    .stApp h5,
+    .stApp h6,
+    .stApp p,
+    .stApp li,
+    .stApp label,
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stMarkdownContainer"] * {
+        color: var(--app-text);
+    }
+
     .main { padding: 0rem 2rem; }
     
     .block-container {
@@ -39,7 +111,7 @@ st.markdown("""
         align-items: center;
         gap: 1rem;
         padding: 1rem 0;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+        border-bottom: 1px solid var(--app-border);
         margin-bottom: 1rem;
     }
     
@@ -47,46 +119,51 @@ st.markdown("""
     
     .app-subtitle {
         font-size: 0.85rem;
-        opacity: 0.6;
+        color: var(--app-muted);
         letter-spacing: 2px;
         text-transform: uppercase;
         margin: 0;
     }
     
     [data-testid="stFileUploader"] {
-        border: 2px dashed rgba(255,255,255,0.2);
+        border: 2px dashed var(--app-border);
         border-radius: 12px;
         padding: 2rem;
         text-align: center;
-        background: rgba(255,255,255,0.02);
+        background: var(--app-panel-soft);
+        box-shadow: var(--app-shadow);
     }
     
-    .stButton > button {
+    .stButton > button,
+    .stDownloadButton > button {
         width: 100%;
         border-radius: 8px;
         padding: 0.5rem 1rem;
         font-weight: 600;
-        border: 1px solid rgba(255,255,255,0.2);
-        background: transparent;
-        color: white;
+        border: 1px solid var(--app-border);
+        background: var(--app-button-bg) !important;
+        color: var(--app-button-text) !important;
     }
     
-    .stButton > button:hover {
-        background: rgba(255,255,255,0.05);
-        border-color: rgba(255,255,255,0.4);
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        background: var(--app-button-hover) !important;
+        border-color: var(--app-accent);
+        color: var(--app-button-text) !important;
     }
     
     .metric-card {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.1);
+        background: var(--app-panel);
+        border: 1px solid var(--app-border);
         border-radius: 10px;
         padding: 1rem;
         text-align: left;
+        box-shadow: var(--app-shadow);
     }
     
     .metric-label {
         font-size: 0.75rem;
-        opacity: 0.6;
+        color: var(--app-muted);
         text-transform: uppercase;
         letter-spacing: 1px;
         margin-bottom: 0.3rem;
@@ -96,23 +173,40 @@ st.markdown("""
     
     .image-label {
         font-size: 0.85rem;
-        opacity: 0.7;
+        color: var(--app-muted);
         text-transform: uppercase;
         letter-spacing: 1px;
         margin-bottom: 0.5rem;
     }
     
-    hr { margin: 1.5rem 0; opacity: 0.2; }
+    hr { margin: 1.5rem 0; border-color: var(--app-border); opacity: 1; }
     
     .info-box {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.1);
+        background: var(--app-panel);
+        border: 1px solid var(--app-border);
         border-radius: 10px;
         padding: 1.2rem;
         margin-top: 1rem;
+        box-shadow: var(--app-shadow);
+    }
+
+    [data-testid="stAlert"] {
+        background: var(--app-panel-soft);
+        border: 1px solid var(--app-border);
+        color: var(--app-text);
+    }
+
+    [data-testid="stImage"] img {
+        border-radius: 8px;
+        border: 1px solid var(--app-border);
     }
 </style>
-""", unsafe_allow_html=True)
+"""
+
+for key, value in theme.items():
+    theme_css = theme_css.replace(f"__{key}__", value)
+
+st.markdown(theme_css, unsafe_allow_html=True)
 
 # Header
 st.markdown("""
@@ -137,36 +231,15 @@ except Exception as e:
 def get_engine():
     return InferenceEngine(checkpoint_path="checkpoints/best/pix2pix_landsat_best.pth")
 
-
-# Sidebar
-with st.sidebar:
-    st.header("About InfraNova AI")
-    st.write("ISRO BAH 2026")
-    st.write("Thermal Infrared to RGB Translation")
-    
-    st.subheader("Model")
-    st.write("Pix2Pix Conditional GAN")
-    st.write("57M parameters")
-    st.write("Trained on 276 global regions")
-    st.write("9,936 paired patches")
-    
-    st.subheader("Architecture")
-    st.write("- U-Net Generator (54M params)")
-    st.write("- PatchGAN Discriminator (2.8M params)")
-    st.write("- Combined L1 + Adversarial + Perceptual + SSIM loss")
-    
-    st.subheader("Performance")
-    st.write("- SSIM: 0.695")
-    st.write("- PSNR: 18.52 dB")
-    st.write("- 250 training epochs")
-    
-    st.subheader("Options")
-    use_tta = st.checkbox("Enable TTA (better quality, 4x slower)", value=False)
-    use_enhance = st.checkbox("Auto Enhance (CLAHE)", value=False)
-    
-    st.divider()
-    st.write("Team: InfraNova AI")
-    st.write("Hackathon: Bharatiya Antariksh Hackathon 2026")
+opt_col1, opt_col2, opt_col3, opt_col4 = st.columns([0.23, 0.23, 0.27, 0.27])
+with opt_col1:
+    use_tta = st.toggle("Enable TTA", value=False, help="Averages flipped predictions for better quality. Slower.")
+with opt_col2:
+    use_enhance = st.toggle("Auto Enhance", value=False, help="Applies CLAHE contrast enhancement after generation.")
+with opt_col3:
+    st.markdown('<p class="image-label">Pix2Pix Conditional GAN</p>', unsafe_allow_html=True)
+with opt_col4:
+    st.markdown('<p class="image-label">57M parameters / 9,936 patches</p>', unsafe_allow_html=True)
 
 
 # Upload section
