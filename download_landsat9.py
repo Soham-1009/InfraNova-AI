@@ -9,7 +9,7 @@ from pathlib import Path
 EE_PROJECT_ID = "infranova-ai"  # Update if your project ID differs
 
 REGIONS = {
-    # Existing 20 Indian cities
+    # 100 Indian cities
     'mumbai': {'lat': 19.0760, 'lon': 72.8777, 'name': 'Mumbai'},
     'delhi': {'lat': 28.6139, 'lon': 77.2090, 'name': 'Delhi'},
     'bangalore': {'lat': 12.9716, 'lon': 77.5946, 'name': 'Bangalore'},
@@ -30,8 +30,6 @@ REGIONS = {
     'kochi': {'lat': 9.9312, 'lon': 76.2673, 'name': 'Kochi'},
     'guwahati': {'lat': 26.1445, 'lon': 91.7362, 'name': 'Guwahati'},
     'chandigarh': {'lat': 30.7333, 'lon': 76.7794, 'name': 'Chandigarh'},
-    
-    # New Indian cities (80 more, total 100)
     'amritsar': {'lat': 31.6340, 'lon': 74.8723, 'name': 'Amritsar'},
     'varanasi': {'lat': 25.3176, 'lon': 82.9739, 'name': 'Varanasi'},
     'agra': {'lat': 27.1767, 'lon': 78.0081, 'name': 'Agra'},
@@ -138,7 +136,7 @@ REGIONS = {
     'silvassa': {'lat': 20.2738, 'lon': 73.0140, 'name': 'Silvassa'},
     'daman': {'lat': 20.3974, 'lon': 72.8328, 'name': 'Daman'},
     
-    # Existing 20 international cities
+    # 90 international cities
     'tokyo': {'lat': 35.6762, 'lon': 139.6503, 'name': 'Tokyo'},
     'newyork': {'lat': 40.7128, 'lon': -74.0060, 'name': 'New York'},
     'london': {'lat': 51.5074, 'lon': -0.1278, 'name': 'London'},
@@ -159,8 +157,6 @@ REGIONS = {
     'losangeles': {'lat': 34.0522, 'lon': -118.2437, 'name': 'Los Angeles'},
     'toronto': {'lat': 43.6532, 'lon': -79.3832, 'name': 'Toronto'},
     'buenosaires': {'lat': -34.6037, 'lon': -58.3816, 'name': 'Buenos Aires'},
-    
-    # 70 new international cities
     'sao_paulo': {'lat': -23.5505, 'lon': -46.6333, 'name': 'Sao Paulo'},
     'lima': {'lat': -12.0464, 'lon': -77.0428, 'name': 'Lima'},
     'bogota': {'lat': 4.7110, 'lon': -74.0721, 'name': 'Bogota'},
@@ -238,7 +234,7 @@ REGIONS = {
     'perth': {'lat': -31.9505, 'lon': 115.8605, 'name': 'Perth'},
     'auckland': {'lat': -36.8485, 'lon': 174.7633, 'name': 'Auckland'},
     
-    # 60 landscapes (50 new + 10 existing)
+    # 60 landscapes
     'amazon': {'lat': -3.4653, 'lon': -62.2159, 'name': 'Amazon'},
     'sahara': {'lat': 23.4162, 'lon': 25.6628, 'name': 'Sahara'},
     'himalayas': {'lat': 27.9881, 'lon': 86.9250, 'name': 'Himalayas'},
@@ -249,7 +245,6 @@ REGIONS = {
     'congo': {'lat': -2.0, 'lon': 23.0, 'name': 'Congo'},
     'siberia': {'lat': 60.0, 'lon': 100.0, 'name': 'Siberia'},
     'gobi': {'lat': 42.0, 'lon': 105.0, 'name': 'Gobi'},
-    
     'western_ghats': {'lat': 13.0, 'lon': 75.0, 'name': 'Western Ghats'},
     'eastern_ghats': {'lat': 17.0, 'lon': 82.0, 'name': 'Eastern Ghats'},
     'aravalli': {'lat': 25.0, 'lon': 73.0, 'name': 'Aravalli Range'},
