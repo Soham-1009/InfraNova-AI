@@ -1,4 +1,9 @@
 # Deep Learning Core
+# Choose one PyTorch build before installing the rest of the dependencies:
+# CPU build:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# CUDA 12.1 build:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 torch
 torchvision
 torchaudio

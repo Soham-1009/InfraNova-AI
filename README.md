@@ -85,6 +85,24 @@ Or run commands directly through the environment:
 venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
+### PyTorch Install Options
+
+`requirements.txt` keeps the PyTorch packages listed, but you should install the build that matches your machine before the rest of the dependencies.
+
+CPU-only:
+
+```powershell
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+```
+
+CUDA 12.1:
+
+```powershell
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+```
+
 ## Data Pipeline
 
 ### 1. Export Landsat 9 data
@@ -199,6 +217,31 @@ venv\Scripts\python.exe -m streamlit run demo\streamlit_app.py
 ```
 
 The app lets you upload a thermal image and generate an RGB-like output.
+
+## Docker
+
+The repo now includes a Docker setup for the Streamlit demo:
+
+```powershell
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
+
+The container mounts the repo into `/app`, so you can edit files locally and refresh the browser without rebuilding every time.
+
+You can also run one-off scripts inside the container, for example:
+
+```powershell
+docker compose run --rm app python process_landsat_patches.py
+docker compose run --rm app python src/training/train_landsat.py
+```
+
+For GPU training on Docker, swap the base image to a CUDA-enabled PyTorch image and run the container with NVIDIA runtime support. The current Dockerfile is aimed at the demo and CPU-friendly utility scripts.
 
 ## Verification Commands
 
