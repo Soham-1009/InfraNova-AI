@@ -290,7 +290,7 @@ class Trainer:
         fig, axes = plt.subplots(4, 3, figsize=(10, 12))
 
         for i in range(4):
-            axes[i, 0].imshow(ir[i].squeeze(0), cmap="gray")
+            axes[i, 0].imshow(ir[i][0], cmap="gray")
             axes[i, 0].set_title("IR")
             axes[i, 0].axis("off")
 

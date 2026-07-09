@@ -146,7 +146,9 @@ class LandsatColorizationInference:
         if predictions.ndim != 4:
             return 0.0
 
-        std_map = predictions.std(axis=0)  # [3, H, W]
+        # Normalize from [-1, 1] to [0, 1] so std scale matches the heuristic constant
+        predictions_01 = (predictions + 1.0) / 2.0
+        std_map = predictions_01.std(axis=0)  # [3, H, W]
         mean_std = float(std_map.mean())
         confidence = float(np.exp(-8.0 * mean_std))
         return float(np.clip(confidence, 0.0, 1.0))
@@ -258,7 +260,7 @@ class LandsatColorizationInference:
         else:
             # Fallback: PIL save. Band order is preserved in the array, but
             # raster semantics depend on the reader. Rasterio is preferred.
-            Image.fromarray(bgr_array[:, :, ::-1]).save(path)
+            Image.fromarray(bgr_array).save(path)
 
         return str(path)
 
