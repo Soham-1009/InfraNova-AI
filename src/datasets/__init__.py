@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 
 def get_dataloader(
     dataset_name: str = "landsat9",
+    root_dir: str = "data/landsat9/splits",
     split: str = "train",
     batch_size: int = 8,
     num_workers: int = 2,
@@ -25,6 +26,7 @@ def get_dataloader(
     if name == "landsat9":
         from .landsat9_dataset import Landsat9Dataset
         dataset = Landsat9Dataset(
+            root_dir=root_dir,
             split=split,
             image_size=image_size,
             augment=(split == "train"),

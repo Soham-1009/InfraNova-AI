@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 st.set_page_config(
     page_title="InfraNova AI",
-    page_icon="🛰️",
+    page_icon="I",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -211,7 +211,7 @@ st.markdown(theme_css, unsafe_allow_html=True)
 # Header
 st.markdown("""
 <div class="app-header">
-    <div style="font-size: 2.5rem;">🛰️</div>
+    <div style="font-size: 1rem; font-weight: 800; border: 1px solid var(--app-border); border-radius: 8px; padding: 0.45rem 0.55rem;">IN</div>
     <div>
         <h1 class="app-title">InfraNova AI</h1>
         <p class="app-subtitle">Landsat 9 Thermal Infrared to RGB Colorization</p>
@@ -276,11 +276,11 @@ with col_img1:
         source = "Sample" if st.session_state.get('from_sample', False) else "Uploaded"
         st.image(input_image, caption=f"IR Input ({source})", use_container_width=True)
     else:
-        st.info("Upload an image or select a sample above")
+        st.info("Upload a thermal image to begin")
 
 with col_mid:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
-    st.markdown('<p style="text-align:center; opacity:0.5; font-size:1.5rem;">→</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align:center; opacity:0.5; font-size:1.5rem;">-&gt;</p>', unsafe_allow_html=True)
 
 with col_img2:
     st.markdown('<p class="image-label">OUTPUT (GENERATED RGB)</p>', unsafe_allow_html=True)
@@ -295,13 +295,13 @@ st.markdown("---")
 col_btn1, col_btn2, col_btn3 = st.columns(3)
 
 with col_btn1:
-    process_btn = st.button("▶  PROCESS IMAGE", type="primary", use_container_width=True)
+    process_btn = st.button("PROCESS IMAGE", type="primary", use_container_width=True)
 
 with col_btn2:
     download_placeholder = st.empty()
 
 with col_btn3:
-    clear_btn = st.button("🗑  CLEAR", use_container_width=True)
+    clear_btn = st.button("CLEAR", use_container_width=True)
 
 # Clear
 if clear_btn:
@@ -332,7 +332,7 @@ if process_btn and input_image is not None:
         output_image.save(buf, format="PNG")
         with col_btn2:
             download_placeholder.download_button(
-                label="⬇  DOWNLOAD OUTPUT",
+                label="DOWNLOAD OUTPUT",
                 data=buf.getvalue(),
                 file_name="infranova_output.png",
                 mime="image/png",
@@ -351,7 +351,7 @@ elif 'output_image' in st.session_state:
     output_image.save(buf, format="PNG")
     with col_btn2:
         download_placeholder.download_button(
-            label="⬇  DOWNLOAD OUTPUT",
+            label="DOWNLOAD OUTPUT",
             data=buf.getvalue(),
             file_name="infranova_output.png",
             mime="image/png",
@@ -368,7 +368,7 @@ with col_m1:
     display_time = st.session_state.get('inference_time', 0)
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-label">⏱  Inference Time</div>
+        <div class="metric-label">Inference Time</div>
         <div class="metric-value">{display_time*1000:.0f} ms</div>
     </div>
     """, unsafe_allow_html=True)
@@ -376,7 +376,7 @@ with col_m1:
 with col_m2:
     st.markdown("""
     <div class="metric-card">
-        <div class="metric-label">📈  PSNR</div>
+        <div class="metric-label">PSNR</div>
         <div class="metric-value">18.52 dB</div>
     </div>
     """, unsafe_allow_html=True)
@@ -384,7 +384,7 @@ with col_m2:
 with col_m3:
     st.markdown("""
     <div class="metric-card">
-        <div class="metric-label">〰  SSIM</div>
+        <div class="metric-label">SSIM</div>
         <div class="metric-value">0.695</div>
     </div>
     """, unsafe_allow_html=True)
@@ -392,7 +392,7 @@ with col_m3:
 with col_m4:
     st.markdown("""
     <div class="metric-card">
-        <div class="metric-label">📊  Parameters</div>
+        <div class="metric-label">Parameters</div>
         <div class="metric-value">57M</div>
     </div>
     """, unsafe_allow_html=True)
@@ -400,7 +400,7 @@ with col_m4:
 with col_m5:
     st.markdown("""
     <div class="metric-card">
-        <div class="metric-label">🌍  Regions</div>
+        <div class="metric-label">Regions</div>
         <div class="metric-value">250</div>
     </div>
     """, unsafe_allow_html=True)
@@ -417,7 +417,7 @@ with col_t1:
         <h4>Training Data</h4>
         <ul>
             <li>Satellite: Landsat 9 (NASA/USGS)</li>
-            <li>Input: Band 10 Thermal Infrared (10.9 μm)</li>
+            <li>Input: Band 10 Thermal Infrared (10.9 micrometers)</li>
             <li>Output: Bands 2,3,4 (Blue, Green, Red)</li>
             <li>Regions: 100 Indian + 90 International + 60 Landscapes</li>
             <li>Patches: 9,936 paired samples</li>
@@ -443,7 +443,7 @@ with col_t2:
 st.markdown("---")
 st.markdown(
     '<p style="text-align:center; opacity:0.5; font-size:0.85rem;">'
-    'InfraNova AI • Bharatiya Antariksh Hackathon 2026 • ISRO'
+    'InfraNova AI | Bharatiya Antariksh Hackathon 2026 | ISRO'
     '</p>',
     unsafe_allow_html=True,
 )

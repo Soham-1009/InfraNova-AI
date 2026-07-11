@@ -158,7 +158,7 @@ Each sample contains:
 venv\Scripts\python.exe split_patches.py --overwrite
 ```
 
-The split is region-level. Patches from the same region are kept in only one of train, validation, or test to avoid evaluation leakage.
+The split is region-level. Patches from the same region are kept in only one of train, validation, or test to avoid evaluation leakage. The splitter also keeps small datasets usable by avoiding empty train/val partitions when there are only a few regions.
 
 ## Training
 
@@ -217,6 +217,12 @@ venv\Scripts\python.exe -m streamlit run demo\streamlit_app.py
 ```
 
 The app lets you upload a thermal image and generate an RGB-like output.
+It includes:
+
+- a light/dark mode toggle
+- optional test-time augmentation
+- optional contrast enhancement
+- download of the generated RGB image
 
 ## Docker
 
@@ -234,6 +240,8 @@ http://localhost:8501
 
 The container mounts the repo into `/app`, so you can edit files locally and refresh the browser without rebuilding every time.
 
+The Docker image installs CPU PyTorch explicitly before the rest of the requirements, which keeps the demo image smaller and avoids pulling CUDA-only wheels unless you choose to change the base image yourself.
+
 You can also run one-off scripts inside the container, for example:
 
 ```powershell
@@ -242,6 +250,16 @@ docker compose run --rm app python src/training/train_landsat.py
 ```
 
 For GPU training on Docker, swap the base image to a CUDA-enabled PyTorch image and run the container with NVIDIA runtime support. The current Dockerfile is aimed at the demo and CPU-friendly utility scripts.
+
+## Working Locally
+
+If you change only Python source files while the Docker volume mount is active, restart the container or refresh the browser.
+
+If you change `Dockerfile`, `requirements.txt`, or system-level dependencies, rebuild the image:
+
+```powershell
+docker compose up --build
+```
 
 ## Verification Commands
 

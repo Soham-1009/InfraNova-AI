@@ -47,6 +47,16 @@ def split_regions(region_dirs: List[Path], seed: int) -> Dict[str, List[Path]]:
     n_train = int(n_total * TRAIN_RATIO)
     n_val = int(n_total * VAL_RATIO)
 
+    if n_total >= 3:
+        n_train = max(1, min(n_train, n_total - 2))
+        n_val = max(1, min(n_val, n_total - n_train - 1))
+    elif n_total == 2:
+        n_train = 1
+        n_val = 1
+    else:
+        n_train = 1
+        n_val = 0
+
     return {
         "train": shuffled[:n_train],
         "val": shuffled[n_train : n_train + n_val],
