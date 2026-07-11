@@ -1,11 +1,39 @@
-venv
-__pycache__
-.git
-.pytest_cache
-logs
-outputs
-checkpoints
-data
+# Python
+__pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Large data and checkpoints (mounted at runtime, not baked into image)
+data/
+checkpoints/
+logs/
+outputs/
+
+# Version control
+.git/
+.gitignore
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Documentation and notebooks (not needed in production image)
+docs/
+notebooks/
+*.ipynb
+.ipynb_checkpoints/
+
+# Build artefacts
 *.log
+*.tmp

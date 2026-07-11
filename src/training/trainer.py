@@ -176,6 +176,10 @@ class Trainer:
         }
 
         num_batches = len(self.train_loader)
+        if num_batches == 0:
+            raise ValueError(
+                "Training loader produced zero batches. Check the dataset split and batch size."
+            )
         d_loss_last = torch.tensor(0.0, device=self.device)
 
         for batch_idx, batch in enumerate(self.train_loader):
@@ -184,6 +188,7 @@ class Trainer:
             rgb = batch["rgb"]
 
             # ---- Train Discriminator ----
+            self.model.discriminator.requires_grad_(True)
             self.optimizer_d.zero_grad(set_to_none=True)
 
             with autocast('cuda', enabled=self.scaler.is_enabled()):
@@ -212,25 +217,29 @@ class Trainer:
 
             # ---- Train Generator (NO noise) ----
             self.optimizer_g.zero_grad(set_to_none=True)
+            self.model.discriminator.requires_grad_(False)
 
-            with autocast('cuda', enabled=self.scaler.is_enabled()):
-                fake_rgb = self.model.generate(ir)
-                fake_pred_for_g = self.model.discriminate(ir, fake_rgb)
+            try:
+                with autocast('cuda', enabled=self.scaler.is_enabled()):
+                    fake_rgb = self.model.generate(ir)
+                    fake_pred_for_g = self.model.discriminate(ir, fake_rgb)
 
-                losses = self.criterion(
-                    disc_fake_pred=fake_pred_for_g,
-                    fake_rgb=fake_rgb,
-                    real_rgb=rgb,
+                    losses = self.criterion(
+                        disc_fake_pred=fake_pred_for_g,
+                        fake_rgb=fake_rgb,
+                        real_rgb=rgb,
+                    )
+                    g_loss = losses["total"]
+
+                self.scaler.scale(g_loss).backward()
+                self.scaler.unscale_(self.optimizer_g)
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.generator.parameters(), self.grad_clip
                 )
-                g_loss = losses["total"]
-
-            self.scaler.scale(g_loss).backward()
-            self.scaler.unscale_(self.optimizer_g)
-            torch.nn.utils.clip_grad_norm_(
-                self.model.generator.parameters(), self.grad_clip
-            )
-            self.scaler.step(self.optimizer_g)
-            self.scaler.update()
+                self.scaler.step(self.optimizer_g)
+                self.scaler.update()
+            finally:
+                self.model.discriminator.requires_grad_(True)
 
             running["g_loss"] += float(g_loss.detach().item())
             running["d_loss"] += float(d_loss_last.item())
@@ -272,40 +281,76 @@ class Trainer:
 
     @torch.no_grad()
     def _save_sample_images(self, epoch: int) -> None:
-        self.model.eval()
+        """Save a grid of IR / Generated / Real RGB samples for visual inspection.
 
-        batch = next(iter(self.val_loader))
-        batch = self._to_device(batch, self.device)
-        ir = batch["ir"][:4]
-        rgb = batch["rgb"][:4]
-
-        fake_rgb = self.model.generate(ir)
-
-        ir = self._denorm(ir).cpu()
-        rgb = self._denorm(rgb).cpu()
-        fake_rgb = self._denorm(fake_rgb).cpu()
-
+        This is purely diagnostic — any failure here is logged as a warning
+        and never propagated so that training is not interrupted.
+        """
         import matplotlib.pyplot as plt
 
-        fig, axes = plt.subplots(4, 3, figsize=(10, 12))
+        self.model.eval()
+        fig = None
 
-        for i in range(4):
-            axes[i, 0].imshow(ir[i][0], cmap="gray")
-            axes[i, 0].set_title("IR")
-            axes[i, 0].axis("off")
+        try:
+            if len(self.val_loader) == 0:
+                return
 
-            axes[i, 1].imshow(np.transpose(fake_rgb[i].numpy(), (1, 2, 0)).clip(0, 1))
-            axes[i, 1].set_title("Generated")
-            axes[i, 1].axis("off")
+            try:
+                batch = next(iter(self.val_loader))
+            except StopIteration:
+                return
 
-            axes[i, 2].imshow(np.transpose(rgb[i].numpy(), (1, 2, 0)).clip(0, 1))
-            axes[i, 2].set_title("Real RGB")
-            axes[i, 2].axis("off")
+            batch = self._to_device(batch, self.device)
+            sample_count = min(4, batch["ir"].size(0))
+            if sample_count == 0:
+                return
 
-        plt.tight_layout()
-        save_path = self.visual_dir / f"epoch_{epoch}.png"
-        plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+            ir = batch["ir"][:sample_count]
+            rgb = batch["rgb"][:sample_count]
+
+            fake_rgb = self.model.generate(ir)
+
+            ir = self._denorm(ir).cpu()
+            rgb = self._denorm(rgb).cpu()
+            fake_rgb = self._denorm(fake_rgb).cpu()
+
+            fig, axes = plt.subplots(
+                sample_count, 3, figsize=(10, 3 * sample_count), squeeze=False,
+            )
+
+            for i in range(sample_count):
+                axes[i, 0].imshow(ir[i][0], cmap="gray")
+                axes[i, 0].set_title("IR")
+                axes[i, 0].axis("off")
+
+                generated = fake_rgb[i].numpy()
+                generated = (
+                    np.transpose(generated, (1, 2, 0)).clip(0, 1)
+                    if generated.shape[0] == 3
+                    else generated[0].clip(0, 1)
+                )
+                axes[i, 1].imshow(generated)
+                axes[i, 1].set_title("Generated")
+                axes[i, 1].axis("off")
+
+                target = rgb[i].numpy()
+                target = (
+                    np.transpose(target, (1, 2, 0)).clip(0, 1)
+                    if target.shape[0] == 3
+                    else target[0].clip(0, 1)
+                )
+                axes[i, 2].imshow(target)
+                axes[i, 2].set_title("Real RGB")
+                axes[i, 2].axis("off")
+
+            plt.tight_layout()
+            save_path = self.visual_dir / f"epoch_{epoch}.png"
+            plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        except Exception as exc:
+            print(f"[WARNING] Could not save sample images for epoch {epoch}: {exc}")
+        finally:
+            if fig is not None:
+                plt.close(fig)
 
     def fit(self, num_epochs: int) -> Dict[str, list]:
         """Train end-to-end with scheduler, checkpointing, and early stopping."""

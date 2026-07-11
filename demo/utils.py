@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Sequence, Union
+from typing import List, Union
 
 import cv2
 import numpy as np
 import torch
 from PIL import Image
+
+from src.utils.image_processing import to_single_band_array
 
 
 def _normalize_to_uint8(arr: np.ndarray, low: float = 2.0, high: float = 98.0) -> np.ndarray:
@@ -34,14 +36,11 @@ def preprocess_ir_image(
     Returns:
         Tensor of shape [1, 1, image_size, image_size] in [-1, 1].
     """
-    if isinstance(image, Image.Image):
-        arr = np.array(image.convert("L"), dtype=np.float32)
-    elif isinstance(image, np.ndarray):
-        arr = image.astype(np.float32)
-        if arr.ndim == 3:
-            arr = arr[0] if arr.shape[0] in (1, 3, 4) and arr.shape[-1] not in (1, 3, 4) else arr[:, :, 0]
-    else:
-        raise TypeError("image must be PIL.Image.Image or numpy.ndarray")
+    target_size = int(image_size)
+    if target_size <= 0:
+        raise ValueError("image_size must be a positive integer")
+
+    arr = to_single_band_array(image)
 
     lo = np.percentile(arr, 2.0)
     hi = np.percentile(arr, 98.0)
@@ -50,7 +49,7 @@ def preprocess_ir_image(
     else:
         arr = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
 
-    arr = cv2.resize(arr, (image_size, image_size), interpolation=cv2.INTER_CUBIC)
+    arr = cv2.resize(arr, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
     arr = np.clip(arr, 0.0, 1.0)
     arr = arr.astype(np.float32) * 2.0 - 1.0
 
@@ -69,7 +68,13 @@ def postprocess_output(tensor: torch.Tensor) -> Image.Image:
         PIL RGB image.
     """
     if tensor.dim() == 4:
-        tensor = tensor.squeeze(0)
+        if tensor.size(0) != 1:
+            raise ValueError("postprocess_output expects a batch containing exactly one image")
+        tensor = tensor[0]
+    if tensor.dim() != 3 or tensor.size(0) != 3:
+        raise ValueError(
+            "postprocess_output expects a tensor shaped [3, H, W] or [1, 3, H, W]"
+        )
 
     tensor = tensor.detach().cpu().clamp(-1, 1)
     tensor = (tensor + 1.0) / 2.0
@@ -117,31 +122,28 @@ def save_output(image: Image.Image, filename: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
     return str(path)
-    
+
+
 def visualize_tir_as_thermal(image: Union[Image.Image, np.ndarray]) -> Image.Image:
     """
     Convert grayscale TIR to thermal colormap for better visualization.
-    
+
     Args:
         image: PIL grayscale or numpy array.
-    
+
     Returns:
         PIL RGB image with thermal colormap applied.
     """
-    if isinstance(image, Image.Image):
-        arr = np.array(image.convert("L"))
-    else:
-        arr = image if image.ndim == 2 else image[:, :, 0]
-        if arr.dtype != np.uint8:
-            arr = _normalize_to_uint8(arr)
-    
-    # Apply thermal colormap (cv2.COLORMAP_JET or COLORMAP_INFERNO)
+    arr = _normalize_to_uint8(to_single_band_array(image))
+
+    # Apply thermal colormap (INFERNO gives a good heat-like appearance)
     colored = cv2.applyColorMap(arr, cv2.COLORMAP_INFERNO)
-    
+
     # Convert BGR to RGB
     colored_rgb = cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
-    
+
     return Image.fromarray(colored_rgb)
+
 
 def load_sample_images(sample_dir: str = "demo/assets/samples") -> List[Image.Image]:
     """
@@ -161,7 +163,9 @@ def load_sample_images(sample_dir: str = "demo/assets/samples") -> List[Image.Im
     for ext in ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"):
         for path in sorted(directory.glob(ext)):
             try:
-                images.append(Image.open(path).convert("L"))
+                with Image.open(path) as image:
+                    image.load()
+                    images.append(image.copy())
             except Exception:
                 continue
 
