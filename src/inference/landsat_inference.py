@@ -84,20 +84,37 @@ class LandsatColorizationInference:
     @staticmethod
     def _to_grayscale_array(image: Union[Image.Image, np.ndarray]) -> np.ndarray:
         """
-        Convert PIL / NumPy input to a 2D grayscale NumPy array.
+        Convert PIL / NumPy input to a 2D grayscale float32 array.
+
+        Preserves the original bit depth (e.g. 16-bit TIFFs) instead of
+        truncating to 8-bit via PIL .convert("L").
         """
         if isinstance(image, Image.Image):
-            return np.array(image.convert("L"))
+            # Use np.asarray to keep original precision (uint16, int32, etc.)
+            arr = np.asarray(image)
+            if arr.ndim == 2:
+                return arr.astype(np.float32)
+            # RGB/RGBA PIL image — convert to luminance
+            if arr.ndim == 3:
+                rgb = arr[..., :3].astype(np.float32)
+                return 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+            raise ValueError(f"Unexpected PIL array shape: {arr.shape}")
 
         if isinstance(image, np.ndarray):
             arr = image
             if arr.ndim == 2:
-                return arr
+                return arr.astype(np.float32)
             if arr.ndim == 3:
-                if arr.shape[0] in (1, 3, 4) and arr.shape[-1] not in (1, 3, 4):
-                    return arr[0]
-                if arr.shape[2] >= 1:
-                    return arr[:, :, 0]
+                first, last = arr.shape[0], arr.shape[-1]
+                first_is_ch = first in (1, 3, 4)
+                last_is_ch = last in (1, 3, 4)
+
+                if first_is_ch and (not last_is_ch or (last_is_ch and first != last)):
+                    # Channel-first: e.g. (3, 128, 128) or (3, 1, 1)
+                    return arr[0].astype(np.float32)
+                if last_is_ch:
+                    # Channel-last: e.g. (128, 128, 3)
+                    return arr[:, :, 0].astype(np.float32)
             raise ValueError(f"Unsupported NumPy image shape: {arr.shape}")
 
         raise TypeError("Input must be PIL.Image.Image or numpy.ndarray")

@@ -73,12 +73,19 @@ class TrainingLogger:
             "val_ssim",
         ]
 
+        # Collect keys that exist in any row, not just the first
+        all_keys = set(key for row in self.rows for key in row)
+
         plt.figure(figsize=(12, 8))
 
         for key in keys:
-            if key in self.rows[0]:
-                values = [row[key] for row in self.rows]
-                plt.plot(epochs, values, label=key)
+            if key not in all_keys:
+                continue
+            values = [row.get(key) for row in self.rows]
+            plot_epochs = [e for e, v in zip(epochs, values) if v is not None]
+            plot_values = [v for v in values if v is not None]
+            if plot_values:
+                plt.plot(plot_epochs, plot_values, label=key)
 
         plt.xlabel("Epoch")
         plt.ylabel("Value")

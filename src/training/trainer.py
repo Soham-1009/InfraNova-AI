@@ -79,7 +79,7 @@ class Trainer:
         ).to(self.device)
 
         amp_enabled = bool(training_cfg.get("amp", True)) and self.device.type == "cuda"
-        self.scaler = GradScaler('cuda', enabled=amp_enabled)
+        self.scaler = GradScaler(self.device.type, enabled=amp_enabled)
 
         self.logger = TrainingLogger(
             log_dir=str(self.log_dir),

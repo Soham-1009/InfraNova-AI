@@ -82,7 +82,10 @@ class InferenceEngine:
     @staticmethod
     def _to_pil_or_array(image: Union[Image.Image, np.ndarray]) -> Image.Image:
         """
-        Convert PIL or numpy input to PIL image.
+        Convert PIL or numpy input to PIL grayscale image.
+
+        Preserves original bit depth for thermal data instead of
+        truncating to uint8.
 
         Args:
             image: Input image.
@@ -91,18 +94,26 @@ class InferenceEngine:
             PIL Image.
         """
         if isinstance(image, Image.Image):
+            # Keep original mode — avoid .convert("L") which truncates 16-bit to 8-bit
+            if image.mode in ("I;16", "I;16B", "I"):
+                return image
             return image.convert("L")
 
         if isinstance(image, np.ndarray):
             arr = image
             if arr.ndim == 2:
-                return Image.fromarray(arr.astype(np.uint8)).convert("L")
+                return Image.fromarray(arr)
             if arr.ndim == 3:
-                # If RGB/BGR-like array is passed, convert to grayscale conservatively.
                 if arr.shape[2] == 3:
-                    return Image.fromarray(arr.astype(np.uint8)).convert("L")
+                    # RGB — convert via luminance
+                    lum = (
+                        0.299 * arr[..., 0].astype(np.float32)
+                        + 0.587 * arr[..., 1].astype(np.float32)
+                        + 0.114 * arr[..., 2].astype(np.float32)
+                    )
+                    return Image.fromarray(lum.astype(arr.dtype))
                 if arr.shape[2] == 1:
-                    return Image.fromarray(arr[:, :, 0].astype(np.uint8)).convert("L")
+                    return Image.fromarray(arr[:, :, 0])
 
         raise TypeError("Input must be a PIL.Image.Image or numpy.ndarray.")
 
