@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import logging
 import sys
 import time
-import traceback
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -16,8 +16,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from demo.utils import enhance_output, visualize_tir_as_thermal
-from src.inference.landsat_inference import LandsatColorizationInference
+from demo.utils import enhance_output, visualize_tir_as_thermal  # noqa: E402
+from src.inference.landsat_inference import LandsatColorizationInference  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 CHECKPOINT_PATH = PROJECT_ROOT / "checkpoints" / "best" / "pix2pix_landsat_best.pth"
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 MAX_IMAGE_DIMENSION = 4096
 PREVIEW_SIZE = 512
 RESAMPLING = getattr(Image, "Resampling", Image)
@@ -101,40 +101,41 @@ def get_theme(light_mode: bool) -> Dict[str, str]:
 
 def inject_css(theme: Dict[str, str]) -> None:
     """Inject the full design system as a single <style> block."""
+    bg = theme["bg"]
+    bg_gradient = theme["bg_gradient"]
+    surface = theme["surface"]
+    surface_solid = theme["surface_solid"]
+    surface_hover = theme["surface_hover"]
+    text = theme["text"]
+    text_secondary = theme["text_secondary"]
+    border = theme["border"]
+    border_hover = theme["border_hover"]
+    primary = theme["primary"]
+    primary_hover = theme["primary_hover"]
+    primary_text = theme["primary_text"]
+    accent = theme["accent"]
+    success = theme["success"]
+    image_well = theme["image_well"]
+    card_shadow = theme["card_shadow"]
+    card_shadow_hover = theme["card_shadow_hover"]
+    glow = theme["glow"]
+    gradient_primary = theme["gradient_primary"]
+    gradient_accent = theme["gradient_accent"]
+
     css = f"""
-    <style>
+    <style data-theme-id="{bg}">
         /* ── Google Fonts ─────────────────────────────────────── */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-        /* ── CSS Custom Properties ────────────────────────────── */
-        :root {{
-            --bg: {theme['bg']};
-            --bg-gradient: {theme['bg_gradient']};
-            --surface: {theme['surface']};
-            --surface-solid: {theme['surface_solid']};
-            --surface-hover: {theme['surface_hover']};
-            --text: {theme['text']};
-            --text-secondary: {theme['text_secondary']};
-            --border: {theme['border']};
-            --border-hover: {theme['border_hover']};
-            --primary: {theme['primary']};
-            --primary-hover: {theme['primary_hover']};
-            --primary-text: {theme['primary_text']};
-            --accent: {theme['accent']};
-            --accent-soft: {theme['accent_soft']};
-            --success: {theme['success']};
-            --success-soft: {theme['success_soft']};
-            --danger: {theme['danger']};
-            --image-well: {theme['image_well']};
-            --card-shadow: {theme['card_shadow']};
-            --card-shadow-hover: {theme['card_shadow_hover']};
-            --glow: {theme['glow']};
-            --gradient-primary: {theme['gradient_primary']};
-            --gradient-accent: {theme['gradient_accent']};
+        /* ── Reset & Base ─────────────────────────────────────── */
+        :root, [data-theme="light"], [data-theme="dark"], .stApp {{
+            --primary-color: {primary} !important;
+            --background-color: {bg} !important;
+            --secondary-background-color: {surface_solid} !important;
+            --text-color: {text} !important;
         }}
 
-        /* ── Reset & Base ─────────────────────────────────────── */
-        *, *::before, *::after {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; }}
+        html, body, .stApp {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }}
 
         #MainMenu, footer,
         [data-testid="stSidebar"],
@@ -143,9 +144,9 @@ def inject_css(theme: Dict[str, str]) -> None:
             display: none !important;
         }}
 
-        [data-testid="stAppViewContainer"], .stApp {{
-            background: var(--bg-gradient) !important;
-            color: var(--text) !important;
+        [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"], .stApp {{
+            background: {bg_gradient} !important;
+            color: {text} !important;
         }}
 
         [data-testid="stHeader"] {{
@@ -162,7 +163,7 @@ def inject_css(theme: Dict[str, str]) -> None:
         .stApp p, .stApp li, .stApp label, .stApp span,
         [data-testid="stMarkdownContainer"],
         [data-testid="stMarkdownContainer"] * {{
-            color: var(--text) !important;
+            color: {text} !important;
         }}
 
         /* ── Animations ───────────────────────────────────────── */
@@ -193,22 +194,17 @@ def inject_css(theme: Dict[str, str]) -> None:
         }}
 
         .brand-logo {{
-            display: grid;
-            place-items: center;
-            width: 2.8rem;
-            height: 2.8rem;
-            border-radius: 10px;
-            background: var(--gradient-primary);
-            color: var(--primary-text) !important;
-            font-weight: 900;
-            font-size: 0.95rem;
-            letter-spacing: -0.5px;
-            box-shadow: var(--glow);
+            width: 3.2rem;
+            height: 3.2rem;
+            border-radius: 8px;
+            object-fit: contain;
+            background: #ffffff;
+            box-shadow: {glow};
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }}
         .brand-logo:hover {{
             transform: scale(1.05);
-            box-shadow: var(--glow), 0 0 40px rgba(20,184,166,0.12);
+            box-shadow: {glow}, 0 0 40px rgba(20,184,166,0.12);
         }}
 
         .brand-title {{
@@ -217,7 +213,7 @@ def inject_css(theme: Dict[str, str]) -> None:
             font-weight: 800;
             letter-spacing: -0.5px;
             line-height: 1.15;
-            background: var(--gradient-primary);
+            background: {gradient_primary};
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -227,7 +223,7 @@ def inject_css(theme: Dict[str, str]) -> None:
             margin: 0.15rem 0 0;
             font-size: 0.78rem;
             font-weight: 500;
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
             letter-spacing: 0.3px;
         }}
 
@@ -243,24 +239,24 @@ def inject_css(theme: Dict[str, str]) -> None:
         .section-copy {{
             margin: 0 0 0.6rem;
             font-size: 0.88rem;
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
             line-height: 1.5;
         }}
 
         /* ── Glass Cards ──────────────────────────────────────── */
         [data-testid="stVerticalBlockBorderWrapper"] {{
-            border: 1px solid var(--border) !important;
+            border: 1px solid {border} !important;
             border-radius: 14px !important;
-            background: var(--surface) !important;
+            background: {surface} !important;
             backdrop-filter: blur(16px) saturate(1.4);
             -webkit-backdrop-filter: blur(16px) saturate(1.4);
-            box-shadow: var(--card-shadow);
+            box-shadow: {card_shadow};
             transition: border-color 0.25s ease, box-shadow 0.35s ease, transform 0.25s ease;
             animation: fadeInUp 0.45s ease-out;
         }}
         [data-testid="stVerticalBlockBorderWrapper"]:hover {{
-            border-color: var(--border-hover) !important;
-            box-shadow: var(--card-shadow-hover);
+            border-color: {border_hover} !important;
+            box-shadow: {card_shadow_hover};
             transform: translateY(-1px);
         }}
 
@@ -271,23 +267,23 @@ def inject_css(theme: Dict[str, str]) -> None:
             gap: 0.45rem;
             padding: 0.35rem 0.7rem;
             border-radius: 999px;
-            border: 1px solid var(--border);
-            background: var(--surface);
+            border: 1px solid {border};
+            background: {surface};
             backdrop-filter: blur(8px);
             font-size: 0.74rem;
             font-weight: 600;
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
             transition: border-color 0.2s ease;
         }}
         .runtime-chip:hover {{
-            border-color: var(--success);
+            border-color: {success};
         }}
 
         .runtime-dot {{
             width: 0.5rem;
             height: 0.5rem;
             border-radius: 50%;
-            background: var(--success);
+            background: {success};
             animation: pulse-dot 2s ease-in-out infinite;
         }}
 
@@ -298,39 +294,58 @@ def inject_css(theme: Dict[str, str]) -> None:
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1.2px;
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
         }}
 
         [data-testid="stImage"] img {{
             width: 100%;
             aspect-ratio: 1 / 1;
             object-fit: cover;
-            border: 1px solid var(--border);
+            border: 1px solid {border};
             border-radius: 10px;
-            background: var(--image-well);
+            background: {image_well};
             transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }}
         [data-testid="stImage"] img:hover {{
-            border-color: var(--primary);
-            box-shadow: var(--glow);
+            border-color: {primary};
+            box-shadow: {glow};
         }}
 
         /* ── File Uploader ────────────────────────────────────── */
         [data-testid="stFileUploader"] {{
-            border: 1.5px dashed var(--border) !important;
+            border: 1.5px dashed {border} !important;
             border-radius: 12px;
-            background: var(--surface) !important;
+            background: {surface} !important;
             backdrop-filter: blur(8px);
             padding: 0.8rem;
             transition: border-color 0.3s ease, background 0.3s ease;
         }}
         [data-testid="stFileUploader"]:hover {{
-            border-color: var(--primary) !important;
-            background: var(--surface-hover) !important;
+            border-color: {primary} !important;
+            background: {surface_hover} !important;
         }}
         [data-testid="stFileUploaderDropzone"] {{
             background: transparent !important;
             border: 0 !important;
+            min-height: 90px !important;
+            display: flex !important;
+            align-items: center !important;
+        }}
+        [data-testid="stFileUploader"] button {{
+            background: {surface_solid} !important;
+            color: {text} !important;
+            border: 1px solid {border} !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+        }}
+        [data-testid="stFileUploader"] button:hover {{
+            background: {surface_hover} !important;
+            border-color: {primary} !important;
+            color: {text} !important;
+        }}
+        [data-testid="stFileUploader"] label,
+        [data-testid="stFileUploader"] span {{
+            color: {text} !important;
         }}
 
         /* ── Buttons ──────────────────────────────────────────── */
@@ -338,10 +353,10 @@ def inject_css(theme: Dict[str, str]) -> None:
         .stDownloadButton > button {{
             min-height: 2.7rem;
             border-radius: 10px;
-            border: 1px solid var(--border);
-            background: var(--surface) !important;
+            border: 1px solid {border};
+            background: {surface} !important;
             backdrop-filter: blur(8px);
-            color: var(--text) !important;
+            color: {text} !important;
             font-weight: 650;
             font-size: 0.85rem;
             letter-spacing: 0.2px;
@@ -349,63 +364,63 @@ def inject_css(theme: Dict[str, str]) -> None:
         }}
         .stButton > button:hover,
         .stDownloadButton > button:hover {{
-            border-color: var(--primary);
-            background: var(--surface-hover) !important;
-            box-shadow: var(--glow);
+            border-color: {primary_hover};
+            background: {surface_hover} !important;
+            box-shadow: {glow};
             transform: translateY(-1px);
         }}
 
         /* Primary button — gradient */
         .stButton > button[kind="primary"] {{
             border: none;
-            background: var(--gradient-primary) !important;
+            background: {gradient_accent} !important;
             background-size: 200% 200%;
             animation: gradientShift 4s ease infinite;
-            color: var(--primary-text) !important;
-            box-shadow: var(--glow);
+            color: {primary_text} !important;
+            box-shadow: {glow};
         }}
         .stButton > button[kind="primary"]:hover {{
-            box-shadow: var(--glow), 0 4px 20px rgba(20,184,166,0.25);
+            box-shadow: {glow}, 0 4px 20px rgba(20,184,166,0.25);
             transform: translateY(-2px);
         }}
 
         /* ── Metrics ──────────────────────────────────────────── */
         [data-testid="stMetric"] {{
-            border: 1px solid var(--border);
+            border: 1px solid {border};
             border-radius: 12px;
             padding: 0.85rem;
-            background: var(--surface) !important;
+            background: {surface} !important;
             backdrop-filter: blur(12px);
-            box-shadow: var(--card-shadow);
+            box-shadow: {card_shadow};
             transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.25s ease;
             animation: fadeInUp 0.5s ease-out;
         }}
         [data-testid="stMetric"]:hover {{
-            border-color: var(--border-hover);
-            box-shadow: var(--card-shadow-hover);
+            border-color: {border_hover};
+            box-shadow: {card_shadow_hover};
             transform: translateY(-2px);
         }}
         [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {{
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
             font-weight: 600;
             letter-spacing: 0.5px;
         }}
         [data-testid="stMetricValue"], [data-testid="stMetricValue"] * {{
-            color: var(--text) !important;
+            color: {text} !important;
             font-weight: 700;
         }}
 
         /* ── Alerts ───────────────────────────────────────────── */
         [data-testid="stAlert"] {{
-            border: 1px solid var(--border) !important;
+            border: 1px solid {accent} !important;
             border-radius: 10px;
-            background: var(--surface) !important;
+            background: {surface} !important;
             backdrop-filter: blur(8px);
         }}
 
         /* ── Dividers ─────────────────────────────────────────── */
         hr {{
-            border-color: var(--border) !important;
+            border-color: {border} !important;
             opacity: 0.6;
         }}
 
@@ -418,25 +433,31 @@ def inject_css(theme: Dict[str, str]) -> None:
         .app-footer p {{
             font-size: 0.78rem;
             font-weight: 500;
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
             letter-spacing: 0.3px;
         }}
         .app-footer .footer-brand {{
             font-weight: 700;
-            background: var(--gradient-primary);
+            background: {gradient_primary};
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }}
 
         /* ── Toggle overrides ─────────────────────────────────── */
+        [data-testid="stToggle"] {{
+            pointer-events: auto !important;
+        }}
+        [data-testid="stToggle"] label {{
+            cursor: pointer !important;
+        }}
         [data-testid="stToggle"] label span {{
-            color: var(--text) !important;
+            color: {text} !important;
         }}
 
         /* ── Captions ─────────────────────────────────────────── */
         [data-testid="stCaptionContainer"] p {{
-            color: var(--text-secondary) !important;
+            color: {text_secondary} !important;
         }}
 
         /* ── Responsive ───────────────────────────────────────── */
@@ -450,7 +471,7 @@ def inject_css(theme: Dict[str, str]) -> None:
         }}
     </style>
     """
-    st.markdown(css, unsafe_allow_html=True)
+    st.html(css)
 
 
 # ---------------------------------------------------------------------------
@@ -462,16 +483,21 @@ def load_uploaded_image(
     """Validate an upload and keep its original pixel precision for inference."""
     declared_size = int(getattr(uploaded_file, "size", 0))
     if declared_size > MAX_UPLOAD_BYTES:
-        return None, None, "The uploaded file is larger than the 20 MB limit."
+        return None, None, "The uploaded file is larger than the 200 MB limit."
 
     raw_bytes = uploaded_file.getvalue()
     if len(raw_bytes) > MAX_UPLOAD_BYTES:
-        return None, None, "The uploaded file is larger than the 20 MB limit."
+        return None, None, "The uploaded file is larger than the 200 MB limit."
 
     try:
         with Image.open(io.BytesIO(raw_bytes)) as source:
             image = ImageOps.exif_transpose(source)
             image.load()
+
+            # Fix: Automatically convert standard RGB uploads to Grayscale
+            if image.mode in ("RGB", "RGBA"):
+                image = image.convert("L")
+
             if image.width > MAX_IMAGE_DIMENSION or image.height > MAX_IMAGE_DIMENSION:
                 return (
                     None,
@@ -480,6 +506,12 @@ def load_uploaded_image(
                 )
             if image.width == 0 or image.height == 0:
                 return None, None, "The uploaded image has invalid dimensions."
+
+            if not is_supported_thermal_mode(image):
+                return None, None, (
+                    "Please upload a single-band thermal infrared image (for example, grayscale TIFF)."
+                )
+
             signature = hashlib.sha256(raw_bytes).hexdigest()
             return image.copy(), signature, None
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError):
@@ -493,34 +525,42 @@ def png_bytes(image: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
+def is_supported_thermal_mode(image: Image.Image) -> bool:
+    """Return True only for single-band image modes suitable for thermal inference."""
+    return image.mode in {"1", "L", "I", "I;16", "I;16B", "I;16L", "F", "P"}
+
+
 @st.cache_resource(show_spinner="Preparing the Pix2Pix inference engine…")
-def get_engine(checkpoint_path: str) -> LandsatColorizationInference:
+def get_engine(checkpoint_path: str, checkpoint_mtime: float) -> LandsatColorizationInference:
     """Cache the inference engine so the model is loaded only once."""
+    _ = checkpoint_mtime
     return LandsatColorizationInference(checkpoint_path=checkpoint_path)
 
 
 # ---------------------------------------------------------------------------
 # Session state defaults
 # ---------------------------------------------------------------------------
-if "light_mode" not in st.session_state:
-    st.session_state["light_mode"] = False
 if "upload_generation" not in st.session_state:
     st.session_state["upload_generation"] = 0
 
 # ---------------------------------------------------------------------------
-# Theme injection
-# ---------------------------------------------------------------------------
-inject_css(get_theme(st.session_state["light_mode"]))
-
-# ---------------------------------------------------------------------------
 # Header
 # ---------------------------------------------------------------------------
+logo_path = PROJECT_ROOT / "demo" / "logo.jpg"
+if logo_path.exists():
+    with open(logo_path, "rb") as f:
+        logo_base64 = base64.b64encode(f.read()).decode("utf-8")
+    logo_html = f'<img src="data:image/jpeg;base64,{logo_base64}" class="brand-logo" alt="InfraNova AI">'
+else:
+    logo_html = '<div class="brand-logo">IN</div>'
+
 header_left, header_right = st.columns([0.82, 0.18])
+
 with header_left:
     st.markdown(
-        """
+        f"""
         <div class="brand-row">
-            <div class="brand-logo">IN</div>
+            {logo_html}
             <div>
                 <p class="brand-title">InfraNova AI</p>
                 <p class="brand-subtitle">Landsat 9 thermal infrared → RGB synthesis</p>
@@ -529,26 +569,35 @@ with header_left:
         """,
         unsafe_allow_html=True,
     )
+
 with header_right:
-    st.toggle("Light mode", key="light_mode")
+    pass
+
+inject_css(get_theme(False))
 
 # ---------------------------------------------------------------------------
-# Engine loading — graceful fallback
+# Engine loading
 # ---------------------------------------------------------------------------
 engine: Optional[LandsatColorizationInference] = None
 engine_error: Optional[str] = None
 
-try:
-    engine = get_engine(str(CHECKPOINT_PATH))
-except FileNotFoundError:
-    engine_error = f"Model checkpoint not found at `{CHECKPOINT_PATH}`. Please place the trained `.pth` file there."
+if not CHECKPOINT_PATH.exists():
+    engine_error = (
+        f"Model checkpoint not found at `{CHECKPOINT_PATH}`. "
+        "Please place the trained `.pth` file there."
+    )
     logger.error(engine_error)
-except Exception:
-    engine_error = "Failed to load the inference engine. Check the console for details."
-    logger.error("Engine loading failed:\n%s", traceback.format_exc())
+else:
+    try:
+        engine = get_engine(str(CHECKPOINT_PATH), CHECKPOINT_PATH.stat().st_mtime)
+    except Exception:
+        engine_error = "Failed to load the inference engine. Check the console for details."
+        logger.exception("Engine loading failed")
 
 if engine is not None:
-    runtime = "GPU acceleration" if engine.device.type == "cuda" else "CPU execution"
+    # Fix: Safer device check that doesn't crash if device format is slightly different
+    device_repr = str(getattr(engine, "device", "cpu"))
+    runtime = "GPU acceleration" if "cuda" in device_repr or "mps" in device_repr else "CPU execution"
 else:
     runtime = "unavailable"
 
@@ -594,17 +643,29 @@ uploaded_file = st.file_uploader(
     key=f"thermal_upload_{st.session_state['upload_generation']}",
     label_visibility="collapsed",
 )
-st.caption("PNG, JPG, or TIFF · Maximum 20 MB · Maximum 4096 × 4096 px")
 
 upload_error = None
 if uploaded_file is not None:
     uploaded_image, signature, upload_error = load_uploaded_image(uploaded_file)
-    if upload_error is None and signature != st.session_state.get("input_signature"):
-        st.session_state["input_image"] = uploaded_image
-        st.session_state["input_name"] = uploaded_file.name
-        st.session_state["input_signature"] = signature
-        for key in ("output_image", "inference_time", "used_tta", "used_enhance"):
-            st.session_state.pop(key, None)
+    if upload_error is None:
+        if signature != st.session_state.get("input_signature"):
+            st.session_state["input_image"] = uploaded_image
+            st.session_state["input_name"] = uploaded_file.name
+            st.session_state["input_signature"] = signature
+            for key in ("output_image", "inference_time", "used_tta", "used_enhance"):
+                st.session_state.pop(key, None)
+    else:
+        if st.session_state.get("input_signature") is not None:
+            for key in (
+                "input_image",
+                "input_name",
+                "input_signature",
+                "output_image",
+                "inference_time",
+                "used_tta",
+                "used_enhance",
+            ):
+                st.session_state.pop(key, None)
 
 if upload_error:
     st.error(upload_error)
@@ -613,7 +674,7 @@ input_image = st.session_state.get("input_image")
 output_image = st.session_state.get("output_image")
 
 # ---------------------------------------------------------------------------
-# Image display — side by side in glass cards
+# Image display
 # ---------------------------------------------------------------------------
 st.markdown("---")
 input_col, output_col = st.columns(2, gap="large")
@@ -666,10 +727,11 @@ with download_col:
     if output_image is None:
         st.button("Download PNG", use_container_width=True, disabled=True)
     else:
+        download_stem = Path(st.session_state.get("input_name", "infranova_rgb_interpretation")).stem
         st.download_button(
             "↓  Download PNG",
             data=png_bytes(output_image),
-            file_name="infranova_rgb_interpretation.png",
+            file_name=f"{download_stem}_rgb.png",
             mime="image/png",
             use_container_width=True,
         )
@@ -712,12 +774,12 @@ if process_button and input_image is not None and engine is not None:
         st.rerun()
     except FileNotFoundError:
         st.error(f"Model checkpoint not found: `{CHECKPOINT_PATH}`")
-        logger.error("Checkpoint missing during inference:\n%s", traceback.format_exc())
+        logger.exception("Checkpoint missing during inference")
     except Exception:
         st.error(
             "Generation failed. Check that the checkpoint and image format are valid, then try again."
         )
-        logger.error("Inference failed:\n%s", traceback.format_exc())
+        logger.exception("Inference failed")
 
 # ---------------------------------------------------------------------------
 # Result metrics

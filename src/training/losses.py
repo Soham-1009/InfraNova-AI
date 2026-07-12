@@ -148,9 +148,9 @@ class SSIMLoss(nn.Module):
 
         channel = img1.size(1)
         if channel != self.channel or self.window.device != img1.device:
-            window = self._create_window(self.window_size, self.sigma, channel).to(img1.device)
-        else:
-            window = self.window
+            self.window = self._create_window(self.window_size, self.sigma, channel).to(img1.device)
+            self.channel = channel
+        window = self.window
 
         mu1 = F.conv2d(img1, window, padding=self.window_size // 2, groups=channel)
         mu2 = F.conv2d(img2, window, padding=self.window_size // 2, groups=channel)

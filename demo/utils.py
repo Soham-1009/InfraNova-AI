@@ -97,11 +97,11 @@ def enhance_output(image: Image.Image) -> Image.Image:
     rgb = np.array(image.convert("RGB"))
     lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
 
-    l, a, b = cv2.split(lab)
+    l_channel, a, b = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    l = clahe.apply(l)
+    l_channel = clahe.apply(l_channel)
 
-    merged = cv2.merge([l, a, b])
+    merged = cv2.merge([l_channel, a, b])
     enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2RGB)
 
     return Image.fromarray(enhanced)

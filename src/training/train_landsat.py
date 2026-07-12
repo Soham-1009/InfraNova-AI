@@ -254,7 +254,7 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
         trainer.logger.log_epoch(epoch + 1, epoch_metrics)
 
         for k in history:
-            history[k].append(float(epoch_metrics[k]))
+            history[k].append(float(epoch_metrics.get(k, 0.0)))
 
         # Latest checkpoint
         latest_path = paths_cfg["latest_checkpoint"]

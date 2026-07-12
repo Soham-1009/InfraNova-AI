@@ -104,6 +104,18 @@ class InferenceEngine:
             if arr.ndim == 2:
                 return Image.fromarray(arr)
             if arr.ndim == 3:
+                # Channel-first: e.g. (3, 128, 128) or (1, 128, 128)
+                if arr.shape[0] in (1, 3, 4) and arr.shape[0] < arr.shape[1]:
+                    if arr.shape[0] == 1:
+                        return Image.fromarray(arr[0])
+                    # Multi-channel first — convert via luminance
+                    lum = (
+                        0.299 * arr[0].astype(np.float32)
+                        + 0.587 * arr[1].astype(np.float32)
+                        + 0.114 * arr[2].astype(np.float32)
+                    )
+                    return Image.fromarray(lum.astype(arr.dtype))
+                # Channel-last: e.g. (128, 128, 3) or (128, 128, 1)
                 if arr.shape[2] == 3:
                     # RGB — convert via luminance
                     lum = (

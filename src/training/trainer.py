@@ -191,7 +191,7 @@ class Trainer:
             self.model.discriminator.requires_grad_(True)
             self.optimizer_d.zero_grad(set_to_none=True)
 
-            with autocast('cuda', enabled=self.scaler.is_enabled()):
+            with autocast(self.device.type, enabled=self.scaler.is_enabled()):
                 fake_rgb = self.model.generate(ir).detach()
 
                 # Add noise to prevent discriminator overpowering
@@ -220,7 +220,7 @@ class Trainer:
             self.model.discriminator.requires_grad_(False)
 
             try:
-                with autocast('cuda', enabled=self.scaler.is_enabled()):
+                with autocast(self.device.type, enabled=self.scaler.is_enabled()):
                     fake_rgb = self.model.generate(ir)
                     fake_pred_for_g = self.model.discriminate(ir, fake_rgb)
 
@@ -237,9 +237,10 @@ class Trainer:
                     self.model.generator.parameters(), self.grad_clip
                 )
                 self.scaler.step(self.optimizer_g)
-                self.scaler.update()
             finally:
                 self.model.discriminator.requires_grad_(True)
+
+            self.scaler.update()
 
             running["g_loss"] += float(g_loss.detach().item())
             running["d_loss"] += float(d_loss_last.item())
