@@ -39,7 +39,7 @@ class DownBlock(nn.Module):
 
 
 class UpBlock(nn.Module):
-    """Decoder block: ConvTranspose2d -> InstanceNorm -> ReLU -> optional Dropout."""
+    """Decoder block: Upsample -> Conv2d -> InstanceNorm -> ReLU -> optional Dropout."""
 
     def __init__(
         self,
@@ -50,11 +50,13 @@ class UpBlock(nn.Module):
         super().__init__()
 
         layers: List[nn.Module] = [
-            nn.ConvTranspose2d(
+            # This is the fix: Upsample then Conv2d prevents checkerboard patterns
+            nn.Upsample(scale_factor=2.0, mode='bilinear', align_corners=False),
+            nn.Conv2d(
                 in_channels,
                 out_channels,
-                kernel_size=4,
-                stride=2,
+                kernel_size=3,
+                stride=1,
                 padding=1,
                 bias=False,
             ),
@@ -111,12 +113,14 @@ class GeneratorUNet(nn.Module):
         self.up5 = UpBlock(features[3] * 2, features[2])
         self.up6 = UpBlock(features[2] * 2, features[1])
         self.up7 = UpBlock(features[1] * 2, features[0])
+        # Fix the final layer to also use the smooth resizing method
         self.up8 = nn.Sequential(
-            nn.ConvTranspose2d(
+            nn.Upsample(scale_factor=2.0, mode='bilinear', align_corners=False),
+            nn.Conv2d(
                 features[0] * 2,
                 out_channels,
-                kernel_size=4,
-                stride=2,
+                kernel_size=3,
+                stride=1,
                 padding=1,
             ),
             nn.Tanh(),

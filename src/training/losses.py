@@ -87,7 +87,10 @@ class VGGPerceptualLoss(nn.Module):
 
     def _imagenet_norm(self, x: torch.Tensor) -> torch.Tensor:
         x = (x + 1.0) / 2.0
-        return (x - self.mean) / self.std
+        # This is the fix: cast the mean and std to match the input image's dtype
+        mean = self.mean.to(dtype=x.dtype)
+        std = self.std.to(dtype=x.dtype)
+        return (x - mean) / std
 
     def forward(self, fake_rgb: torch.Tensor, real_rgb: torch.Tensor) -> torch.Tensor:
         fake_rgb = self._imagenet_norm(fake_rgb)
@@ -147,10 +150,12 @@ class SSIMLoss(nn.Module):
         c2 = (0.03 ** 2)
 
         channel = img1.size(1)
-        if channel != self.channel or self.window.device != img1.device:
-            self.window = self._create_window(self.window_size, self.sigma, channel).to(img1.device)
-            self.channel = channel
-        window = self.window
+        # This is the fix: we make sure the 'dtype' matches so it doesn't crash
+        if channel != self.channel or self.window.device != img1.device or self.window.dtype != img1.dtype:
+            window = self._create_window(self.window_size, self.sigma, channel).to(device=img1.device, dtype=img1.dtype)
+            self.window = window
+        else:
+            window = self.window
 
         mu1 = F.conv2d(img1, window, padding=self.window_size // 2, groups=channel)
         mu2 = F.conv2d(img2, window, padding=self.window_size // 2, groups=channel)

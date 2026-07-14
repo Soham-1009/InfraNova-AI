@@ -191,7 +191,8 @@ class Trainer:
             self.model.discriminator.requires_grad_(True)
             self.optimizer_d.zero_grad(set_to_none=True)
 
-            with autocast(self.device.type, enabled=self.scaler.is_enabled()):
+            # This is the fix: use device_type instead of the word 'cuda'
+            with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
                 fake_rgb = self.model.generate(ir).detach()
 
                 # Add noise to prevent discriminator overpowering
@@ -220,7 +221,8 @@ class Trainer:
             self.model.discriminator.requires_grad_(False)
 
             try:
-                with autocast(self.device.type, enabled=self.scaler.is_enabled()):
+                # This is the fix: use device_type instead of the word 'cuda'
+                with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
                     fake_rgb = self.model.generate(ir)
                     fake_pred_for_g = self.model.discriminate(ir, fake_rgb)
 
