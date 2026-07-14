@@ -1,49 +1,58 @@
-# Deep Learning Core
-# Choose one PyTorch build before installing the rest of the dependencies:
-# CPU build:
-#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-# CUDA 12.1 build:
-#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+Deep Learning Core
+
+FIX: Force Docker to install the smaller, CPU-only version of PyTorch
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 torch
 torchvision
 torchaudio
 
-# Image Processing
+Image Processing
+
 opencv-python
 Pillow
 tifffile
 rasterio
 imagecodecs
 
-# Data Processing
+Data Processing
+
 numpy
 scipy
 PyYAML
 tqdm
 
-# Satellite Data
+Satellite Data
+
 earthengine-api
 geemap
 datasets
 
-# Model Training
+Model Training
+
 torchmetrics
 lpips
 
-# Augmentation
+Augmentation
+
 albumentations
 
-# Visualization
+Visualization
+
 matplotlib
 
-# Demo
+Demo
+
 streamlit
 streamlit-image-comparison
 
-# Logging (optional)
+Logging (optional)
+
 wandb
 
-# Notebook support
+Notebook support
+
 jupyter
 ipykernel
 ultralytics

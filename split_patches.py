@@ -45,50 +45,55 @@ def split_regions(region_dirs: List[Path], seed: int) -> Dict[str, List[Path]]:
 
     n_total = len(shuffled)
     n_train = int(n_total * TRAIN_RATIO)
-    n_val = int(n_total * VAL_RATIO)
+    # FIX: Ensure at least 1 validation region to prevent crashes on tiny datasets
+    n_val = max(1, int(n_total * VAL_RATIO)) 
 
     if n_total >= 3:
-        n_train = max(1, min(n_train, n_total - 2))
-        n_val = max(1, min(n_val, n_total - n_train - 1))
-    elif n_total == 2:
-        n_train = 1
-        n_val = 1
+        train_dirs = shuffled[:n_train]
+        val_dirs = shuffled[n_train : n_train + n_val]
+        test_dirs = shuffled[n_train + n_val :]
+        # Safety fallback if test_dirs becomes empty due to rounding
+        if not test_dirs and len(val_dirs) > 1:
+            test_dirs = [val_dirs.pop()]
     else:
-        n_train = 1
-        n_val = 0
+        # Extreme edge case: less than 3 regions total
+        train_dirs = shuffled
+        val_dirs = shuffled[:1]  
+        test_dirs = shuffled[-1:] 
 
     return {
-        "train": shuffled[:n_train],
-        "val": shuffled[n_train : n_train + n_val],
-        "test": shuffled[n_train + n_val :],
+        "train": train_dirs,
+        "val": val_dirs,
+        "test": test_dirs,
     }
 
 
 def prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
-    existing_splits = [output_dir / split for split in SPLITS if (output_dir / split).exists()]
-    if existing_splits and not overwrite:
-        existing = ", ".join(str(path) for path in existing_splits)
-        raise FileExistsError(
-            f"Existing split folders found: {existing}. "
-            "Use --overwrite to rebuild them."
-        )
-
-    if output_dir.exists() and overwrite:
-        shutil.rmtree(output_dir)
+    if output_dir.exists():
+        if overwrite:
+            print(f"Overwriting existing splits in {output_dir}")
+            shutil.rmtree(output_dir)
+        else:
+            raise FileExistsError(
+                f"Output directory {output_dir} already exists. Use --overwrite to replace it."
+            )
 
     for split in SPLITS:
         (output_dir / split).mkdir(parents=True, exist_ok=True)
 
 
-def copy_split(split_name: str, region_dirs: List[Path], output_dir: Path) -> int:
-    split_dir = output_dir / split_name
+def copy_splits(region_splits: Dict[str, List[Path]], output_dir: Path) -> int:
     count = 0
+    for split in SPLITS:
+        split_dir = output_dir / split
+        region_dirs = region_splits[split]
 
-    for region_dir in region_dirs:
-        for sample_dir in sorted(region_dir.glob("sample_*")):
-            target_name = f"{region_dir.name}_{sample_dir.name}_{count:05d}"
-            shutil.copytree(sample_dir, split_dir / target_name)
-            count += 1
+        for region_dir in region_dirs:
+            for sample_dir in sorted(region_dir.glob("sample_*")):
+                # Create a unique name to avoid collisions
+                target_name = f"{region_dir.name}_{sample_dir.name}_{count:05d}"
+                shutil.copytree(sample_dir, split_dir / target_name)
+                count += 1
 
     return count
 
@@ -117,12 +122,8 @@ def main() -> None:
         print(f"{split.title()}: {len(region_splits[split])} regions, {sample_count} patches")
 
     prepare_output_dir(output_dir, overwrite=args.overwrite)
-
-    for split in SPLITS:
-        copied = copy_split(split, region_splits[split], output_dir)
-        print(f"  {split}: wrote {copied} folders")
-
-    print("Done")
+    total_copied = copy_splits(region_splits, output_dir)
+    print(f"Successfully copied {total_copied} total patches.")
 
 
 if __name__ == "__main__":
