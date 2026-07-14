@@ -16,8 +16,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from demo.utils import enhance_output, visualize_tir_as_thermal  # noqa: E402
-from src.inference.landsat_inference import LandsatColorizationInference  # noqa: E402
+from demo.utils import enhance_output, visualize_tir_as_thermal
+from src.inference.landsat_inference import LandsatColorizationInference
 
 logger = logging.getLogger(__name__)
 
@@ -44,34 +44,8 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Theme system
 # ---------------------------------------------------------------------------
-def get_theme(light_mode: bool) -> Dict[str, str]:
+def get_theme() -> Dict[str, str]:
     """Return a colour palette for the requested appearance."""
-    if light_mode:
-        return {
-            "bg": "#f0f2f5",
-            "bg_gradient": "linear-gradient(135deg, #f0f2f5 0%, #e8ecf1 100%)",
-            "surface": "rgba(255, 255, 255, 0.72)",
-            "surface_solid": "#ffffff",
-            "surface_hover": "rgba(255, 255, 255, 0.88)",
-            "text": "#0f1419",
-            "text_secondary": "#536471",
-            "border": "rgba(0, 0, 0, 0.08)",
-            "border_hover": "rgba(0, 0, 0, 0.16)",
-            "primary": "#0d9488",
-            "primary_hover": "#0f766e",
-            "primary_text": "#ffffff",
-            "accent": "#d97706",
-            "accent_soft": "rgba(217, 119, 6, 0.10)",
-            "success": "#059669",
-            "success_soft": "rgba(5, 150, 105, 0.12)",
-            "danger": "#dc2626",
-            "image_well": "#e5e7eb",
-            "card_shadow": "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-            "card_shadow_hover": "0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04)",
-            "glow": "0 0 20px rgba(13,148,136,0.15)",
-            "gradient_primary": "linear-gradient(135deg, #0d9488 0%, #0284c7 100%)",
-            "gradient_accent": "linear-gradient(135deg, #d97706 0%, #ea580c 100%)",
-        }
     return {
         "bg": "#0a0e12",
         "bg_gradient": "linear-gradient(135deg, #0a0e12 0%, #0f1720 50%, #0a1628 100%)",
@@ -128,13 +102,6 @@ def inject_css(theme: Dict[str, str]) -> None:
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
         /* ── Reset & Base ─────────────────────────────────────── */
-        :root, [data-theme="light"], [data-theme="dark"], .stApp {{
-            --primary-color: {primary} !important;
-            --background-color: {bg} !important;
-            --secondary-background-color: {surface_solid} !important;
-            --text-color: {text} !important;
-        }}
-
         html, body, .stApp {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }}
 
         #MainMenu, footer,
@@ -144,7 +111,7 @@ def inject_css(theme: Dict[str, str]) -> None:
             display: none !important;
         }}
 
-        [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"], .stApp {{
+        [data-testid="stAppViewContainer"], .stApp {{
             background: {bg_gradient} !important;
             color: {text} !important;
         }}
@@ -364,7 +331,7 @@ def inject_css(theme: Dict[str, str]) -> None:
         }}
         .stButton > button:hover,
         .stDownloadButton > button:hover {{
-            border-color: {primary_hover};
+            border-color: {primary};
             background: {surface_hover} !important;
             box-shadow: {glow};
             transform: translateY(-1px);
@@ -373,7 +340,7 @@ def inject_css(theme: Dict[str, str]) -> None:
         /* Primary button — gradient */
         .stButton > button[kind="primary"] {{
             border: none;
-            background: {gradient_accent} !important;
+            background: {gradient_primary} !important;
             background-size: 200% 200%;
             animation: gradientShift 4s ease infinite;
             color: {primary_text} !important;
@@ -412,7 +379,7 @@ def inject_css(theme: Dict[str, str]) -> None:
 
         /* ── Alerts ───────────────────────────────────────────── */
         [data-testid="stAlert"] {{
-            border: 1px solid {accent} !important;
+            border: 1px solid {border} !important;
             border-radius: 10px;
             background: {surface} !important;
             backdrop-filter: blur(8px);
@@ -471,7 +438,7 @@ def inject_css(theme: Dict[str, str]) -> None:
         }}
     </style>
     """
-    st.html(css)
+    st.markdown(css, unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -554,26 +521,20 @@ if logo_path.exists():
 else:
     logo_html = '<div class="brand-logo">IN</div>'
 
-header_left, header_right = st.columns([0.82, 0.18])
-
-with header_left:
-    st.markdown(
-        f"""
-        <div class="brand-row">
-            {logo_html}
-            <div>
-                <p class="brand-title">InfraNova AI</p>
-                <p class="brand-subtitle">Landsat 9 thermal infrared → RGB synthesis</p>
-            </div>
+st.markdown(
+    f"""
+    <div class="brand-row">
+        {logo_html}
+        <div>
+            <p class="brand-title">InfraNova AI</p>
+            <p class="brand-subtitle">Landsat 9 thermal infrared → RGB synthesis</p>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-with header_right:
-    pass
-
-inject_css(get_theme(False))
+inject_css(get_theme())
 
 # ---------------------------------------------------------------------------
 # Engine loading
@@ -655,17 +616,17 @@ if uploaded_file is not None:
             for key in ("output_image", "inference_time", "used_tta", "used_enhance"):
                 st.session_state.pop(key, None)
     else:
-        if st.session_state.get("input_signature") is not None:
-            for key in (
-                "input_image",
-                "input_name",
-                "input_signature",
-                "output_image",
-                "inference_time",
-                "used_tta",
-                "used_enhance",
-            ):
-                st.session_state.pop(key, None)
+        # Clear stale state when a previously valid image is replaced by an invalid upload
+        for key in (
+            "input_image",
+            "input_name",
+            "input_signature",
+            "output_image",
+            "inference_time",
+            "used_tta",
+            "used_enhance",
+        ):
+            st.session_state.pop(key, None)
 
 if upload_error:
     st.error(upload_error)

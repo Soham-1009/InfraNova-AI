@@ -46,3 +46,4 @@ wandb
 # Notebook support
 jupyter
 ipykernel
+ultralytics
