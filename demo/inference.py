@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import List, Optional, Sequence, Union
 
@@ -10,8 +11,8 @@ from PIL import Image
 
 # Make sure project root is importable when running from /demo
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in os.sys.path:
-    os.sys.path.insert(0, str(PROJECT_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.pix2pix.pix2pix import Pix2Pix
 from src.utils.checkpoint import load_torch_checkpoint
@@ -129,7 +130,7 @@ class InferenceEngine:
 
         raise TypeError("Input must be a PIL.Image.Image or numpy.ndarray.")
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict(
         self,
         image: Union[Image.Image, np.ndarray],
@@ -180,7 +181,7 @@ class InferenceEngine:
         fake_rgb = torch.stack(preds, dim=0).mean(dim=0)
         return postprocess_output(fake_rgb.squeeze(0))
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict_batch(
         self,
         images: Sequence[Union[Image.Image, np.ndarray]],

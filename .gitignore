@@ -71,3 +71,7 @@ Thumbs.db
 
 # Hugging Face cache
 ~/.cache/huggingface/
+.cache/huggingface/
+
+# EXCEPTION: Allow the final model for the live website
+!best_model.pth

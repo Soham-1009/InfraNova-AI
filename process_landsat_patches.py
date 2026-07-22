@@ -2,10 +2,13 @@
 Process raw Landsat 9 TIF files into training patches.
 """
 
+import logging
 import tifffile
 import numpy as np
 import cv2
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Patch size configuration
 PATCH_SIZE_200M = 64   # Input patch size at 200m
@@ -48,8 +51,20 @@ def process_region(region_dir, output_dir):
         print(f"  Missing bands")
         return 0
     
-    tir = tifffile.imread(b10)
-    rgb = merge_rgb(b2, b3, b4)
+    try:
+        tir = tifffile.imread(b10)
+        rgb = merge_rgb(b2, b3, b4)
+    except Exception as exc:
+        logger.warning("  Skipping %s: corrupted TIFF (%s)", region_id, exc)
+        return 0
+    
+    # Check for non-finite values in raw data
+    if not np.isfinite(tir).all():
+        logger.warning("  Skipping %s: TIR contains non-finite values", region_id)
+        return 0
+    if not np.isfinite(rgb).all():
+        logger.warning("  Skipping %s: RGB contains non-finite values", region_id)
+        return 0
     
     rgb_100m = downscale_image(rgb, 3.33)
     tir_100m = downscale_image(tir, 3.33)
@@ -64,6 +79,7 @@ def process_region(region_dir, output_dir):
         return 0
     
     count = 0
+    skipped_border = 0
     region_patches_dir = output_dir / region_id
     region_patches_dir.mkdir(parents=True, exist_ok=True)
     
@@ -76,8 +92,10 @@ def process_region(region_dir, output_dir):
             patch_rgb_100m = rgb_100m[:, y100:y100+PATCH_SIZE_100M, x100:x100+PATCH_SIZE_100M]
             
             if patch_tir_100m.shape != (PATCH_SIZE_100M, PATCH_SIZE_100M):
+                skipped_border += 1
                 continue
             if patch_rgb_100m.shape[-2:] != (PATCH_SIZE_100M, PATCH_SIZE_100M):
+                skipped_border += 1
                 continue
             
             patch_dir = region_patches_dir / f'sample_{count:03d}'
@@ -89,6 +107,8 @@ def process_region(region_dir, output_dir):
             
             count += 1
     
+    if skipped_border > 0:
+        print(f"  Skipped {skipped_border} border patches (misaligned 200m/100m grids)")
     print(f"  Created {count} patches")
     return count
 

@@ -18,6 +18,8 @@ from src.training.losses import CombinedLoss
 from src.training.scheduler import LinearLRScheduler
 from src.training.trainer import Trainer
 from src.utils.checkpoint import load_checkpoint, save_checkpoint
+from src.utils.config_validator import validate_config
+from src.utils.seed import seed_everything
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -71,13 +73,6 @@ class LandsatBatchAdapter(Dataset):
         return self._normalize(self.base_dataset[idx])
 
 
-def seed_everything(seed: int = 42) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = True
 
 
 def load_config(config_path: str = "configs/config.yaml") -> Dict[str, Any]:
@@ -146,6 +141,9 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
         - best/final checkpoint saving
     """
     seed_everything(int(cfg.get("project", {}).get("seed", 42)))
+
+    # Validate configuration before any expensive work
+    validate_config(cfg)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     training_cfg = cfg["training"]
@@ -242,6 +240,9 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
         decay_start_epoch,
     )
 
+    # Log experiment info at start
+    trainer.logger.log_experiment_info(config=cfg, phase="start")
+
     for epoch in range(start_epoch, epochs):
         scheduler_g.step(epoch)
         scheduler_d.step(epoch)
@@ -318,6 +319,9 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
             break
 
     trainer.logger.save_plot()
+
+    # Log experiment info at end
+    trainer.logger.log_experiment_info(phase="end")
 
     # Final checkpoint copy
     final_path = paths_cfg["final_checkpoint"]

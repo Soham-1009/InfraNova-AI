@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import VGG19_Weights, vgg19
+
+logger = logging.getLogger(__name__)
 
 
 class GANLoss(nn.Module):
@@ -61,8 +65,20 @@ class VGGPerceptualLoss(nn.Module):
             }
 
         self.layer_weights = layer_weights
+        self.enabled = True
 
-        vgg = vgg19(weights=VGG19_Weights.DEFAULT).features
+        try:
+            vgg = vgg19(weights=VGG19_Weights.DEFAULT).features
+        except Exception:
+            # Fall back to uninitialized weights if pretrained weights are not available.
+            # This keeps offline environments and Docker builds from crashing.
+            logger.warning("VGG19 pretrained weights unavailable; perceptual loss is disabled.")
+            self.enabled = False
+            self.blocks = nn.ModuleList()
+            self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+            self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+            return
+
         self.blocks = nn.ModuleList(
             [
                 vgg[:4],    # relu1_2
@@ -93,10 +109,13 @@ class VGGPerceptualLoss(nn.Module):
         return (x - mean) / std
 
     def forward(self, fake_rgb: torch.Tensor, real_rgb: torch.Tensor) -> torch.Tensor:
+        if not self.enabled:
+            return fake_rgb.new_tensor(0.0)
+
         fake_rgb = self._imagenet_norm(fake_rgb)
         real_rgb = self._imagenet_norm(real_rgb)
 
-        loss = torch.tensor(0.0, device=fake_rgb.device)
+        loss = fake_rgb.new_tensor(0.0)
 
         current_fake = fake_rgb
         current_real = real_rgb

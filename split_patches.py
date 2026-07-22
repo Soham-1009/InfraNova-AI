@@ -44,22 +44,39 @@ def split_regions(region_dirs: List[Path], seed: int) -> Dict[str, List[Path]]:
     rng.shuffle(shuffled)
 
     n_total = len(shuffled)
-    n_train = int(n_total * TRAIN_RATIO)
-    # FIX: Ensure at least 1 validation region to prevent crashes on tiny datasets
-    n_val = max(1, int(n_total * VAL_RATIO)) 
+    if n_total == 0:
+        return {"train": [], "val": [], "test": []}
 
-    if n_total >= 3:
-        train_dirs = shuffled[:n_train]
-        val_dirs = shuffled[n_train : n_train + n_val]
-        test_dirs = shuffled[n_train + n_val :]
-        # Safety fallback if test_dirs becomes empty due to rounding
-        if not test_dirs and len(val_dirs) > 1:
-            test_dirs = [val_dirs.pop()]
-    else:
-        # Extreme edge case: less than 3 regions total
-        train_dirs = shuffled
-        val_dirs = shuffled[:1]  
-        test_dirs = shuffled[-1:] 
+    if n_total == 1:
+        return {"train": shuffled, "val": [], "test": []}
+
+    if n_total == 2:
+        return {"train": [shuffled[0]], "val": [shuffled[1]], "test": []}
+
+    # Start from rounded ratio targets, then rebalance so that train/val/test
+    # are all non-empty when there are at least three regions.
+    n_train = max(1, round(n_total * TRAIN_RATIO))
+    n_val = max(1, round(n_total * VAL_RATIO))
+    n_test = n_total - n_train - n_val
+
+    if n_test < 1:
+        needed = 1 - n_test
+        train_reducible = max(0, n_train - 1)
+        take = min(needed, train_reducible)
+        n_train -= take
+        needed -= take
+
+        if needed > 0:
+            val_reducible = max(0, n_val - 1)
+            take = min(needed, val_reducible)
+            n_val -= take
+            needed -= take
+
+        n_test = n_total - n_train - n_val
+
+    train_dirs = shuffled[:n_train]
+    val_dirs = shuffled[n_train : n_train + n_val]
+    test_dirs = shuffled[n_train + n_val :]
 
     return {
         "train": train_dirs,

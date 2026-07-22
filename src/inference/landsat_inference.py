@@ -17,6 +17,11 @@ try:
 except Exception:  # pragma: no cover
     rasterio = None
 
+try:
+    import tifffile
+except Exception:  # pragma: no cover
+    tifffile = None
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
@@ -184,7 +189,7 @@ class LandsatColorizationInference:
         confidence = np.clip(contrast / 0.25, 0.0, 1.0)
         return float(confidence)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict(
         self,
         image: Union[Image.Image, np.ndarray],
@@ -274,10 +279,13 @@ class LandsatColorizationInference:
                 dst.write(bgr_array[:, :, 0], 1)
                 dst.write(bgr_array[:, :, 1], 2)
                 dst.write(bgr_array[:, :, 2], 3)
+        elif tifffile is not None:
+            # Preserve band order as a 3-band TIFF when rasterio is unavailable.
+            tifffile.imwrite(path, np.moveaxis(bgr_array, -1, 0))
         else:
-            # Fallback: PIL save. Band order is preserved in the array, but
-            # raster semantics depend on the reader. Rasterio is preferred.
-            Image.fromarray(bgr_array).save(path)
+            raise RuntimeError(
+                "Saving a 3-band TIFF requires rasterio or tifffile to be installed."
+            )
 
         return str(path)
 

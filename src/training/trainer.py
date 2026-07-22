@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -13,6 +15,8 @@ from src.training.callbacks import EarlyStopping, ModelCheckpoint
 from src.training.losses import CombinedLoss
 from src.training.scheduler import LinearLRScheduler
 from src.utils.logger import TrainingLogger
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer:
@@ -165,6 +169,7 @@ class Trainer:
 
     def train_one_epoch(self, epoch: int) -> Dict[str, float]:
         self.model.train()
+        epoch_start = time.perf_counter()
 
         running = {
             "g_loss": 0.0,
@@ -173,6 +178,8 @@ class Trainer:
             "adv": 0.0,
             "perc": 0.0,
             "ssim": 0.0,
+            "grad_norm_g": 0.0,
+            "grad_norm_d": 0.0,
         }
 
         num_batches = len(self.train_loader)
@@ -210,10 +217,17 @@ class Trainer:
 
             self.scaler.scale(d_loss).backward()
             self.scaler.unscale_(self.optimizer_d)
-            torch.nn.utils.clip_grad_norm_(
+            d_grad_norm = torch.nn.utils.clip_grad_norm_(
                 self.model.discriminator.parameters(), self.grad_clip
             )
-            self.scaler.step(self.optimizer_d)
+
+            # NaN/inf protection for discriminator
+            if not torch.isfinite(d_loss):
+                logger.warning("Non-finite discriminator loss at batch %d, skipping D step.", batch_idx)
+                self.optimizer_d.zero_grad(set_to_none=True)
+            else:
+                self.scaler.step(self.optimizer_d)
+
             d_loss_last = d_loss.detach()
 
             # ---- Train Generator (NO noise) ----
@@ -235,10 +249,16 @@ class Trainer:
 
                 self.scaler.scale(g_loss).backward()
                 self.scaler.unscale_(self.optimizer_g)
-                torch.nn.utils.clip_grad_norm_(
+                g_grad_norm = torch.nn.utils.clip_grad_norm_(
                     self.model.generator.parameters(), self.grad_clip
                 )
-                self.scaler.step(self.optimizer_g)
+
+                # NaN/inf protection for generator
+                if not torch.isfinite(g_loss):
+                    logger.warning("Non-finite generator loss at batch %d, skipping G step.", batch_idx)
+                    self.optimizer_g.zero_grad(set_to_none=True)
+                else:
+                    self.scaler.step(self.optimizer_g)
             finally:
                 self.model.discriminator.requires_grad_(True)
 
@@ -250,9 +270,18 @@ class Trainer:
             running["adv"] += float(losses["adv"].detach().item())
             running["perc"] += float(losses["perc"].detach().item())
             running["ssim"] += float(losses["ssim"].detach().item())
+            running["grad_norm_g"] += float(g_grad_norm)
+            running["grad_norm_d"] += float(d_grad_norm)
 
         for key in running:
             running[key] /= max(num_batches, 1)
+
+        # Epoch timing and GPU memory
+        running["epoch_duration"] = time.perf_counter() - epoch_start
+        if self.device.type == "cuda":
+            running["gpu_mem_mb"] = torch.cuda.max_memory_allocated(self.device) / (1024 * 1024)
+        else:
+            running["gpu_mem_mb"] = 0.0
 
         return running
 
@@ -357,11 +386,13 @@ class Trainer:
 
     def fit(self, num_epochs: int) -> Dict[str, list]:
         """Train end-to-end with scheduler, checkpointing, and early stopping."""
+        fit_start = time.perf_counter()
         for epoch in range(self.start_epoch, num_epochs):
             train_metrics = self.train_one_epoch(epoch)
             val_metrics = self.validate()
 
             epoch_metrics = {**train_metrics, **val_metrics}
+            epoch_metrics["lr"] = self.scheduler_g.get_last_lr()[0]
 
             self.logger.log_epoch(epoch + 1, epoch_metrics)
 
@@ -390,13 +421,30 @@ class Trainer:
 
             current_lr = self.scheduler_g.get_last_lr()[0]
 
+            # ETA calculation
+            elapsed = time.perf_counter() - fit_start
+            epochs_done = epoch - self.start_epoch + 1
+            epochs_left = num_epochs - epoch - 1
+            avg_epoch_time = elapsed / max(epochs_done, 1)
+            eta_seconds = avg_epoch_time * epochs_left
+            eta_min = eta_seconds / 60
+
+            duration = train_metrics.get("epoch_duration", 0.0)
+            gpu_mem = train_metrics.get("gpu_mem_mb", 0.0)
+            grad_g = train_metrics.get("grad_norm_g", 0.0)
+            grad_d = train_metrics.get("grad_norm_d", 0.0)
+
             print(
                 f"Epoch {epoch + 1}/{num_epochs} | "
                 f"G: {train_metrics['g_loss']:.4f} | "
                 f"D: {train_metrics['d_loss']:.4f} | "
                 f"PSNR: {val_metrics['val_psnr']:.2f} | "
                 f"SSIM: {val_metrics['val_ssim']:.4f} | "
-                f"LR: {current_lr:.6f}"
+                f"LR: {current_lr:.6f} | "
+                f"∇G: {grad_g:.2f} ∇D: {grad_d:.2f} | "
+                f"{duration:.1f}s"
+                f"{f' | GPU: {gpu_mem:.0f}MB' if gpu_mem > 0 else ''}"
+                f" | ETA: {eta_min:.1f}min"
             )
 
             if self.early_stopping.step(epoch_metrics):

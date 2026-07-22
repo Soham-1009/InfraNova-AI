@@ -1,58 +1,46 @@
-Deep Learning Core
-
-FIX: Force Docker to install the smaller, CPU-only version of PyTorch
-
+# Deep Learning Core
+# The --extra-index-url ensures CPU-only PyTorch wheels are resolved.
+# For CUDA, replace with: --extra-index-url https://download.pytorch.org/whl/cu121
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-torch
-torchvision
-torchaudio
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
 
-Image Processing
+# Image Processing
+opencv-python>=4.8.0
+Pillow>=10.0.0
+tifffile>=2023.7.0
+rasterio>=1.3.0
+imagecodecs>=2023.7.0
 
-opencv-python
-Pillow
-tifffile
-rasterio
-imagecodecs
+# Data Processing
+numpy>=1.24.0,<2.0.0
+scipy>=1.11.0
+PyYAML>=6.0
+tqdm>=4.65.0
 
-Data Processing
+# Satellite Data
+earthengine-api>=0.1.370
+geemap>=0.30.0
 
-numpy
-scipy
-PyYAML
-tqdm
+# Model Training
+torchmetrics>=1.0.0
+lpips>=0.1.4
 
-Satellite Data
+# Augmentation
+albumentations>=1.3.0
 
-earthengine-api
-geemap
-datasets
+# Visualization
+matplotlib>=3.7.0
 
-Model Training
+# Demo
+streamlit>=1.28.0
+streamlit-image-comparison>=0.0.4
 
-torchmetrics
-lpips
+# Logging (optional)
+wandb>=0.15.0
 
-Augmentation
-
-albumentations
-
-Visualization
-
-matplotlib
-
-Demo
-
-streamlit
-streamlit-image-comparison
-
-Logging (optional)
-
-wandb
-
-Notebook support
-
-jupyter
-ipykernel
-ultralytics
+# Notebook support
+jupyter>=1.0.0
+ipykernel>=6.25.0

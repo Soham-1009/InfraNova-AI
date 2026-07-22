@@ -44,32 +44,58 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Theme system
 # ---------------------------------------------------------------------------
-def get_theme() -> Dict[str, str]:
-    """Return a colour palette for the requested appearance."""
+def get_theme(dark_mode: bool) -> dict:
+    """Return a complete theme dictionary for inject_css()."""
+    if dark_mode:
+        return {
+            "bg": "#0a0e12",
+            "bg_gradient": "linear-gradient(135deg, #0a0e12 0%, #0f1720 50%, #0a1628 100%)",
+            "surface": "rgba(17, 25, 35, 0.65)",
+            "surface_solid": "#111923",
+            "surface_hover": "rgba(17, 25, 35, 0.85)",
+            "text": "#e7edf3",
+            "text_secondary": "#8899a6",
+            "border": "rgba(255, 255, 255, 0.06)",
+            "border_hover": "rgba(255, 255, 255, 0.14)",
+            "primary": "#14b8a6",
+            "primary_hover": "#2dd4bf",
+            "primary_text": "#042f2e",
+            "accent": "#f59e0b",
+            "accent_soft": "rgba(245, 158, 11, 0.12)",
+            "success": "#10b981",
+            "success_soft": "rgba(16, 185, 129, 0.12)",
+            "danger": "#ef4444",
+            "image_well": "#0d1117",
+            "card_shadow": "0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)",
+            "card_shadow_hover": "0 10px 30px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3)",
+            "glow": "0 0 30px rgba(20,184,166,0.18)",
+            "gradient_primary": "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)",
+            "gradient_accent": "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
+        }
     return {
-        "bg": "#0a0e12",
-        "bg_gradient": "linear-gradient(135deg, #0a0e12 0%, #0f1720 50%, #0a1628 100%)",
-        "surface": "rgba(17, 25, 35, 0.65)",
-        "surface_solid": "#111923",
-        "surface_hover": "rgba(17, 25, 35, 0.85)",
-        "text": "#e7edf3",
-        "text_secondary": "#8899a6",
-        "border": "rgba(255, 255, 255, 0.06)",
-        "border_hover": "rgba(255, 255, 255, 0.14)",
-        "primary": "#14b8a6",
-        "primary_hover": "#2dd4bf",
-        "primary_text": "#042f2e",
-        "accent": "#f59e0b",
-        "accent_soft": "rgba(245, 158, 11, 0.12)",
-        "success": "#10b981",
-        "success_soft": "rgba(16, 185, 129, 0.12)",
-        "danger": "#ef4444",
-        "image_well": "#0d1117",
-        "card_shadow": "0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)",
-        "card_shadow_hover": "0 10px 30px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3)",
-        "glow": "0 0 30px rgba(20,184,166,0.18)",
-        "gradient_primary": "linear-gradient(135deg, #14b8a6 0%, #0ea5e9 100%)",
-        "gradient_accent": "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
+        "bg": "#f0f2f5",
+        "bg_gradient": "linear-gradient(135deg, #f0f2f5 0%, #e8ecf1 50%, #f5f7fa 100%)",
+        "surface": "rgba(255, 255, 255, 0.75)",
+        "surface_solid": "#ffffff",
+        "surface_hover": "rgba(255, 255, 255, 0.9)",
+        "text": "#0f1419",
+        "text_secondary": "#536471",
+        "border": "rgba(0, 0, 0, 0.08)",
+        "border_hover": "rgba(0, 0, 0, 0.16)",
+        "primary": "#0d9488",
+        "primary_hover": "#14b8a6",
+        "primary_text": "#ffffff",
+        "accent": "#d97706",
+        "accent_soft": "rgba(217, 119, 6, 0.12)",
+        "success": "#059669",
+        "success_soft": "rgba(5, 150, 105, 0.12)",
+        "danger": "#dc2626",
+        "image_well": "#e5e7eb",
+        "card_shadow": "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+        "card_shadow_hover": "0 10px 30px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.06)",
+        "glow": "0 0 30px rgba(13,148,136,0.15)",
+        "gradient_primary": "linear-gradient(135deg, #0d9488 0%, #0284c7 100%)",
+        "gradient_accent": "linear-gradient(135deg, #d97706 0%, #ea580c 100%)",
     }
 
 
@@ -461,9 +487,14 @@ def load_uploaded_image(
             image = ImageOps.exif_transpose(source)
             image.load()
 
-            # Fix: Automatically convert standard RGB uploads to Grayscale
-            if image.mode in ("RGB", "RGBA"):
+            # Convert palette images to grayscale for thermal processing
+            if image.mode == "P":
                 image = image.convert("L")
+
+            if image.mode in ("RGB", "RGBA"):
+                return None, None, (
+                    "Please upload a single-band thermal infrared image (for example, grayscale TIFF)."
+                )
 
             if image.width > MAX_IMAGE_DIMENSION or image.height > MAX_IMAGE_DIMENSION:
                 return (
@@ -509,6 +540,18 @@ def get_engine(checkpoint_path: str, checkpoint_mtime: float) -> LandsatColoriza
 # ---------------------------------------------------------------------------
 if "upload_generation" not in st.session_state:
     st.session_state["upload_generation"] = 0
+DEFAULT_STATE = {
+    "theme_toggle": False,
+    "upload_generation": 0,
+    "last_signature": None,
+    "input_image": None,
+    "output_image": None,
+    "used_tta": False,
+    "used_enhance": False,
+}
+
+for key, value in DEFAULT_STATE.items():
+    st.session_state.setdefault(key, value)
 
 # ---------------------------------------------------------------------------
 # Header
@@ -521,20 +564,26 @@ if logo_path.exists():
 else:
     logo_html = '<div class="brand-logo">IN</div>'
 
-st.markdown(
-    f"""
-    <div class="brand-row">
-        {logo_html}
-        <div>
-            <p class="brand-title">InfraNova AI</p>
-            <p class="brand-subtitle">Landsat 9 thermal infrared → RGB synthesis</p>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+header_left, header_right = st.columns([0.82, 0.18])
+with header_right:
+    st.toggle("🌙 Dark Theme", key="theme_toggle")
 
-inject_css(get_theme())
+theme = get_theme(st.session_state["theme_toggle"])
+inject_css(theme)
+
+with header_left:
+    st.markdown(
+        f"""
+        <div class="brand-row">
+            {logo_html}
+            <div>
+                <p class="brand-title">InfraNova AI</p>
+                <p class="brand-subtitle">Landsat 9 thermal infrared → RGB synthesis</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Engine loading
@@ -586,8 +635,11 @@ with ctrl_enhance:
         help="Applies CLAHE contrast enhancement to the generated RGB image.",
     )
 with ctrl_runtime:
+    ckpt_name = CHECKPOINT_PATH.stem if CHECKPOINT_PATH.exists() else "not found"
     st.markdown(
-        f'<span class="runtime-chip"><span class="runtime-dot"></span>Pix2Pix · {runtime}</span>',
+        f'<span class="runtime-chip"><span class="runtime-dot"></span>Pix2Pix U-Net · {runtime}</span>'
+        f'&nbsp;&nbsp;<span class="runtime-chip">{ckpt_name}</span>'
+        f'&nbsp;&nbsp;<span class="runtime-chip">{device_repr if engine is not None else "N/A"}</span>',
         unsafe_allow_html=True,
     )
 
@@ -749,7 +801,7 @@ if output_image is not None:
     st.markdown("---")
     st.markdown('<p class="section-title">Current result</p>', unsafe_allow_html=True)
 
-    m_time, m_input, m_output, m_mode = st.columns(4)
+    m_time, m_input, m_output, m_mode, m_ckpt, m_device = st.columns(6)
     with m_time:
         st.metric("Inference time", f"{st.session_state.get('inference_time', 0.0):.2f} s")
     with m_input:
@@ -762,6 +814,10 @@ if output_image is not None:
     with m_mode:
         mode = "TTA ×4" if st.session_state.get("used_tta") else "Single pass"
         st.metric("Inference mode", mode)
+    with m_ckpt:
+        st.metric("Checkpoint", CHECKPOINT_PATH.stem if CHECKPOINT_PATH.exists() else "—")
+    with m_device:
+        st.metric("Device", device_repr if engine is not None else "—")
 
 # ---------------------------------------------------------------------------
 # Footer

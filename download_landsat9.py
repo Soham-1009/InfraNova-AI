@@ -387,7 +387,14 @@ def monitor_tasks(all_tasks):
 
 
 def main():
-    ee.Initialize(project=EE_PROJECT_ID)
+    try:
+        ee.Initialize(project=EE_PROJECT_ID)
+    except Exception as exc:
+        print(f"Failed to initialize Earth Engine: {exc}")
+        print("Make sure you have authenticated with: earthengine authenticate")
+        print(f"And that your project ID '{EE_PROJECT_ID}' is correct.")
+        return
+
     print("Earth Engine initialized")
     print(f"Total regions configured: {TOTAL_REGIONS}")
     
