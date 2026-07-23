@@ -11,6 +11,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from src.utils.image_processing import DEFAULT_PERCENTILE_HIGH, DEFAULT_PERCENTILE_LOW
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ class Landsat9Dataset(Dataset):
     def _normalize_tir(self, arr: np.ndarray) -> np.ndarray:
         """Normalize TIR to [-1, 1] using percentile stretching."""
         arr = arr.astype(np.float32)
-        p_low, p_high = np.percentile(arr, (1, 99))
+        p_low, p_high = np.percentile(arr, (DEFAULT_PERCENTILE_LOW, DEFAULT_PERCENTILE_HIGH))
         if p_high - p_low < 1e-8:
             return np.zeros_like(arr, dtype=np.float32)
         arr = np.clip((arr - p_low) / (p_high - p_low), 0, 1)
@@ -74,7 +76,7 @@ class Landsat9Dataset(Dataset):
         normalized = []
         for band in arr:
             band = band.astype(np.float32)
-            p_low, p_high = np.percentile(band, (1, 99))
+            p_low, p_high = np.percentile(band, (DEFAULT_PERCENTILE_LOW, DEFAULT_PERCENTILE_HIGH))
             if p_high - p_low < 1e-8:
                 normalized.append(np.zeros_like(band, dtype=np.float32))
                 continue

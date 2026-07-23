@@ -10,7 +10,9 @@ import torch
 from PIL import Image
 
 from demo.utils import postprocess_output, preprocess_ir_image
+from evaluate import to_unit_interval
 from split_patches import split_regions
+from src.models.pix2pix.generator import GeneratorUNet
 from src.utils.image_processing import to_single_band_array
 from src.utils.logger import TrainingLogger
 
@@ -44,6 +46,19 @@ class ImageProcessingTests(unittest.TestCase):
     def test_postprocess_rejects_multi_image_batch(self) -> None:
         with self.assertRaises(ValueError):
             postprocess_output(torch.zeros(2, 3, 4, 4))
+
+    def test_evaluation_range_conversion_preserves_normalized_endpoints(self) -> None:
+        actual = to_unit_interval(torch.tensor([-1.0, 0.0, 1.0]))
+
+        self.assertTrue(torch.equal(actual, torch.tensor([0.0, 0.5, 1.0])))
+
+
+class ModelContractTests(unittest.TestCase):
+    def test_generator_rejects_unsupported_spatial_size_before_normalization(self) -> None:
+        model = GeneratorUNet(in_channels=1, out_channels=3, features=[1] * 8)
+
+        with self.assertRaisesRegex(ValueError, "multiples of 256"):
+            model(torch.zeros(1, 1, 128, 128))
 
 
 class PipelineRobustnessTests(unittest.TestCase):

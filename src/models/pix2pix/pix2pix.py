@@ -23,13 +23,15 @@ class Pix2Pix(nn.Module):
 
     def __init__(
         self,
-        device: torch.device | str = "cuda",
+        device: torch.device | str | None = None,
         in_channels: int = 1,
         out_channels: int = 3,
     ) -> None:
         super().__init__()
 
-        self.device = torch.device(device)
+        self.device = torch.device(
+            device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
+        )
 
         self.generator = GeneratorUNet(
             in_channels=in_channels,
@@ -41,6 +43,16 @@ class Pix2Pix(nn.Module):
 
         self.to(self.device)
 
+    def to(self, *args, **kwargs) -> "Pix2Pix":
+        """Move the model and keep the cached device in sync with its parameters."""
+        super().to(*args, **kwargs)
+        self.device = next(self.generator.parameters()).device
+        return self
+
+    def _model_device(self) -> torch.device:
+        """Return the current generator device, including after `.cpu()` or `.cuda()`."""
+        return next(self.generator.parameters()).device
+
     def generate(self, ir: torch.Tensor) -> torch.Tensor:
         """
         Generate RGB image from IR input.
@@ -51,7 +63,7 @@ class Pix2Pix(nn.Module):
         Returns:
             fake_rgb: Tensor [B, 3, H, W]
         """
-        ir = ir.to(self.device)
+        ir = ir.to(self._model_device())
         return self.generator(ir)
 
     def discriminate(self, ir: torch.Tensor, rgb: torch.Tensor) -> torch.Tensor:
@@ -65,8 +77,9 @@ class Pix2Pix(nn.Module):
         Returns:
             Patch score map [B, 1, 30, 30]
         """
-        ir = ir.to(self.device)
-        rgb = rgb.to(self.device)
+        device = self._model_device()
+        ir = ir.to(device)
+        rgb = rgb.to(device)
         x = torch.cat([ir, rgb], dim=1)
         return self.discriminator(x)
 

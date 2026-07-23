@@ -42,11 +42,14 @@ def export_to_onnx(
         input_size: Spatial size of the dummy input (square).
         in_channels: Number of input channels.
     """
+    if input_size < 256 or input_size % 256 != 0:
+        raise ValueError("input_size must be a multiple of 256 for this generator")
+
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = load_torch_checkpoint(checkpoint_path, map_location="cpu")
 
     # Build model and load weights
-    model = Pix2Pix(in_channels=in_channels, out_channels=3)
+    model = Pix2Pix(device="cpu", in_channels=in_channels, out_channels=3)
 
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
@@ -74,10 +77,7 @@ def export_to_onnx(
         opset_version=opset_version,
         input_names=["thermal_input"],
         output_names=["rgb_output"],
-        dynamic_axes={
-            "thermal_input": {0: "batch_size", 2: "height", 3: "width"},
-            "rgb_output": {0: "batch_size", 2: "height", 3: "width"},
-        },
+        dynamic_axes={"thermal_input": {0: "batch_size"}, "rgb_output": {0: "batch_size"}},
     )
 
     # Verify

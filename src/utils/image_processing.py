@@ -3,10 +3,72 @@ from __future__ import annotations
 from typing import Union
 
 import numpy as np
+import torch
 from PIL import Image
 
 
 ImageInput = Union[Image.Image, np.ndarray]
+
+DEFAULT_PERCENTILE_LOW = 1.0
+DEFAULT_PERCENTILE_HIGH = 99.0
+
+
+def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
+    """Convert a CHW/BCHW tensor to HWC/BHWC NumPy layout on the CPU."""
+    if not isinstance(tensor, torch.Tensor):
+        raise TypeError("tensor must be a torch.Tensor")
+
+    array = tensor.detach().cpu().numpy()
+    if array.ndim == 2:
+        return np.ascontiguousarray(array)
+    if array.ndim == 3:
+        return np.ascontiguousarray(np.moveaxis(array, 0, -1))
+    if array.ndim == 4:
+        return np.ascontiguousarray(np.moveaxis(array, 1, -1))
+    raise ValueError(
+        "Expected a 2D, 3D, or 4D tensor, "
+        f"received shape {tuple(tensor.shape)}."
+    )
+
+
+def numpy_to_tensor(array: np.ndarray) -> torch.Tensor:
+    """Convert an HW/HWC/BHWC NumPy image array to CHW/BCHW float32 tensor layout."""
+    array = np.asarray(array)
+    if not np.issubdtype(array.dtype, np.number):
+        raise TypeError("array must have a numeric dtype")
+
+    if array.ndim == 2:
+        channels_first = array[np.newaxis, ...]
+    elif array.ndim == 3:
+        first_is_channel = array.shape[0] in (1, 3, 4)
+        last_is_channel = array.shape[-1] in (1, 3, 4)
+        if last_is_channel and not first_is_channel:
+            channels_first = np.moveaxis(array, -1, 0)
+        elif first_is_channel and not last_is_channel:
+            channels_first = array
+        elif last_is_channel:
+            channels_first = np.moveaxis(array, -1, 0)
+        else:
+            raise ValueError(
+                "Expected a channel-first or channel-last image with 1, 3, or 4 channels; "
+                f"received shape {array.shape}."
+            )
+    elif array.ndim == 4:
+        second_is_channel = array.shape[1] in (1, 3, 4)
+        last_is_channel = array.shape[-1] in (1, 3, 4)
+        if last_is_channel and not second_is_channel:
+            channels_first = np.moveaxis(array, -1, 1)
+        elif second_is_channel:
+            channels_first = array
+        else:
+            raise ValueError(
+                "Expected a BCHW or BHWC batch with 1, 3, or 4 channels; "
+                f"received shape {array.shape}."
+            )
+    else:
+        raise ValueError(f"Expected a 2D, 3D, or 4D array, received shape {array.shape}.")
+
+    return torch.from_numpy(np.ascontiguousarray(channels_first, dtype=np.float32))
 
 
 def to_single_band_array(image: ImageInput) -> np.ndarray:

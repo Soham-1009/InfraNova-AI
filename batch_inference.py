@@ -60,7 +60,8 @@ def process_single_image(
     Process one image. Returns (success, message, time_seconds).
     """
     try:
-        image = Image.open(image_path)
+        with Image.open(image_path) as source:
+            image = source.copy()
 
         # Convert palette to grayscale
         if image.mode == "P":
@@ -91,7 +92,9 @@ def process_single_image(
                         profile.update(
                             count=3, dtype="uint8",
                             driver="GTiff",
-                            width=arr.shape[1], height=arr.shape[0],
+                            width=arr.shape[1],
+                            height=arr.shape[0],
+                            transform=from_bounds(*src.bounds, arr.shape[1], arr.shape[0]),
                         )
                         out_path = output_dir / f"{stem}_rgb.tif"
                         with rasterio.open(str(out_path), "w", **profile) as dst:

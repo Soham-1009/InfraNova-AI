@@ -29,8 +29,8 @@ def dummy_ir_tensor():
 
 @pytest.fixture
 def dummy_rgb_tensor():
-    """3-channel RGB tensor (1, 3, 256, 256) in [0, 1]."""
-    return torch.rand(1, 3, 256, 256)
+    """3-channel RGB tensor (1, 3, 256, 256) in [-1, 1]."""
+    return torch.rand(1, 3, 256, 256) * 2.0 - 1.0
 
 
 @pytest.fixture
@@ -41,8 +41,8 @@ def dummy_ir_batch():
 
 @pytest.fixture
 def dummy_rgb_batch():
-    """Batch of RGB targets (4, 3, 256, 256) in [0, 1]."""
-    return torch.rand(4, 3, 256, 256)
+    """Batch of RGB targets (4, 3, 256, 256) in [-1, 1]."""
+    return torch.rand(4, 3, 256, 256) * 2.0 - 1.0
 
 
 @pytest.fixture

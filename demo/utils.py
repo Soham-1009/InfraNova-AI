@@ -8,10 +8,18 @@ import numpy as np
 import torch
 from PIL import Image
 
-from src.utils.image_processing import to_single_band_array
+from src.utils.image_processing import (
+    DEFAULT_PERCENTILE_HIGH,
+    DEFAULT_PERCENTILE_LOW,
+    to_single_band_array,
+)
 
 
-def _normalize_to_uint8(arr: np.ndarray, low: float = 2.0, high: float = 98.0) -> np.ndarray:
+def _normalize_to_uint8(
+    arr: np.ndarray,
+    low: float = DEFAULT_PERCENTILE_LOW,
+    high: float = DEFAULT_PERCENTILE_HIGH,
+) -> np.ndarray:
     """Percentile-stretch a single-channel array to uint8 for display."""
     arr = arr.astype(np.float32)
     lo = np.percentile(arr, low)
@@ -42,8 +50,8 @@ def preprocess_ir_image(
 
     arr = to_single_band_array(image)
 
-    lo = np.percentile(arr, 2.0)
-    hi = np.percentile(arr, 98.0)
+    lo = np.percentile(arr, DEFAULT_PERCENTILE_LOW)
+    hi = np.percentile(arr, DEFAULT_PERCENTILE_HIGH)
     if hi - lo < 1e-6:
         arr = np.zeros_like(arr, dtype=np.float32)
     else:

@@ -3,10 +3,12 @@ Process raw Landsat 9 TIF files into training patches.
 """
 
 import logging
-import tifffile
-import numpy as np
-import cv2
+import shutil
 from pathlib import Path
+
+import cv2
+import numpy as np
+import tifffile
 
 logger = logging.getLogger(__name__)
 
@@ -16,18 +18,17 @@ PATCH_SIZE_100M = 128  # Output patch size at 100m (2x)
 STRIDE = 16            # 75% overlap
 
 
-def downscale_image(image, factor):
-    h, w = image.shape[-2:]
-    new_h = max(1, int(h / factor))
-    new_w = max(1, int(w / factor))
-    
+def resize_image(image, height, width):
+    if height <= 0 or width <= 0:
+        raise ValueError("Target image dimensions must be positive")
+
     if image.ndim == 2:
-        return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    else:
-        bands = []
-        for band in image:
-            bands.append(cv2.resize(band, (new_w, new_h), interpolation=cv2.INTER_AREA))
-        return np.stack(bands)
+        return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+
+    bands = []
+    for band in image:
+        bands.append(cv2.resize(band, (width, height), interpolation=cv2.INTER_AREA))
+    return np.stack(bands)
 
 
 def merge_rgb(b2_path, b3_path, b4_path):
@@ -65,10 +66,26 @@ def process_region(region_dir, output_dir):
     if not np.isfinite(rgb).all():
         logger.warning("  Skipping %s: RGB contains non-finite values", region_id)
         return 0
-    
-    rgb_100m = downscale_image(rgb, 3.33)
-    tir_100m = downscale_image(tir, 3.33)
-    tir_200m = downscale_image(tir, 6.67)
+
+    if rgb.shape[-2:] != tir.shape:
+        logger.warning(
+            "  Skipping %s: RGB (%s) and TIR (%s) source grids differ",
+            region_id,
+            rgb.shape[-2:],
+            tir.shape,
+        )
+        return 0
+
+    # Derive both resolutions from one integer 200 m grid so each 200 m
+    # patch maps to exactly twice as many 100 m pixels without border drift.
+    source_h, source_w = tir.shape
+    h200 = max(1, round(source_h * 3.0 / 20.0))
+    w200 = max(1, round(source_w * 3.0 / 20.0))
+    h100, w100 = h200 * 2, w200 * 2
+
+    tir_200m = resize_image(tir, h200, w200)
+    tir_100m = resize_image(tir, h100, w100)
+    rgb_100m = resize_image(rgb, h100, w100)
     
     h200, w200 = tir_200m.shape
     print(f"  200m TIR size: {h200}x{w200}")
@@ -81,6 +98,8 @@ def process_region(region_dir, output_dir):
     count = 0
     skipped_border = 0
     region_patches_dir = output_dir / region_id
+    if region_patches_dir.exists():
+        shutil.rmtree(region_patches_dir)
     region_patches_dir.mkdir(parents=True, exist_ok=True)
     
     for y in range(0, h200 - PATCH_SIZE_200M + 1, STRIDE):

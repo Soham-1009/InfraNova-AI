@@ -49,7 +49,7 @@ paths:
 
 inference:
   image_size: 256
-  percentile_low: 2.0
-  percentile_high: 98.0
+  percentile_low: 1.0
+  percentile_high: 99.0
   tta: true
   save_format: "tiff"

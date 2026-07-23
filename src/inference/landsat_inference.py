@@ -11,6 +11,7 @@ from PIL import Image
 
 from src.models.pix2pix.pix2pix import Pix2Pix
 from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.image_processing import DEFAULT_PERCENTILE_HIGH, DEFAULT_PERCENTILE_LOW
 
 try:
     import rasterio
@@ -46,14 +47,18 @@ class LandsatColorizationInference:
         checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
         device: Optional[str] = None,
         image_size: int = 256,
-        percentile_low: float = 2.0,
-        percentile_high: float = 98.0,
+        percentile_low: float = DEFAULT_PERCENTILE_LOW,
+        percentile_high: float = DEFAULT_PERCENTILE_HIGH,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
         self.image_size = int(image_size)
         self.percentile_low = float(percentile_low)
         self.percentile_high = float(percentile_high)
+        if self.image_size < 256 or self.image_size % 256 != 0:
+            raise ValueError("image_size must be a multiple of 256 for this generator")
+        if not 0.0 <= self.percentile_low < self.percentile_high <= 100.0:
+            raise ValueError("percentile_low and percentile_high must satisfy 0 <= low < high <= 100")
         self.model: Optional[Pix2Pix] = None
 
     def load_model(self) -> Pix2Pix:
@@ -129,6 +134,12 @@ class LandsatColorizationInference:
         Resize to 256x256 and normalize TIR with percentile stretching.
         """
         arr = self._to_grayscale_array(image).astype(np.float32)
+
+        finite = np.isfinite(arr)
+        if not finite.any():
+            raise ValueError("Input image contains no finite pixel values.")
+        if not finite.all():
+            arr = np.where(finite, arr, np.median(arr[finite])).astype(np.float32)
 
         # Percentile stretching per-image for thermal contrast normalization
         lo = np.percentile(arr, self.percentile_low)

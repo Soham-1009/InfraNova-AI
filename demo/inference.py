@@ -38,6 +38,8 @@ class InferenceEngine:
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         self.image_size = int(image_size)
+        if self.image_size < 256 or self.image_size % 256 != 0:
+            raise ValueError("image_size must be a multiple of 256 for this generator")
         self.device = torch.device(
             device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
         )

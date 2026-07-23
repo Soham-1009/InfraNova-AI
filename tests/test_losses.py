@@ -13,7 +13,7 @@ class TestCombinedLoss:
 
     def test_forward_returns_dict(self, dummy_rgb_batch, device):
         """Loss forward should return a dict with expected keys."""
-        criterion = CombinedLoss(device=device)
+        criterion = CombinedLoss(device=device, lambda_perc=0.0)
 
         fake_rgb = dummy_rgb_batch.clone().requires_grad_(True)
         real_rgb = dummy_rgb_batch.clone()
@@ -35,7 +35,7 @@ class TestCombinedLoss:
 
     def test_loss_is_finite(self, dummy_rgb_batch, device):
         """All loss components should be finite."""
-        criterion = CombinedLoss(device=device)
+        criterion = CombinedLoss(device=device, lambda_perc=0.0)
 
         fake_rgb = dummy_rgb_batch.clone().requires_grad_(True)
         real_rgb = dummy_rgb_batch.clone()
@@ -52,7 +52,7 @@ class TestCombinedLoss:
 
     def test_loss_positive(self, dummy_rgb_batch, device):
         """Total loss should be positive."""
-        criterion = CombinedLoss(device=device)
+        criterion = CombinedLoss(device=device, lambda_perc=0.0)
 
         fake_rgb = dummy_rgb_batch.clone().requires_grad_(True)
         real_rgb = dummy_rgb_batch.clone()
@@ -68,21 +68,21 @@ class TestCombinedLoss:
 
     def test_gan_loss_real(self, device):
         """GAN loss for real labels should be computed."""
-        criterion = CombinedLoss(device=device)
+        criterion = CombinedLoss(device=device, lambda_perc=0.0)
         pred = torch.randn(4, 1, 30, 30)
         loss = criterion.gan_loss(pred, True)
         assert torch.isfinite(loss)
 
     def test_gan_loss_fake(self, device):
         """GAN loss for fake labels should be computed."""
-        criterion = CombinedLoss(device=device)
+        criterion = CombinedLoss(device=device, lambda_perc=0.0)
         pred = torch.randn(4, 1, 30, 30)
         loss = criterion.gan_loss(pred, False)
         assert torch.isfinite(loss)
 
     def test_identical_images_low_loss(self, dummy_rgb_batch, device):
         """Loss should be lower when predicted == target."""
-        criterion = CombinedLoss(device=device)
+        criterion = CombinedLoss(device=device, lambda_perc=0.0)
 
         real_rgb = dummy_rgb_batch.clone()
         fake_rgb_same = real_rgb.clone().requires_grad_(True)

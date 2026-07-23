@@ -78,7 +78,7 @@ class GeneratorUNet(nn.Module):
     Pix2Pix U-Net Generator.
 
     Input:
-        [B, in_channels, 256, 256]
+        [B, in_channels, H, W] where H and W are multiples of 256.
     Output:
         [B, 3, 256, 256]
 
@@ -96,6 +96,15 @@ class GeneratorUNet(nn.Module):
 
         if features is None:
             features = [64, 128, 256, 512, 512, 512, 512, 512]
+
+        if len(features) != 8:
+            raise ValueError("features must contain exactly eight encoder channel sizes")
+        if any(feature <= 0 for feature in features):
+            raise ValueError("feature sizes must be positive integers")
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.required_divisor = 2 ** len(features)
 
         self.down1 = DownBlock(in_channels, features[0], use_norm=False)
         self.down2 = DownBlock(features[0], features[1])
@@ -137,6 +146,25 @@ class GeneratorUNet(nn.Module):
                 nn.init.zeros_(module.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 4:
+            raise ValueError(f"Expected input shaped [B, C, H, W], got {tuple(x.shape)}")
+        if x.size(1) != self.in_channels:
+            raise ValueError(
+                f"Expected {self.in_channels} input channels, got {x.size(1)}"
+            )
+
+        height, width = x.shape[-2:]
+        if (
+            height < self.required_divisor
+            or width < self.required_divisor
+            or height % self.required_divisor != 0
+            or width % self.required_divisor != 0
+        ):
+            raise ValueError(
+                "Generator input height and width must both be multiples of "
+                f"{self.required_divisor} (received {height}x{width})."
+            )
+
         d1 = self.down1(x)
         d2 = self.down2(d1)
         d3 = self.down3(d2)

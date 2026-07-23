@@ -213,6 +213,7 @@ class CombinedLoss(nn.Module):
         lambda_l1: float = 100.0,
         lambda_perc: float = 10.0,
         lambda_ssim: float = 3.0,
+        device: Optional[torch.device | str] = None,
     ) -> None:
         super().__init__()
 
@@ -225,6 +226,9 @@ class CombinedLoss(nn.Module):
         self.l1_loss = PixelL1Loss()
         self.perc_loss = VGGPerceptualLoss() if self.lambda_perc > 0 else None
         self.ssim_loss = SSIMLoss()
+
+        if device is not None:
+            self.to(device)
 
     def forward(
         self,

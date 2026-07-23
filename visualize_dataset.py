@@ -34,7 +34,7 @@ def load_generator(checkpoint_path: str, device: str = "cpu"):
     from src.utils.checkpoint import load_torch_checkpoint
 
     ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-    model = Pix2Pix(in_channels=1, out_channels=3)
+    model = Pix2Pix(device=device, in_channels=1, out_channels=3)
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
     else:
@@ -42,6 +42,18 @@ def load_generator(checkpoint_path: str, device: str = "cpu"):
     model.to(device)
     model.eval()
     return model
+
+
+def to_display_rgb(tensor: torch.Tensor) -> np.ndarray:
+    """Convert a normalized RGB tensor from [-1, 1] to an HWC display array."""
+    if tensor.ndim == 4:
+        if tensor.size(0) != 1:
+            raise ValueError("Expected a batch containing exactly one RGB image")
+        tensor = tensor.squeeze(0)
+    if tensor.ndim != 3 or tensor.size(0) != 3:
+        raise ValueError("Expected an RGB tensor shaped [3, H, W]")
+    tensor = (tensor.detach().cpu().clamp(-1.0, 1.0) + 1.0) / 2.0
+    return tensor.numpy().transpose(1, 2, 0)
 
 
 @torch.inference_mode()
@@ -66,6 +78,8 @@ def visualize(
         augment=False,
     )
 
+    if num_samples < 1:
+        raise ValueError("num_samples must be at least 1")
     num_samples = min(num_samples, len(dataset))
     print(f"Visualizing {num_samples} samples")
 
@@ -104,14 +118,13 @@ def visualize(
         rgb = sample["rgb"]  # (3, H, W)
 
         # Thermal image (squeeze to 2D for display)
-        thermal_np = ir.squeeze(0).cpu().numpy()
+        thermal_np = ((ir.squeeze(0).cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
         axes[row, 0].imshow(thermal_np, cmap="inferno")
         axes[row, 0].set_title(f"Sample {int(idx)}" if row == 0 else "")
         axes[row, 0].axis("off")
 
         # RGB ground truth
-        rgb_np = rgb.cpu().numpy().transpose(1, 2, 0)
-        rgb_np = np.clip(rgb_np, 0, 1)
+        rgb_np = to_display_rgb(rgb)
         axes[row, 1].imshow(rgb_np)
         axes[row, 1].axis("off")
 
@@ -119,7 +132,7 @@ def visualize(
             # Generate prediction
             ir_input = ir.unsqueeze(0).to(device)
             pred = model.generate(ir_input)
-            pred_np = torch.clamp(pred, 0, 1).squeeze(0).cpu().numpy().transpose(1, 2, 0)
+            pred_np = to_display_rgb(pred)
 
             axes[row, 2].imshow(pred_np)
             axes[row, 2].axis("off")
@@ -150,13 +163,12 @@ def visualize(
 
         fig_single, ax_row = plt.subplots(1, ncols, figsize=(ncols * 4, 4), squeeze=False)
 
-        thermal_np = ir.squeeze(0).cpu().numpy()
+        thermal_np = ((ir.squeeze(0).cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
         ax_row[0, 0].imshow(thermal_np, cmap="inferno")
         ax_row[0, 0].set_title("Thermal")
         ax_row[0, 0].axis("off")
 
-        rgb_np = rgb.cpu().numpy().transpose(1, 2, 0)
-        rgb_np = np.clip(rgb_np, 0, 1)
+        rgb_np = to_display_rgb(rgb)
         ax_row[0, 1].imshow(rgb_np)
         ax_row[0, 1].set_title("RGB GT")
         ax_row[0, 1].axis("off")
@@ -164,7 +176,7 @@ def visualize(
         if model is not None:
             ir_input = ir.unsqueeze(0).to(device)
             pred = model.generate(ir_input)
-            pred_np = torch.clamp(pred, 0, 1).squeeze(0).cpu().numpy().transpose(1, 2, 0)
+            pred_np = to_display_rgb(pred)
 
             ax_row[0, 2].imshow(pred_np)
             ax_row[0, 2].set_title("Generated")

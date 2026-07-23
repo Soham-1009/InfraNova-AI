@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
@@ -23,13 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements first for better layer caching
 COPY requirements.txt /app/requirements.txt
 
-# Install CPU-only PyTorch first, then the rest of the requirements.
-# The --extra-index-url in requirements.txt ensures pip resolves the CPU
-# wheels. We install PyTorch explicitly here so the CPU-only build is
-# locked in before any other package can pull in the CUDA variant.
+# Install the selected PyTorch build before the remaining dependencies.
+# Override TORCH_INDEX_URL at build time to use a CUDA wheel index.
 RUN python -m pip install --upgrade pip && \
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-deps -r /app/requirements.txt
+    python -m pip install torch torchvision torchaudio --index-url ${TORCH_INDEX_URL} && \
+    python -m pip install -r /app/requirements.txt
 
 COPY . /app
 

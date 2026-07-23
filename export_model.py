@@ -30,7 +30,7 @@ def _load_generator(checkpoint_path: str, in_channels: int, device: str = "cpu")
     """Load and return the generator from a checkpoint."""
     ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
 
-    model = Pix2Pix(in_channels=in_channels, out_channels=3)
+    model = Pix2Pix(device=device, in_channels=in_channels, out_channels=3)
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
     elif "generator_state_dict" in ckpt:
@@ -50,6 +50,11 @@ def export_onnx(
     opset_version: int = 17,
 ) -> None:
     """Export generator to ONNX format."""
+    if dummy_input.shape[-2] < 256 or dummy_input.shape[-1] < 256:
+        raise ValueError("The generator requires input dimensions of at least 256 pixels")
+    if dummy_input.shape[-2] % 256 != 0 or dummy_input.shape[-1] % 256 != 0:
+        raise ValueError("The generator requires input dimensions that are multiples of 256")
+
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Exporting ONNX (opset {opset_version})...")
@@ -60,10 +65,7 @@ def export_onnx(
         opset_version=opset_version,
         input_names=["thermal_input"],
         output_names=["rgb_output"],
-        dynamic_axes={
-            "thermal_input": {0: "batch_size", 2: "height", 3: "width"},
-            "rgb_output": {0: "batch_size", 2: "height", 3: "width"},
-        },
+        dynamic_axes={"thermal_input": {0: "batch_size"}, "rgb_output": {0: "batch_size"}},
     )
 
     file_size_mb = Path(output_path).stat().st_size / (1024 * 1024)

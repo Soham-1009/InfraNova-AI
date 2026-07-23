@@ -103,6 +103,11 @@ def compute_correlation(pred: np.ndarray, target: np.ndarray) -> float:
     return float(np.corrcoef(pred_flat, target_flat)[0, 1])
 
 
+def to_unit_interval(tensor: torch.Tensor) -> torch.Tensor:
+    """Convert normalized image tensors from [-1, 1] to [0, 1]."""
+    return (tensor.clamp(-1.0, 1.0) + 1.0) / 2.0
+
+
 @torch.inference_mode()
 def evaluate(
     checkpoint_path: str,
@@ -125,7 +130,7 @@ def evaluate(
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
 
-    model = Pix2Pix(in_channels=1, out_channels=3)
+    model = Pix2Pix(device=device, in_channels=1, out_channels=3)
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"])
     else:
@@ -174,13 +179,13 @@ def evaluate(
         # Generate prediction
         rgb_pred = model.generate(ir_input)
 
-        # Clamp to [0, 1]
-        rgb_pred = torch.clamp(rgb_pred, 0.0, 1.0)
-        rgb_target = torch.clamp(rgb_target, 0.0, 1.0)
+        # Model and dataset tensors are normalized to [-1, 1].
+        rgb_pred_01 = to_unit_interval(rgb_pred)
+        rgb_target_01 = to_unit_interval(rgb_target)
 
         # Convert to numpy
-        pred_np = rgb_pred.squeeze(0).cpu().numpy().transpose(1, 2, 0)
-        target_np = rgb_target.squeeze(0).cpu().numpy().transpose(1, 2, 0)
+        pred_np = rgb_pred_01.squeeze(0).cpu().numpy().transpose(1, 2, 0)
+        target_np = rgb_target_01.squeeze(0).cpu().numpy().transpose(1, 2, 0)
 
         # Compute metrics
         row: Dict[str, float] = {
@@ -195,8 +200,8 @@ def evaluate(
 
         if lpips_fn is not None:
             # LPIPS expects [-1, 1] range
-            lpips_pred = rgb_pred * 2.0 - 1.0
-            lpips_target = rgb_target * 2.0 - 1.0
+            lpips_pred = rgb_pred.clamp(-1.0, 1.0)
+            lpips_target = rgb_target.clamp(-1.0, 1.0)
             row["lpips"] = float(lpips_fn(lpips_pred, lpips_target).item())
 
         results.append(row)
