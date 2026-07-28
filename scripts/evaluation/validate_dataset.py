@@ -1,3 +1,8 @@
+
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Validate Landsat 9 dataset patches for training readiness.
 
@@ -15,9 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import logging
-import sys
 from collections import Counter
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -276,7 +279,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--check-splits",
-        default="data/landsat9/splits",
+        default=str(PROJECT_ROOT / "data/landsat9/splits"),
         help="Directory containing train/val/test splits (for leakage check).",
     )
     parser.add_argument(
@@ -354,3 +357,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

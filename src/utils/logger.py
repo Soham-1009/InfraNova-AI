@@ -155,6 +155,12 @@ class TrainingLogger:
 
                 info["total_epochs_trained"] = len(self.rows)
 
+                # Extract color metrics from last epoch
+                last_row = self.rows[-1]
+                for key in ["val_sat_ratio", "val_hist_dist", "val_lab_error"]:
+                    if key in last_row:
+                        info[key] = last_row[key]
+
             # Append to experiment history CSV
             self._append_experiment_csv(info)
 
@@ -166,13 +172,28 @@ class TrainingLogger:
 
     def _append_experiment_csv(self, info: Dict[str, Any]) -> None:
         """Append a summary row to the experiment history CSV."""
+        hp = info.get("hyperparameters", {})
+        loss_cfg = hp.get("loss", hp.get("training", {}).get("loss", {}))
+        norm_cfg = hp.get("dataset", {}).get("normalization", {})
+        sched_cfg = hp.get("scheduler", hp.get("training", {}).get("scheduler", {}))
+
         row = {
             "timestamp": info.get("timestamp_end", ""),
+            "experiment_name": hp.get("project", {}).get("name", ""),
             "epochs": info.get("total_epochs_trained", 0),
             "best_ssim": info.get("best_ssim", ""),
             "best_ssim_epoch": info.get("best_ssim_epoch", ""),
             "best_psnr": info.get("best_psnr", ""),
             "best_psnr_epoch": info.get("best_psnr_epoch", ""),
+            "val_sat_ratio": info.get("val_sat_ratio", ""),
+            "val_hist_dist": info.get("val_hist_dist", ""),
+            "val_lab_error": info.get("val_lab_error", ""),
+            "normalization": norm_cfg.get("mode", "local"),
+            "gan_mode": loss_cfg.get("gan_mode", "bce"),
+            "lambda_l1": loss_cfg.get("lambda_l1", ""),
+            "lambda_chroma": loss_cfg.get("lambda_chroma", ""),
+            "lambda_feat": loss_cfg.get("lambda_feat", ""),
+            "scheduler": sched_cfg.get("type", "linear"),
             "device": info.get("device", ""),
             "git_commit": info.get("git_commit", ""),
         }
@@ -194,7 +215,7 @@ class TrainingLogger:
 
         # Combined plot
         combined_keys = [
-            "g_loss", "d_loss", "l1", "adv", "perc", "ssim",
+            "g_loss", "d_loss", "l1", "adv", "perc", "ssim", "chroma", "feat",
             "val_psnr", "val_ssim", "grad_norm_g", "grad_norm_d", "lr",
         ]
 
@@ -243,6 +264,16 @@ class TrainingLogger:
                 "keys": ["grad_norm_g", "grad_norm_d"],
                 "title": "Gradient Norms",
                 "ylabel": "L2 Norm",
+            },
+            "color_metrics.png": {
+                "keys": ["val_sat_ratio", "val_hist_dist", "val_lab_error"],
+                "title": "Color Quality Metrics",
+                "ylabel": "Value",
+            },
+            "chroma_feat.png": {
+                "keys": ["chroma", "feat"],
+                "title": "Chroma & Feature Matching Loss",
+                "ylabel": "Loss",
             },
         }
 

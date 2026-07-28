@@ -11,6 +11,12 @@ dataset:
   input_channels: 1
   output_channels: 3
   num_workers: 0
+  normalization:
+    mode: "local"
+    stats_file: null
+
+model:
+  multi_scale_disc: false
 
 training:
   epochs: 250
@@ -20,36 +26,48 @@ training:
   amp: true
   grad_clip: 1.0
   sample_every: 5
-  resume_from: "checkpoints/best/pix2pix_landsat_best.pth"
-
+  resume_from: "outputs/models/best/pix2pix_landsat_best.pth"
   optimizer:
     lr: 0.0002
     beta1: 0.5
     beta2: 0.999
 
-  # DeepSeek-tuned weights for TIR (different from NIR)
-  loss:
-    lambda_adv: 1.0
-    lambda_l1: 50.0
-    lambda_perc: 20.0
-    lambda_ssim: 3.0
+scheduler:
+  type: "linear"
+  T_0: 50
+  T_mult: 2
+  eta_min: 0.000001
+
+loss:
+  lambda_adv: 1.0
+  lambda_l1: 10.0
+  lambda_perc: 10.0
+  lambda_ssim: 5.0
+  lambda_chroma: 2.0
+  lambda_feat: 0.0
+  gan_mode: "bce"
+
+augmentation:
+  enabled: true
+  flip_prob: 0.5
 
 logging:
   use_wandb: false
   csv_path: "logs/training.csv"
+  tensorboard_dir: "logs/tensorboard"
+
+evaluation:
+  image_size: 256
+  percentile_low: 2.0
+  percentile_high: 98.0
+  tta: true
+  save_format: "tiff"
 
 paths:
-  checkpoints: "checkpoints"
-  best_checkpoint: "checkpoints/best/pix2pix_landsat_best.pth"
-  latest_checkpoint: "checkpoints/latest/pix2pix_landsat_latest.pth"
-  final_checkpoint: "checkpoints/final/pix2pix_landsat_final.pth"
+  checkpoints: "outputs/models/best"
+  best_checkpoint: "outputs/models/best/pix2pix_landsat_best.pth"
+  latest_checkpoint: "outputs/models/final/pix2pix_landsat_latest.pth"
+  final_checkpoint: "outputs/models/final/pix2pix_landsat_final.pth"
   logs: "logs"
   outputs: "outputs"
   visualizations: "outputs/visualizations"
-
-inference:
-  image_size: 256
-  percentile_low: 1.0
-  percentile_high: 99.0
-  tta: true
-  save_format: "tiff"

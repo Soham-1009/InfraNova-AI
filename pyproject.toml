@@ -4,6 +4,15 @@ version = "1.0.0"
 description = "Landsat 9 thermal infrared to RGB synthesis using Pix2Pix GAN"
 requires-python = ">=3.11"
 
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+
 [tool.ruff]
 line-length = 120
 target-version = "py311"

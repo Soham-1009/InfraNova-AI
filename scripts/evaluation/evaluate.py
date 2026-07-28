@@ -2,7 +2,8 @@
 Evaluate InfraNova AI on the test set.
 
 Computes SSIM, PSNR, MAE, RMSE, SAM, correlation coefficient,
-and optionally LPIPS on every sample in the test split and saves a results CSV.
+and optionally LPIPS, plus color quality metrics (saturation ratio,
+histogram distance, Lab color error).
 
 Usage:
     python evaluate.py
@@ -25,7 +26,7 @@ import torch
 from PIL import Image
 
 # Make project root importable
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -103,6 +104,73 @@ def compute_correlation(pred: np.ndarray, target: np.ndarray) -> float:
     return float(np.corrcoef(pred_flat, target_flat)[0, 1])
 
 
+def compute_mean_saturation_ratio_np(pred: np.ndarray, target: np.ndarray) -> float:
+    """
+    Compute ratio of mean saturation between prediction and target.
+
+    Inputs: numpy arrays (H, W, C) in [0, 1].
+    Returns ratio: 1.0 means identical saturation, < 1.0 = desaturated.
+    """
+    pred_sat = np.std(pred, axis=-1).mean()
+    target_sat = np.std(target, axis=-1).mean()
+    if target_sat < 1e-8:
+        return 1.0
+    return float(pred_sat / target_sat)
+
+
+def compute_color_histogram_distance_np(pred: np.ndarray, target: np.ndarray, bins: int = 64) -> float:
+    """
+    Compute chi-squared distance between RGB histograms.
+
+    Inputs: numpy arrays (H, W, C) in [0, 1].
+    Returns distance (lower is better, 0 = identical).
+    """
+    total_dist = 0.0
+    for c in range(min(pred.shape[-1], 3)):
+        hist_p, _ = np.histogram(pred[..., c].flatten(), bins=bins, range=(0.0, 1.0))
+        hist_t, _ = np.histogram(target[..., c].flatten(), bins=bins, range=(0.0, 1.0))
+        hist_p = hist_p.astype(np.float64)
+        hist_t = hist_t.astype(np.float64)
+        hist_p /= max(hist_p.sum(), 1e-8)
+        hist_t /= max(hist_t.sum(), 1e-8)
+        denom = np.maximum(hist_p + hist_t, 1e-8)
+        chi2 = np.sum((hist_p - hist_t) ** 2 / denom)
+        total_dist += chi2
+    return total_dist / min(pred.shape[-1], 3)
+
+
+def compute_lab_error_np(pred: np.ndarray, target: np.ndarray) -> float:
+    """
+    Compute mean CIE Lab color error (Delta E approximation).
+
+    Uses simplified sRGB->Lab. Inputs: numpy (H, W, C) in [0, 1].
+    """
+    def _srgb_to_lab(rgb: np.ndarray) -> np.ndarray:
+        linear = np.where(rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+        r, g, b = linear[..., 0], linear[..., 1], linear[..., 2]
+        x = 0.4124 * r + 0.3576 * g + 0.1805 * b
+        y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        z = 0.0193 * r + 0.1192 * g + 0.9505 * b
+        x /= 0.95047
+        z /= 1.08883
+        eps = 0.008856
+        kappa = 903.3
+
+        def f(t):
+            return np.where(t > eps, np.clip(t, 1e-10, None) ** (1.0 / 3.0), (kappa * t + 16.0) / 116.0)
+
+        fx, fy, fz = f(x), f(y), f(z)
+        L = 116.0 * fy - 16.0
+        a = 500.0 * (fx - fy)
+        b_ch = 200.0 * (fy - fz)
+        return np.stack([L, a, b_ch], axis=-1)
+
+    lab_pred = _srgb_to_lab(pred)
+    lab_target = _srgb_to_lab(target)
+    delta_e = np.sqrt(np.sum((lab_pred - lab_target) ** 2, axis=-1)).mean()
+    return float(delta_e)
+
+
 def to_unit_interval(tensor: torch.Tensor) -> torch.Tensor:
     """Convert normalized image tensors from [-1, 1] to [0, 1]."""
     return (tensor.clamp(-1.0, 1.0) + 1.0) / 2.0
@@ -112,7 +180,7 @@ def to_unit_interval(tensor: torch.Tensor) -> torch.Tensor:
 def evaluate(
     checkpoint_path: str,
     split: str = "test",
-    data_root: str = "data/landsat9/splits",
+    data_root: str = str(PROJECT_ROOT / "data/landsat9/splits"),
     image_size: int = 256,
     output_csv: str = "outputs/evaluation_results.csv",
     use_lpips: bool = True,
@@ -132,7 +200,7 @@ def evaluate(
 
     model = Pix2Pix(device=device, in_channels=1, out_channels=3)
     if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
+        model.load_state_dict(ckpt["model_state_dict"], strict=False)
     else:
         model.load_state_dict(ckpt, strict=False)
     model.to(device)
@@ -160,6 +228,17 @@ def evaluate(
             print("LPIPS: skipped (install lpips package)")
         except Exception as exc:
             print(f"LPIPS: skipped ({exc})")
+
+    # Optional torchmetrics SSIM
+    tm_ssim_fn = None
+    try:
+        from torchmetrics.image import StructuralSimilarityIndexMeasure
+        tm_ssim_fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
+        print("Windowed SSIM: enabled (torchmetrics)")
+    except ImportError:
+        print("Windowed SSIM: skipped (install torchmetrics)")
+    except Exception:
+        pass
 
     # Evaluate
     results: List[Dict[str, float]] = []
@@ -196,6 +275,9 @@ def evaluate(
             "rmse": compute_rmse(pred_np, target_np),
             "sam": compute_sam(pred_np, target_np),
             "correlation": compute_correlation(pred_np, target_np),
+            "sat_ratio": compute_mean_saturation_ratio_np(pred_np, target_np),
+            "hist_dist": compute_color_histogram_distance_np(pred_np, target_np),
+            "lab_error": compute_lab_error_np(pred_np, target_np),
         }
 
         if lpips_fn is not None:
@@ -204,14 +286,22 @@ def evaluate(
             lpips_target = rgb_target.clamp(-1.0, 1.0)
             row["lpips"] = float(lpips_fn(lpips_pred, lpips_target).item())
 
+        if tm_ssim_fn is not None:
+            row["ssim_windowed"] = float(tm_ssim_fn(rgb_pred_01, rgb_target_01).item())
+
         results.append(row)
 
     elapsed = time.perf_counter() - start_time
 
     # Aggregate
-    metric_keys = ["psnr", "ssim", "mae", "rmse", "sam", "correlation"]
+    metric_keys = [
+        "psnr", "ssim", "mae", "rmse", "sam", "correlation",
+        "sat_ratio", "hist_dist", "lab_error",
+    ]
     if lpips_fn is not None:
         metric_keys.append("lpips")
+    if tm_ssim_fn is not None:
+        metric_keys.append("ssim_windowed")
 
     summary: Dict[str, float] = {}
     for key in metric_keys:
@@ -227,8 +317,8 @@ def evaluate(
     for key in metric_keys:
         mean = summary.get(f"{key}_mean", 0.0)
         std = summary.get(f"{key}_std", 0.0)
-        print(f"  {key.upper():>6s}: {mean:.4f} ± {std:.4f}")
-    print(f"  {'TIME':>6s}: {elapsed:.1f}s ({elapsed / max(len(results), 1):.2f}s/sample)")
+        print(f"  {key.upper():>14s}: {mean:.4f} ± {std:.4f}")
+    print(f"  {'TIME':>14s}: {elapsed:.1f}s ({elapsed / max(len(results), 1):.2f}s/sample)")
 
     # Save CSV
     csv_path = Path(output_csv)
@@ -261,7 +351,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--data-root",
-        default="data/landsat9/splits",
+        default=str(PROJECT_ROOT / "data/landsat9/splits"),
         help="Root directory for dataset splits.",
     )
     parser.add_argument(
@@ -298,3 +388,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+

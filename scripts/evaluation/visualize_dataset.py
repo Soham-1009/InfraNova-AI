@@ -21,7 +21,7 @@ import numpy as np
 import torch
 
 # Make project root importable
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -59,7 +59,7 @@ def to_display_rgb(tensor: torch.Tensor) -> np.ndarray:
 @torch.inference_mode()
 def visualize(
     split: str = "test",
-    data_root: str = "data/landsat9/splits",
+    data_root: str = str(PROJECT_ROOT / "data/landsat9/splits"),
     checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
     num_samples: int = 6,
     output_dir: str = "outputs/visualizations",
@@ -205,7 +205,7 @@ def main() -> None:
         help="Dataset split (default: test).",
     )
     parser.add_argument(
-        "--data-root", default="data/landsat9/splits",
+        "--data-root", default=str(PROJECT_ROOT / "data/landsat9/splits"),
         help="Dataset root directory.",
     )
     parser.add_argument(
@@ -244,3 +244,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+

@@ -123,12 +123,12 @@ def validate_config(cfg: Dict[str, Any]) -> List[str]:
     if not isinstance(beta2, (int, float)) or not (0.0 <= beta2 < 1.0):
         errors.append(f"training.optimizer.beta2 must be in [0, 1), got {beta2}")
 
-    # Loss weights
-    loss_cfg = training.get("loss", {})
+    # Loss weights — top-level key, fallback to training.loss for backward compat
+    loss_cfg = cfg.get("loss", training.get("loss", {}))
     for key in ("lambda_adv", "lambda_l1", "lambda_perc", "lambda_ssim"):
         val = loss_cfg.get(key)
         if val is not None and (not isinstance(val, (int, float)) or val < 0):
-            errors.append(f"training.loss.{key} must be a non-negative number, got {val}")
+            errors.append(f"loss.{key} must be a non-negative number, got {val}")
 
     # Resume checkpoint
     resume_from = training.get("resume_from", "")

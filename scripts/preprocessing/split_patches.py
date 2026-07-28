@@ -1,3 +1,8 @@
+
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Split region patch folders into train/val/test sets.
 
@@ -10,12 +15,11 @@ from __future__ import annotations
 import argparse
 import random
 import shutil
-from pathlib import Path
 from typing import Dict, List
 
 
 PATCHES_DIR = Path("data/landsat9/patches")
-OUTPUT_DIR = Path("data/landsat9/splits")
+OUTPUT_DIR = Path(str(PROJECT_ROOT / "data/landsat9/splits"))
 
 TRAIN_RATIO = 0.8
 VAL_RATIO = 0.1

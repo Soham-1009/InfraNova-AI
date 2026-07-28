@@ -312,3 +312,4 @@ class LandsatColorizationInference:
         result = self.predict(image=image, use_tta=use_tta)
         self.save_tiff(result["tiff_bgr"], output_path)
         return result
+

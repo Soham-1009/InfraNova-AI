@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-CHECKPOINT_PATH = PROJECT_ROOT / "checkpoints" / "best" / "pix2pix_landsat_best.pth"
+CHECKPOINT_PATH = PROJECT_ROOT / "outputs" / "models" / "best" / "pix2pix_landsat_best.pth"
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 MAX_IMAGE_DIMENSION = 4096
 PREVIEW_SIZE = 512

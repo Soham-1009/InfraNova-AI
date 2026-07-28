@@ -1,3 +1,8 @@
+
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Organize flat Google Drive Landsat exports into per-region folders.
 
@@ -15,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import shutil
-from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
 
@@ -119,3 +123,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
 from src.training.losses import CombinedLoss
-from src.training.scheduler import LinearLRScheduler
+from src.training.scheduler import build_scheduler
 from src.training.trainer import Trainer
 from src.utils.checkpoint import load_checkpoint, save_checkpoint
 from src.utils.config_validator import validate_config
@@ -73,8 +73,6 @@ class LandsatBatchAdapter(Dataset):
         return self._normalize(self.base_dataset[idx])
 
 
-
-
 def load_config(config_path: str = "configs/config.yaml") -> Dict[str, Any]:
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -89,15 +87,25 @@ def build_dataloaders(cfg: Dict[str, Any]) -> Tuple[DataLoader, DataLoader]:
     num_workers = int(dataset_cfg.get("num_workers", 2))
     batch_size = int(training_cfg.get("batch_size", 8))
 
+    # Normalization config (backward-compatible: defaults to "local")
+    norm_cfg = dataset_cfg.get("normalization", {})
+    normalization = str(norm_cfg.get("mode", "local"))
+    stats_file = norm_cfg.get("stats_file", None)
+
     train_base = Landsat9Dataset(
         root_dir=root_dir,
         split="train",
         image_size=image_size,
+        normalization=normalization,
+        stats_file=stats_file,
     )
     val_base = Landsat9Dataset(
         root_dir=root_dir,
         split="val",
         image_size=image_size,
+        augment=False,
+        normalization=normalization,
+        stats_file=stats_file,
     )
 
     train_dataset = LandsatBatchAdapter(train_base)
@@ -129,6 +137,57 @@ def build_dataloaders(cfg: Dict[str, Any]) -> Tuple[DataLoader, DataLoader]:
 def _set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
+
+
+def _save_experiment_comparison(cfg: Dict[str, Any], history: Dict[str, list]) -> None:
+    """Append a row to logs/experiment_comparison.csv with config and best metrics."""
+    import csv
+    from datetime import datetime, timezone
+
+    training_cfg = cfg.get("training", {})
+    loss_cfg = cfg.get("loss", training_cfg.get("loss", {}))
+    dataset_cfg = cfg.get("dataset", {})
+    norm_cfg = dataset_cfg.get("normalization", {})
+    sched_cfg = cfg.get("scheduler", training_cfg.get("scheduler", {}))
+
+    # Find best metrics from history
+    val_ssim_values = history.get("val_ssim", [])
+    val_psnr_values = history.get("val_psnr", [])
+
+    best_ssim = max(val_ssim_values) if val_ssim_values else 0.0
+    best_psnr = max(val_psnr_values) if val_psnr_values else 0.0
+
+    row = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "experiment_name": cfg.get("project", {}).get("name", "InfraNova AI"),
+        "normalization_mode": norm_cfg.get("mode", "local"),
+        "lambda_adv": loss_cfg.get("lambda_adv", 1.0),
+        "lambda_l1": loss_cfg.get("lambda_l1", 10.0),
+        "lambda_perc": loss_cfg.get("lambda_perc", 10.0),
+        "lambda_ssim": loss_cfg.get("lambda_ssim", 5.0),
+        "lambda_chroma": loss_cfg.get("lambda_chroma", 0.0),
+        "lambda_feat": loss_cfg.get("lambda_feat", 0.0),
+        "gan_mode": loss_cfg.get("gan_mode", "bce"),
+        "scheduler_type": sched_cfg.get("type", "linear"),
+        "multi_scale_disc": cfg.get("model", {}).get("multi_scale_disc", False),
+        "epochs_trained": len(val_ssim_values),
+        "best_ssim": f"{best_ssim:.6f}",
+        "best_psnr": f"{best_psnr:.4f}",
+        "lr": training_cfg.get("optimizer", {}).get("lr", 0.0002),
+        "batch_size": training_cfg.get("batch_size", 8),
+    }
+
+    csv_path = Path(cfg.get("paths", {}).get("logs", "logs")) / "experiment_comparison.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = csv_path.exists()
+
+    with open(csv_path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+    logger.info("Experiment comparison row appended to %s", csv_path)
 
 
 def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
@@ -171,10 +230,14 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
 
     train_loader, val_loader = build_dataloaders(cfg)
 
+    # Multi-scale discriminator support
+    multi_scale = bool(cfg.get("model", {}).get("multi_scale_disc", False))
+
     model = Pix2Pix(
         device=device,
         in_channels=int(dataset_cfg.get("input_channels", 1)),
         out_channels=int(dataset_cfg.get("output_channels", 3)),
+        multi_scale=multi_scale,
     )
 
     trainer = Trainer(
@@ -211,15 +274,27 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
     _set_optimizer_lr(trainer.optimizer_g, base_lr)
     _set_optimizer_lr(trainer.optimizer_d, base_lr * 0.5)
 
-    scheduler_g = LinearLRScheduler(
+    # Build scheduler from config — top-level key, fallback to training.scheduler
+    sched_cfg = cfg.get("scheduler", training_cfg.get("scheduler", {}))
+    sched_type = str(sched_cfg.get("type", "linear"))
+
+    scheduler_g = build_scheduler(
+        scheduler_type=sched_type,
         optimizer=trainer.optimizer_g,
         total_epochs=epochs,
         decay_start_epoch=decay_start_epoch,
+        T_0=int(sched_cfg.get("T_0", 50)),
+        T_mult=int(sched_cfg.get("T_mult", 2)),
+        eta_min=float(sched_cfg.get("eta_min", 1e-6)),
     )
-    scheduler_d = LinearLRScheduler(
+    scheduler_d = build_scheduler(
+        scheduler_type=sched_type,
         optimizer=trainer.optimizer_d,
         total_epochs=epochs,
         decay_start_epoch=decay_start_epoch,
+        T_0=int(sched_cfg.get("T_0", 50)),
+        T_mult=int(sched_cfg.get("T_mult", 2)),
+        eta_min=float(sched_cfg.get("eta_min", 1e-6)),
     )
 
     history: Dict[str, list] = {
@@ -229,16 +304,18 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
         "adv": [],
         "perc": [],
         "ssim": [],
+        "chroma": [],
+        "feat": [],
         "val_psnr": [],
         "val_ssim": [],
     }
 
     logger.info(
-        "Starting training: device=%s, batch_size=%d, epochs=%d, decay_start=%d",
+        "Starting training: device=%s, batch_size=%d, epochs=%d, scheduler=%s",
         device,
         batch_size,
         epochs,
-        decay_start_epoch,
+        sched_type,
     )
 
     # Log experiment info at start
@@ -324,6 +401,9 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
     # Log experiment info at end
     trainer.logger.log_experiment_info(phase="end")
 
+    # Save experiment comparison row
+    _save_experiment_comparison(cfg, history)
+
     # Final checkpoint copy
     final_path = paths_cfg["final_checkpoint"]
     if Path(paths_cfg["latest_checkpoint"]).exists():
@@ -340,3 +420,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

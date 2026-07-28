@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -12,7 +12,12 @@ from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
 from src.training.callbacks import EarlyStopping, ModelCheckpoint
-from src.training.losses import CombinedLoss
+from src.training.losses import (
+    CombinedLoss,
+    compute_color_histogram_distance,
+    compute_lab_color_error,
+    compute_mean_saturation_ratio,
+)
 from src.training.scheduler import LinearLRScheduler
 from src.utils.logger import TrainingLogger
 
@@ -20,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Trainer:
-    """Pix2Pix trainer with two-step GAN optimisation."""
+    """Pix2Pix trainer with two-step GAN optimisation, feature matching, and multi-scale D."""
 
     def __init__(
         self,
@@ -49,6 +54,12 @@ class Trainer:
         self.sample_every = int(training_cfg.get("sample_every", 5))
         self.total_epochs = int(training_cfg.get("epochs", 150))
 
+        # Multi-scale and feature matching config
+        self.use_multi_scale = getattr(self.model, "multi_scale", False)
+        # Loss config: top-level "loss" key, fallback to training.loss for backward compat
+        loss_cfg = config.get("loss", training_cfg.get("loss", {}))
+        self.use_feature_matching = float(loss_cfg.get("lambda_feat", 0.0)) > 0
+
         self.checkpoint_dir = Path(
             config.get("paths", {}).get("checkpoints", "checkpoints")
         )
@@ -74,12 +85,14 @@ class Trainer:
             betas=(self.beta1, self.beta2),
         )
 
-        loss_cfg = training_cfg.get("loss", training_cfg)
         self.criterion = CombinedLoss(
-            lambda_adv=float(loss_cfg.get("lambda_adv", 0.5)),
-            lambda_l1=float(loss_cfg.get("lambda_l1", 100.0)),
+            lambda_adv=float(loss_cfg.get("lambda_adv", 1.0)),
+            lambda_l1=float(loss_cfg.get("lambda_l1", 10.0)),
             lambda_perc=float(loss_cfg.get("lambda_perc", 10.0)),
-            lambda_ssim=float(loss_cfg.get("lambda_ssim", 3.0)),
+            lambda_ssim=float(loss_cfg.get("lambda_ssim", 5.0)),
+            lambda_chroma=float(loss_cfg.get("lambda_chroma", 0.0)),
+            lambda_feat=float(loss_cfg.get("lambda_feat", 0.0)),
+            gan_mode=str(loss_cfg.get("gan_mode", "bce")),
         ).to(self.device)
 
         amp_enabled = bool(training_cfg.get("amp", True)) and self.device.type == "cuda"
@@ -124,6 +137,8 @@ class Trainer:
             "adv": [],
             "perc": [],
             "ssim": [],
+            "chroma": [],
+            "feat": [],
             "val_psnr": [],
             "val_ssim": [],
         }
@@ -167,6 +182,66 @@ class Trainer:
         )
         return ssim.mean()
 
+    # ------------------------------------------------------------------
+    # Discriminator helpers for single-scale and multi-scale
+    # ------------------------------------------------------------------
+
+    def _disc_forward(
+        self, ir: torch.Tensor, rgb: torch.Tensor, return_features: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
+        """
+        Run discriminator and return final predictions (+ optional features).
+
+        For multi-scale D, averages fine/coarse predictions and concatenates features.
+        """
+        result = self.model.discriminate(ir, rgb, return_features=return_features)
+
+        if self.use_multi_scale:
+            # result is a dict: {"fine": ..., "coarse": ...}
+            if return_features:
+                fine_pred, fine_feats = result["fine"]
+                coarse_pred, coarse_feats = result["coarse"]
+                # Use the fine-scale prediction as the primary adversarial signal
+                # and average for D loss. Features are concatenated.
+                return fine_pred, fine_feats + coarse_feats
+            else:
+                fine_pred = result["fine"]
+                coarse_pred = result["coarse"]
+                return fine_pred
+        else:
+            return result
+
+    def _disc_loss_multi_scale(
+        self, ir: torch.Tensor, rgb_real: torch.Tensor, rgb_fake: torch.Tensor,
+        noise_std: float,
+    ) -> torch.Tensor:
+        """Compute discriminator loss for multi-scale discriminator."""
+        ir_noisy = ir + torch.randn_like(ir) * noise_std
+        rgb_noisy = rgb_real + torch.randn_like(rgb_real) * noise_std
+        fake_noisy = rgb_fake + torch.randn_like(rgb_fake) * noise_std
+
+        real_result = self.model.discriminate(ir_noisy, rgb_noisy)
+        fake_result = self.model.discriminate(ir_noisy, fake_noisy)
+
+        if self.use_multi_scale:
+            d_loss = torch.tensor(0.0, device=self.device)
+            for key in ["fine", "coarse"]:
+                rp = real_result[key]
+                fp = fake_result[key]
+                d_loss = d_loss + 0.5 * (
+                    self.criterion.gan_loss(rp, True)
+                    + self.criterion.gan_loss(fp, False)
+                )
+            return d_loss * 0.5  # average over scales
+        else:
+            real_loss = self.criterion.gan_loss(real_result, True)
+            fake_loss = self.criterion.gan_loss(fake_result, False)
+            return 0.5 * (real_loss + fake_loss)
+
+    # ------------------------------------------------------------------
+    # Training
+    # ------------------------------------------------------------------
+
     def train_one_epoch(self, epoch: int) -> Dict[str, float]:
         self.model.train()
         epoch_start = time.perf_counter()
@@ -178,6 +253,8 @@ class Trainer:
             "adv": 0.0,
             "perc": 0.0,
             "ssim": 0.0,
+            "chroma": 0.0,
+            "feat": 0.0,
             "grad_norm_g": 0.0,
             "grad_norm_d": 0.0,
         }
@@ -198,22 +275,12 @@ class Trainer:
             self.model.discriminator.requires_grad_(True)
             self.optimizer_d.zero_grad(set_to_none=True)
 
-            # This is the fix: use device_type instead of the word 'cuda'
             with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
                 fake_rgb = self.model.generate(ir).detach()
 
                 # Add noise to prevent discriminator overpowering
                 noise_std = max(0.1 * (1 - epoch / self.total_epochs), 0.01)
-                ir_noisy = ir + torch.randn_like(ir) * noise_std
-                rgb_noisy = rgb + torch.randn_like(rgb) * noise_std
-                fake_rgb_noisy = fake_rgb + torch.randn_like(fake_rgb) * noise_std
-
-                real_pred = self.model.discriminate(ir_noisy, rgb_noisy)
-                fake_pred = self.model.discriminate(ir_noisy, fake_rgb_noisy)
-
-                real_loss = self.criterion.gan_loss(real_pred, True)
-                fake_loss = self.criterion.gan_loss(fake_pred, False)
-                d_loss = 0.5 * (real_loss + fake_loss)
+                d_loss = self._disc_loss_multi_scale(ir, rgb, fake_rgb, noise_std)
 
             self.scaler.scale(d_loss).backward()
             self.scaler.unscale_(self.optimizer_d)
@@ -230,20 +297,35 @@ class Trainer:
 
             d_loss_last = d_loss.detach()
 
-            # ---- Train Generator (NO noise) ----
+            # ---- Train Generator ----
             self.optimizer_g.zero_grad(set_to_none=True)
             self.model.discriminator.requires_grad_(False)
 
             try:
-                # This is the fix: use device_type instead of the word 'cuda'
                 with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
                     fake_rgb = self.model.generate(ir)
-                    fake_pred_for_g = self.model.discriminate(ir, fake_rgb)
+
+                    # Get features for feature matching if enabled
+                    use_feats = self.use_feature_matching
+                    disc_result = self._disc_forward(ir, fake_rgb, return_features=use_feats)
+
+                    fake_features: Optional[List[torch.Tensor]] = None
+                    real_features: Optional[List[torch.Tensor]] = None
+
+                    if use_feats:
+                        fake_pred_for_g, fake_features = disc_result
+                        with torch.no_grad():
+                            real_disc_result = self._disc_forward(ir, rgb, return_features=True)
+                            _, real_features = real_disc_result
+                    else:
+                        fake_pred_for_g = disc_result
 
                     losses = self.criterion(
                         disc_fake_pred=fake_pred_for_g,
                         fake_rgb=fake_rgb,
                         real_rgb=rgb,
+                        fake_features=fake_features,
+                        real_features=real_features,
                     )
                     g_loss = losses["total"]
 
@@ -270,6 +352,8 @@ class Trainer:
             running["adv"] += float(losses["adv"].detach().item())
             running["perc"] += float(losses["perc"].detach().item())
             running["ssim"] += float(losses["ssim"].detach().item())
+            running["chroma"] += float(losses["chroma"].detach().item())
+            running["feat"] += float(losses["feat"].detach().item())
             running["grad_norm_g"] += float(g_grad_norm)
             running["grad_norm_d"] += float(d_grad_norm)
 
@@ -291,6 +375,9 @@ class Trainer:
 
         psnr_sum = 0.0
         ssim_sum = 0.0
+        sat_ratio_sum = 0.0
+        hist_dist_sum = 0.0
+        lab_error_sum = 0.0
         num_batches = len(self.val_loader)
 
         for batch in self.val_loader:
@@ -306,9 +393,18 @@ class Trainer:
             psnr_sum += float(self._psnr(fake_rgb_01, rgb_01).item())
             ssim_sum += float(self._ssim_simple(fake_rgb_01, rgb_01).item())
 
+            # Color quality metrics
+            sat_ratio_sum += compute_mean_saturation_ratio(fake_rgb_01, rgb_01)
+            hist_dist_sum += compute_color_histogram_distance(fake_rgb_01, rgb_01)
+            lab_error_sum += compute_lab_color_error(fake_rgb_01, rgb_01)
+
+        n = max(num_batches, 1)
         return {
-            "val_psnr": psnr_sum / max(num_batches, 1),
-            "val_ssim": ssim_sum / max(num_batches, 1),
+            "val_psnr": psnr_sum / n,
+            "val_ssim": ssim_sum / n,
+            "val_sat_ratio": sat_ratio_sum / n,
+            "val_hist_dist": hist_dist_sum / n,
+            "val_lab_error": lab_error_sum / n,
         }
 
     @torch.no_grad()

@@ -1,10 +1,14 @@
+
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Process raw Landsat 9 TIF files into training patches.
 """
 
 import logging
 import shutil
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -159,3 +163,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

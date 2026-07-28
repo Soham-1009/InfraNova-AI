@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 
-from .discriminator import PatchDiscriminator
+from .discriminator import MultiScaleDiscriminator, PatchDiscriminator
 from .generator import GeneratorUNet
 
 
@@ -13,11 +13,13 @@ class Pix2Pix(nn.Module):
     """
     Pix2Pix wrapper module.
 
+    Supports single-scale (PatchGAN) and multi-scale discriminator modes.
+
     Exposes:
         - generator
         - discriminator
         - generate(ir)
-        - discriminate(ir, rgb)
+        - discriminate(ir, rgb, return_features=False)
         - count_parameters()
     """
 
@@ -26,20 +28,25 @@ class Pix2Pix(nn.Module):
         device: torch.device | str | None = None,
         in_channels: int = 1,
         out_channels: int = 3,
+        multi_scale: bool = False,
     ) -> None:
         super().__init__()
 
         self.device = torch.device(
             device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
         )
+        self.multi_scale = multi_scale
 
         self.generator = GeneratorUNet(
             in_channels=in_channels,
             out_channels=out_channels,
         )
-        self.discriminator = PatchDiscriminator(
-            in_channels=in_channels + out_channels,
-        )
+
+        disc_in_channels = in_channels + out_channels
+        if multi_scale:
+            self.discriminator = MultiScaleDiscriminator(in_channels=disc_in_channels)
+        else:
+            self.discriminator = PatchDiscriminator(in_channels=disc_in_channels)
 
         self.to(self.device)
 
@@ -66,22 +73,30 @@ class Pix2Pix(nn.Module):
         ir = ir.to(self._model_device())
         return self.generator(ir)
 
-    def discriminate(self, ir: torch.Tensor, rgb: torch.Tensor) -> torch.Tensor:
+    def discriminate(
+        self,
+        ir: torch.Tensor,
+        rgb: torch.Tensor,
+        return_features: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]], Dict]:
         """
         Discriminate concatenated IR + RGB pair.
 
         Args:
             ir: Tensor [B, 1, H, W]
             rgb: Tensor [B, 3, H, W]
+            return_features: If True, also return intermediate features for
+                feature matching loss.
 
         Returns:
-            Patch score map [B, 1, 30, 30]
+            Single-scale: Patch score map [B, 1, 30, 30] or (scores, features)
+            Multi-scale: Dict with "fine" and "coarse" outputs
         """
         device = self._model_device()
         ir = ir.to(device)
         rgb = rgb.to(device)
         x = torch.cat([ir, rgb], dim=1)
-        return self.discriminator(x)
+        return self.discriminator(x, return_features=return_features)
 
     def forward(self, ir: torch.Tensor) -> torch.Tensor:
         """Alias for generate()."""
