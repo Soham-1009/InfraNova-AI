@@ -466,15 +466,15 @@ REGIONS = {
     'thar_desert': {'lat': 27.0000, 'lon': 71.0000, 'name': 'Thar Desert'},
     'gobi_desert': {'lat': 42.5903, 'lon': 103.4300, 'name': 'Gobi Desert'},
     'kalahari_desert': {'lat': -23.0000, 'lon': 22.0000, 'name': 'Kalahari Desert'},
-    'namib_desert': {'lat': -24.0000, 'lon': 15.0000, 'name': 'Namib Desert'},
+    'simpson_desert': {'lat': -25.5000, 'lon': 137.5000, 'name': 'Simpson Desert'},
     'atacama_desert': {'lat': -24.5000, 'lon': -69.2500, 'name': 'Atacama Desert'},
     'mojave_desert': {'lat': 35.0110, 'lon': -115.4734, 'name': 'Mojave Desert'},
     'sonoran_desert': {'lat': 32.0000, 'lon': -112.0000, 'name': 'Sonoran Desert'},
     'great_victoria_desert': {'lat': -29.0000, 'lon': 129.0000, 'name': 'Great Victoria Desert'},
     'arabian_desert': {'lat': 23.0000, 'lon': 45.0000, 'name': 'Arabian Desert'},
-    'greenland_ice_sheet': {'lat': 72.0000, 'lon': -40.0000, 'name': 'Greenland Ice Sheet'},
-    'antarctic_peninsula': {'lat': -64.0000, 'lon': -60.0000, 'name': 'Antarctic Peninsula'},
-    'ross_ice_shelf': {'lat': -81.5000, 'lon': -175.0000, 'name': 'Ross Ice Shelf'},
+    'death_valley': {'lat': 36.5323, 'lon': -116.9325, 'name': 'Death Valley'},
+    'namib_desert': {'lat': -24.7500, 'lon': 15.3000, 'name': 'Namib Desert'},
+    'salar_de_uyuni': {'lat': -20.1338, 'lon': -67.4891, 'name': 'Salar de Uyuni'},
     'vatnajokull': {'lat': 64.4167, 'lon': -16.6667, 'name': 'Vatnajökull Glacier'},
     'aletsch_glacier': {'lat': 46.4500, 'lon': 8.0500, 'name': 'Aletsch Glacier'},
     'great_barrier_reef': {'lat': -18.2871, 'lon': 147.6992, 'name': 'Great Barrier Reef'},
@@ -538,9 +538,18 @@ TOTAL_REGIONS = len(REGIONS)
 
 BANDS_RGB = ['SR_B4', 'SR_B3', 'SR_B2']
 BANDS_TIR = ['ST_B10']
-START_DATE = '2024-01-01'
-END_DATE = '2024-06-30'
-BUFFER_METERS = 15000
+
+RADII = [5000, 8000, 12000, 20000, 30000, 40000]
+SHIFTS = [(0, 0), (0.05, 0), (-0.05, 0), (0, 0.05), (0, -0.05)]
+DATE_RANGES = ["2024-01-01", "2023-01-01", "2022-01-01"]
+CLOUD_COVERS = [10, 20, 35, 50, 70, 100]
+
+NETWORK_ERRORS = (
+    ee.ee_exception.EEException,
+    requests.exceptions.Timeout,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.SSLError,
+)
 
 
 def setup_logger(log_file: Path) -> logging.Logger:
@@ -606,8 +615,8 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
         raise ValueError(f"Corrupted GeoTIFF: {e}") from e
 
 
-def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False) -> tuple[bool, str]:
-    """Processes a single region. Returns (success, message)."""
+def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
+    """Processes a single region with progressive fallback. Returns (success, message)."""
     dest_dir = output_dir / region_id
     rgb_path = dest_dir / "rgb.tif"
     tir_path = dest_dir / "tir.tif"
@@ -621,89 +630,138 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
             pass  # Corrupted existing files, proceed to download and overwrite
 
     dest_dir.mkdir(parents=True, exist_ok=True)
+    base_lat = region_info['lat']
+    base_lon = region_info['lon']
 
-    point = ee.Geometry.Point([region_info['lon'], region_info['lat']])
-    region = point.buffer(BUFFER_METERS).bounds()
+    attempt = 0
+    total_attempts = len(RADII) * len(SHIFTS) * \
+        len(DATE_RANGES) * len(CLOUD_COVERS)
 
-    collection = (
-        ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
-        .filterBounds(point)
-        .filterDate(START_DATE, END_DATE)
-        .filter(ee.Filter.lt('CLOUD_COVER', 20))
-        .sort('CLOUD_COVER')
-    )
+    for radius in RADII:
+        for shift_lat, shift_lon in SHIFTS:
+            for date_start in DATE_RANGES:
+                for cloud in CLOUD_COVERS:
+                    attempt += 1
+                    lat = base_lat + shift_lat
+                    lon = base_lon + shift_lon
 
-    count = collection.size().getInfo()
-    if count == 0:
-        raise ValueError(
-            f"No clear images available for {region_info['name']}")
+                    if verbose:
+                        print(f"\\nAttempt {attempt}/{total_attempts}")
+                        print(f"Region : {region_info['name']}")
+                        print(f"Date   : {date_start} → Present")
+                        print(f"Cloud  : ≤{cloud}%")
+                        print(f"Shift  : ({shift_lat}, {shift_lon})")
+                        print(f"Radius : {radius//1000} km")
 
-    image = collection.first().clip(region)
+                    point = ee.Geometry.Point([lon, lat])
+                    region = point.buffer(radius).bounds()
 
-    # Download RGB (SR_B4, SR_B3, SR_B2)
-    rgb_url = image.select(BANDS_RGB).getDownloadURL({
-        'scale': 30,
-        'region': region,
-        'format': 'GEO_TIFF'
-    })
-    download_and_extract(rgb_url, dest_dir, "rgb.tif")
-    verify_tiff(rgb_path, 3)
+                    collection = (
+                        ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+                        .filterBounds(point)
+                        .filterDate(date_start, "2024-06-30")
+                    )
 
-    # Download TIR (ST_B10)
-    tir_url = image.select(BANDS_TIR).getDownloadURL({
-        'scale': 30,
-        'region': region,
-        'format': 'GEO_TIFF'
-    })
-    download_and_extract(tir_url, dest_dir, "tir.tif")
-    verify_tiff(tir_path, 1)
+                    if cloud < 100:
+                        collection = collection.filter(
+                            ee.Filter.lt('CLOUD_COVER', cloud))
 
-    return True, f"Successfully downloaded {region_info['name']}"
+                    collection = (
+                        collection
+                        .sort('CLOUD_COVER')
+                        .sort('system:time_start', False)
+                    )
+
+                    try:
+                        count = collection.size().getInfo()
+                    except NETWORK_ERRORS as e:
+                        if verbose:
+                            print(
+                                f"Result : Network Error ({type(e).__name__})")
+                        raise  # Re-raise to trigger exponential backoff in worker
+                    except Exception as e:
+                        if verbose:
+                            print(f"Result : EE Error ({e})")
+                        # Other EE error (like invalid geometry), skip
+                        continue
+
+                    if count == 0:
+                        if verbose:
+                            print("Result : No imagery")
+                        continue
+
+                    if verbose:
+                        print("Result : Imagery found! Downloading...")
+
+                    try:
+                        image = collection.first().clip(region)
+                        rgb_url = image.select(BANDS_RGB).getDownloadURL(
+                            {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
+                        download_and_extract(rgb_url, dest_dir, "rgb.tif")
+                        verify_tiff(rgb_path, 3)
+
+                        tir_url = image.select(BANDS_TIR).getDownloadURL(
+                            {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
+                        download_and_extract(tir_url, dest_dir, "tir.tif")
+                        verify_tiff(tir_path, 1)
+
+                        if verbose:
+                            print("Result : ✅ Success")
+                        return True, f"Successfully downloaded {region_info['name']} on attempt {attempt}"
+                    except NETWORK_ERRORS as e:
+                        raise  # Trigger network backoff
+                    except Exception as e:
+                        if verbose:
+                            print(f"Result : Download/Verify Failed ({e})")
+                        # Cleanup broken files for this attempt
+                        for f in ["rgb.tif", "tir.tif"]:
+                            fpath = dest_dir / f
+                            if fpath.exists():
+                                with suppress(Exception):
+                                    fpath.unlink()
+                        continue
+
+    return False, f"No imagery found for {region_info['name']} after {total_attempts} attempts"
 
 
 def worker(task: tuple) -> tuple:
-    """Worker function for threading. Handles retries and cleanup on failure."""
-    idx, region_id, region_info, output_dir, overwrite, max_retries = task
+    """Worker function for threading. Handles network retries."""
+    region_id, region_info, output_dir, overwrite, verbose = task
 
-    error_msg = ""
-    for attempt in range(1, max_retries + 1):
+    for attempt in range(1, 6):  # Max 5 retries for network errors
         try:
             success, msg = process_region(
-                region_id, region_info, output_dir, overwrite)
-            if success:
-                return idx, region_id, True, msg, attempt
+                region_id, region_info, output_dir, overwrite, verbose)
+            return region_id, success, msg, attempt, False
+        except NETWORK_ERRORS as e:
+            if attempt < 5:
+                time.sleep(2 ** (attempt - 1))  # 1s, 2s, 4s, 8s
+            else:
+                return region_id, False, f"Network error after 5 retries: {e}", attempt, True
         except Exception as e:
-            error_msg = str(e)
+            return region_id, False, f"Unexpected error: {e}", attempt, False
 
-            # Cleanup broken files
-            dest_dir = output_dir / region_id
-            for f in ["rgb.tif", "tir.tif"]:
-                fpath = dest_dir / f
-                if fpath.exists():
-                    with suppress(Exception):
-                        fpath.unlink()
+    return region_id, False, "Unknown error", 5, False
 
-            if attempt < max_retries:
-                time.sleep(2 ** attempt)  # Exponential backoff
 
-    return idx, region_id, False, error_msg, max_retries
+def save_progress(state: dict, filepath: Path):
+    import json
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=4)
 
 
 def main():
+    import json
     parser = argparse.ArgumentParser(
         description="Direct Landsat 9 Downloader (Local)")
     parser.add_argument("--output-dir", type=str, default=str(PROJECT_ROOT /
                         "data/landsat9/raw"), help="Output directory")
     parser.add_argument("--workers", type=int, default=4,
                         help="Number of parallel downloads")
-    parser.add_argument("--start-index", type=int,
-                        default=0, help="Start index of regions")
-    parser.add_argument("--end-index", type=int,
-                        default=None, help="End index of regions")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing files")
-    parser.add_argument("--resume", action="store_true",
-                        help="Resume interrupted downloads (skip existing)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Print every parameter combination attempted")
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -716,78 +774,128 @@ def main():
         ee.Initialize(project=EE_PROJECT_ID)
     except Exception as exc:
         print(f"Failed to initialize Earth Engine: {exc}")
-        print("Make sure you have authenticated with: earthengine authenticate")
         logger.error(f"Earth Engine init failed: {exc}")
         return
 
-    regions_list = list(REGIONS.items())
-    end_idx = args.end_index if args.end_index is not None else len(
-        regions_list)
-    regions_to_process = regions_list[args.start_index:end_idx]
+    # Initialize State
+    state_file = Path("progress.json")
+    state = {
+        "completed": 0,
+        "successful_regions": [],
+        "failed_regions": [],
+        "network_errors": []
+    }
 
-    print(f"Total regions configured: {TOTAL_REGIONS}")
-    print(f"Regions to process in this run: {len(regions_to_process)}")
+    if state_file.exists():
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                state.update(saved)
+                print(
+                    f"Resumed from checkpoint: {state['completed']} completed, {len(state['successful_regions'])} successful")
+        except Exception:
+            print("Failed to load progress.json, starting fresh.")
 
-    tasks = [(i, k, v, output_dir, args.overwrite, 3)
-             for i, (k, v) in enumerate(regions_to_process)]
+    def run_pass(regions_to_run, pass_name):
+        print(f"\\n--- {pass_name} ---")
+        if not regions_to_run:
+            print("No regions to process in this pass.")
+            return
+
+        tasks = [(rid, REGIONS[rid], output_dir, args.overwrite, args.verbose)
+                 for rid in regions_to_run]
+        total = len(tasks)
+        success_in_pass = 0
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
+                futures = {executor.submit(worker, t): t for t in tasks}
+                for i, future in enumerate(concurrent.futures.as_completed(futures), 1):
+                    region_id, success, msg, attempts, is_network = future.result()
+
+                    state["completed"] += 1
+
+                    if success:
+                        success_in_pass += 1
+                        if region_id not in state["successful_regions"]:
+                            state["successful_regions"].append(region_id)
+                        if region_id in state["failed_regions"]:
+                            state["failed_regions"].remove(region_id)
+                        if region_id in state["network_errors"]:
+                            state["network_errors"].remove(region_id)
+
+                        if not args.verbose:
+                            print(
+                                f"[{i}/{total}] ✅ {REGIONS[region_id]['name']}")
+                    else:
+                        if is_network:
+                            if region_id not in state["network_errors"]:
+                                state["network_errors"].append(region_id)
+                            if not args.verbose:
+                                print(
+                                    f"[{i}/{total}] 🌐 Network Error: {REGIONS[region_id]['name']}")
+                        else:
+                            if region_id not in state["failed_regions"]:
+                                state["failed_regions"].append(region_id)
+                            if not args.verbose:
+                                print(
+                                    f"[{i}/{total}] ❌ Failed: {REGIONS[region_id]['name']} - {msg}")
+
+                    if success_in_pass > 0 and success_in_pass % 10 == 0:
+                        save_progress(state, state_file)
+
+        except KeyboardInterrupt:
+            print("\\nInterrupted by user! Saving progress...")
+            save_progress(state, state_file)
+            sys.exit(0)
+
+        save_progress(state, state_file)
+
+    # Determine regions to run
+    all_regions = list(REGIONS.keys())
+    pass1_regions = [
+        r for r in all_regions if r not in state["successful_regions"]]
 
     start_time = time.time()
-    success_count = 0
-    failed_count = 0
-    skipped_count = 0
-    total = len(tasks)
 
-    failed_file = Path("failed_downloads.txt")
+    # Pass 1
+    if pass1_regions:
+        run_pass(pass1_regions, "PASS 1")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
-        futures = {executor.submit(worker, t): t for t in tasks}
+    # Pass 2
+    pass2_regions = state["failed_regions"].copy() + \
+        state["network_errors"].copy()
+    if pass2_regions:
+        run_pass(pass2_regions, "PASS 2")
 
-        for future in concurrent.futures.as_completed(futures):
-            _idx, region_id, success, msg, attempts = future.result()
+    # Pass 3
+    pass3_regions = state["failed_regions"].copy() + \
+        state["network_errors"].copy()
+    if pass3_regions:
+        run_pass(pass3_regions, "PASS 3")
 
-            if success:
-                if "Skipping" in msg:
-                    skipped_count += 1
-                    print(f"\n{msg}")
-                else:
-                    success_count += 1
-                    print(
-                        f"\n[{success_count + failed_count + skipped_count}/{total}] Downloading {REGIONS[region_id]['name']}...")
-                    if attempts > 1:
-                        print(f"✓ Succeeded on retry {attempts}")
-                    print("✓ RGB downloaded")
-                    print("✓ Thermal downloaded")
-            else:
-                failed_count += 1
-                logger.error(
-                    f"Failed to download {region_id} after {attempts} attempts: {msg}")
-                print(
-                    f"\n[{success_count + failed_count + skipped_count}/{total}] Failed to download {REGIONS[region_id]['name']}!")
-                print(f"Reason: {msg}")
-                with open(failed_file, "a", encoding="utf-8") as f:
-                    f.write(f"{region_id},{msg},{datetime.datetime.now()}\n")
+    # Final Summary
+    print("\\nFINAL")
+    print("--------")
+    print(f"Successful : {len(state['successful_regions'])}")
+    print(f"Failed     : {len(state['failed_regions'])}")
+    print(f"Network    : {len(state['network_errors'])}")
 
-            completed = success_count + failed_count + skipped_count
-            elapsed = time.time() - start_time
-            avg_time = elapsed / completed if completed > 0 else 0
-            remaining = avg_time * (total - completed)
+    elapsed = time.time() - start_time
+    print(f"Time        : {datetime.timedelta(seconds=int(elapsed))}")
 
-            print(f"Elapsed Time: {datetime.timedelta(seconds=int(elapsed))}")
-            print(
-                f"Remaining Time: {datetime.timedelta(seconds=int(remaining))}")
-            print(f"Success Count: {success_count}")
-            print(f"Failed Count: {failed_count}")
+    if state["failed_regions"] or state["network_errors"]:
+        print("\\nRemaining unavailable regions:")
+        for r in state["failed_regions"] + state["network_errors"]:
+            print(f"- {REGIONS[r]['name']}")
 
-    logger.info("Download process finished.")
-    logger.info(
-        f"Total elapsed time: {datetime.timedelta(seconds=int(time.time() - start_time))}")
-    logger.info(f"Successfully downloaded: {success_count}")
-    logger.info(f"Skipped: {skipped_count}")
-    logger.info(f"Failed: {failed_count}")
-
-    print("\n" + "="*60)
-    print("DOWNLOAD PROCESS FINISHED")
-    print("="*60)
+    # Write individual state lists
+    with open("successful_regions.json", "w") as f:
+        json.dump(state["successful_regions"], f)
+    with open("failed_regions.json", "w") as f:
+        json.dump(state["failed_regions"], f)
+    with open("network_errors.json", "w") as f:
+        json.dump(state["network_errors"], f)
 
 
 if __name__ == '__main__':
