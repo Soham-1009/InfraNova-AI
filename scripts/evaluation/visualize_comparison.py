@@ -103,10 +103,10 @@ def generate_comparison(
 
         # Saturation map (channel std per pixel)
         pred_sat = np.std(pred_disp, axis=-1)
-        gt_sat = np.std(gt_disp, axis=-1)
+        _gt_sat = np.std(gt_disp, axis=-1)
 
         # Create panel
-        fig, axes = plt.subplots(1, 5, figsize=(25, 5))
+        _fig, axes = plt.subplots(1, 5, figsize=(25, 5))
 
         axes[0].imshow(ir_disp, cmap="inferno")
         axes[0].set_title("Thermal Input", fontsize=12, fontweight="bold")
@@ -141,7 +141,7 @@ def generate_comparison(
 
     # Also save a combined grid with all samples
     if n > 1:
-        fig, axes = plt.subplots(n, 5, figsize=(25, 5 * n), squeeze=False)
+        _fig, axes = plt.subplots(n, 5, figsize=(25, 5 * n), squeeze=False)
 
         for row, idx in enumerate(indices):
             sample = dataset[idx]

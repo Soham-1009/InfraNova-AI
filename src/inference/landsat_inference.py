@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import cv2
 import numpy as np
@@ -45,7 +45,7 @@ class LandsatColorizationInference:
     def __init__(
         self,
         checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
-        device: Optional[str] = None,
+        device: str | None = None,
         image_size: int = 256,
         percentile_low: float = DEFAULT_PERCENTILE_LOW,
         percentile_high: float = DEFAULT_PERCENTILE_HIGH,
@@ -59,7 +59,7 @@ class LandsatColorizationInference:
             raise ValueError("image_size must be a multiple of 256 for this generator")
         if not 0.0 <= self.percentile_low < self.percentile_high <= 100.0:
             raise ValueError("percentile_low and percentile_high must satisfy 0 <= low < high <= 100")
-        self.model: Optional[Pix2Pix] = None
+        self.model: Pix2Pix | None = None
 
     def load_model(self) -> Pix2Pix:
         """
@@ -92,7 +92,7 @@ class LandsatColorizationInference:
         return self.model
 
     @staticmethod
-    def _to_grayscale_array(image: Union[Image.Image, np.ndarray]) -> np.ndarray:
+    def _to_grayscale_array(image: Image.Image | np.ndarray) -> np.ndarray:
         """
         Convert PIL / NumPy input to a 2D grayscale float32 array.
 
@@ -129,7 +129,7 @@ class LandsatColorizationInference:
 
         raise TypeError("Input must be PIL.Image.Image or numpy.ndarray")
 
-    def preprocess(self, image: Union[Image.Image, np.ndarray]) -> torch.Tensor:
+    def preprocess(self, image: Image.Image | np.ndarray) -> torch.Tensor:
         """
         Resize to 256x256 and normalize TIR with percentile stretching.
         """
@@ -203,9 +203,9 @@ class LandsatColorizationInference:
     @torch.inference_mode()
     def predict(
         self,
-        image: Union[Image.Image, np.ndarray],
+        image: Image.Image | np.ndarray,
         use_tta: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run inference and return RGB output plus confidence score.
 
@@ -302,10 +302,10 @@ class LandsatColorizationInference:
 
     def predict_and_save(
         self,
-        image: Union[Image.Image, np.ndarray],
+        image: Image.Image | np.ndarray,
         output_path: str,
         use_tta: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Predict and save a TIFF output.
         """

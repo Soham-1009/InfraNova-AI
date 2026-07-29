@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 import torch
 
 from src.utils.image_processing import (
-    tensor_to_numpy,
     numpy_to_tensor,
+    tensor_to_numpy,
 )
 
 

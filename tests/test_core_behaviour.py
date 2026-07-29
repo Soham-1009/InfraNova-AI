@@ -10,8 +10,8 @@ import torch
 from PIL import Image
 
 from demo.utils import postprocess_output, preprocess_ir_image
-from evaluate import to_unit_interval
-from split_patches import split_regions
+from scripts.evaluation.evaluate import to_unit_interval
+from scripts.preprocessing.split_patches import split_regions
 from src.models.pix2pix.generator import GeneratorUNet
 from src.utils.image_processing import to_single_band_array
 from src.utils.logger import TrainingLogger

@@ -1,8 +1,3 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Split region patch folders into train/val/test sets.
 
@@ -15,18 +10,24 @@ from __future__ import annotations
 import argparse
 import random
 import shutil
-from typing import Dict, List
+import sys
+from pathlib import Path
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 PATCHES_DIR = Path("data/landsat9/patches")
-OUTPUT_DIR = Path(str(PROJECT_ROOT / "data/landsat9/splits"))
+OUTPUT_DIR = PROJECT_ROOT / "data/landsat9/splits"
 
 TRAIN_RATIO = 0.8
 VAL_RATIO = 0.1
 SPLITS = ("train", "val", "test")
 
 
-def collect_region_dirs(patches_dir: Path) -> List[Path]:
+def collect_region_dirs(patches_dir: Path) -> list[Path]:
     if not patches_dir.exists():
         raise FileNotFoundError(f"Patch directory not found: {patches_dir}")
 
@@ -42,7 +43,7 @@ def collect_region_dirs(patches_dir: Path) -> List[Path]:
     return region_dirs
 
 
-def split_regions(region_dirs: List[Path], seed: int) -> Dict[str, List[Path]]:
+def split_regions(region_dirs: list[Path], seed: int) -> dict[str, list[Path]]:
     shuffled = region_dirs[:]
     rng = random.Random(seed)
     rng.shuffle(shuffled)
@@ -103,7 +104,7 @@ def prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
         (output_dir / split).mkdir(parents=True, exist_ok=True)
 
 
-def copy_splits(region_splits: Dict[str, List[Path]], output_dir: Path) -> int:
+def copy_splits(region_splits: dict[str, list[Path]], output_dir: Path) -> int:
     count = 0
     for split in SPLITS:
         split_dir = output_dir / split

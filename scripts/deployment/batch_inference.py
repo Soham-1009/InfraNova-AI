@@ -17,7 +17,6 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 import numpy as np
 from PIL import Image
@@ -32,7 +31,7 @@ from demo.inference import InferenceEngine
 SUPPORTED_EXTENSIONS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
 
 
-def discover_images(input_path: Path, recursive: bool = False) -> List[Path]:
+def discover_images(input_path: Path, recursive: bool = False) -> list[Path]:
     """Find all supported image files."""
     # Single file mode
     if input_path.is_file():
@@ -55,7 +54,7 @@ def process_single_image(
     output_dir: Path,
     tta: bool,
     output_format: str,
-) -> Tuple[bool, str, float]:
+) -> tuple[bool, str, float]:
     """
     Process one image. Returns (success, message, time_seconds).
     """

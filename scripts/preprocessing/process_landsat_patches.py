@@ -1,18 +1,22 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Process raw Landsat 9 TIF files into training patches.
 """
 
+from __future__ import annotations
+
 import logging
 import shutil
+import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
 import tifffile
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 logger = logging.getLogger(__name__)
 
@@ -45,24 +49,24 @@ def merge_rgb(b2_path, b3_path, b4_path):
 def process_region(region_dir, output_dir):
     region_id = region_dir.name.replace('_product', '')
     print(f"\nProcessing {region_id}...")
-    
+
     files = sorted(region_dir.glob("*.tif"))
     b2 = next((f for f in files if 'SR_B2' in f.name), None)
     b3 = next((f for f in files if 'SR_B3' in f.name), None)
     b4 = next((f for f in files if 'SR_B4' in f.name), None)
     b10 = next((f for f in files if 'ST_B10' in f.name), None)
-    
+
     if not all([b2, b3, b4, b10]):
-        print(f"  Missing bands")
+        print("  Missing bands")
         return 0
-    
+
     try:
         tir = tifffile.imread(b10)
         rgb = merge_rgb(b2, b3, b4)
     except Exception as exc:
         logger.warning("  Skipping %s: corrupted TIFF (%s)", region_id, exc)
         return 0
-    
+
     # Check for non-finite values in raw data
     if not np.isfinite(tir).all():
         logger.warning("  Skipping %s: TIR contains non-finite values", region_id)
@@ -90,46 +94,46 @@ def process_region(region_dir, output_dir):
     tir_200m = resize_image(tir, h200, w200)
     tir_100m = resize_image(tir, h100, w100)
     rgb_100m = resize_image(rgb, h100, w100)
-    
+
     h200, w200 = tir_200m.shape
     print(f"  200m TIR size: {h200}x{w200}")
     print(f"  Using patch size: {PATCH_SIZE_200M}x{PATCH_SIZE_200M}, stride: {STRIDE}")
-    
+
     if h200 < PATCH_SIZE_200M or w200 < PATCH_SIZE_200M:
         print(f"  Image too small for {PATCH_SIZE_200M}x{PATCH_SIZE_200M} patches")
         return 0
-    
+
     count = 0
     skipped_border = 0
     region_patches_dir = output_dir / region_id
     if region_patches_dir.exists():
         shutil.rmtree(region_patches_dir)
     region_patches_dir.mkdir(parents=True, exist_ok=True)
-    
+
     for y in range(0, h200 - PATCH_SIZE_200M + 1, STRIDE):
         for x in range(0, w200 - PATCH_SIZE_200M + 1, STRIDE):
             patch_tir_200m = tir_200m[y:y+PATCH_SIZE_200M, x:x+PATCH_SIZE_200M]
-            
+
             y100, x100 = y*2, x*2
             patch_tir_100m = tir_100m[y100:y100+PATCH_SIZE_100M, x100:x100+PATCH_SIZE_100M]
             patch_rgb_100m = rgb_100m[:, y100:y100+PATCH_SIZE_100M, x100:x100+PATCH_SIZE_100M]
-            
+
             if patch_tir_100m.shape != (PATCH_SIZE_100M, PATCH_SIZE_100M):
                 skipped_border += 1
                 continue
             if patch_rgb_100m.shape[-2:] != (PATCH_SIZE_100M, PATCH_SIZE_100M):
                 skipped_border += 1
                 continue
-            
+
             patch_dir = region_patches_dir / f'sample_{count:03d}'
             patch_dir.mkdir(exist_ok=True)
-            
+
             np.save(patch_dir / 'tir_200m.npy', patch_tir_200m)
             np.save(patch_dir / 'tir_100m.npy', patch_tir_100m)
             np.save(patch_dir / 'rgb_100m.npy', patch_rgb_100m)
-            
+
             count += 1
-    
+
     if skipped_border > 0:
         print(f"  Skipped {skipped_border} border patches (misaligned 200m/100m grids)")
     print(f"  Created {count} patches")
@@ -137,25 +141,31 @@ def process_region(region_dir, output_dir):
 
 
 def main():
-    input_dir = Path("data/landsat9/input")
-    output_dir = Path("data/landsat9/patches")
+    import argparse
+    parser = argparse.ArgumentParser(description="Process raw Landsat 9 TIF files into training patches.")
+    parser.add_argument("--input_dir", type=str, default="data/landsat9/input", help="Directory containing raw Landsat 9 data")
+    parser.add_argument("--output_dir", type=str, default="data/landsat9/patches", help="Directory to save the processed patches")
+    args = parser.parse_args()
+
+    input_dir = Path(args.input_dir)
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not input_dir.exists():
         print(f"Input directory not found: {input_dir}")
         print("Download and organize Landsat exports before processing patches.")
         return
-    
+
     regions = [d for d in input_dir.iterdir() if d.is_dir()]
-    
+
     if not regions:
         print(f"No regions found in {input_dir}")
         return
-    
+
     total = 0
     for region_dir in regions:
         total += process_region(region_dir, output_dir)
-    
+
     print(f"\n{'='*50}")
     print(f"Total patches: {total}")
     print(f"Patch sizes: {PATCH_SIZE_200M}x{PATCH_SIZE_200M} (input), {PATCH_SIZE_100M}x{PATCH_SIZE_100M} (output)")

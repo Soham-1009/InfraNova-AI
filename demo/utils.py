@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Union
 
 import cv2
 import numpy as np
@@ -31,7 +30,7 @@ def _normalize_to_uint8(
 
 
 def preprocess_ir_image(
-    image: Union[Image.Image, np.ndarray],
+    image: Image.Image | np.ndarray,
     image_size: int = 256,
 ) -> torch.Tensor:
     """
@@ -132,7 +131,7 @@ def save_output(image: Image.Image, filename: str) -> str:
     return str(path)
 
 
-def visualize_tir_as_thermal(image: Union[Image.Image, np.ndarray]) -> Image.Image:
+def visualize_tir_as_thermal(image: Image.Image | np.ndarray) -> Image.Image:
     """
     Convert grayscale TIR to thermal colormap for better visualization.
 
@@ -153,7 +152,7 @@ def visualize_tir_as_thermal(image: Union[Image.Image, np.ndarray]) -> Image.Ima
     return Image.fromarray(colored_rgb)
 
 
-def load_sample_images(sample_dir: str = "demo/assets/samples") -> List[Image.Image]:
+def load_sample_images(sample_dir: str = "demo/assets/samples") -> list[Image.Image]:
     """
     Load sample IR images for demo/testing.
 
@@ -167,7 +166,7 @@ def load_sample_images(sample_dir: str = "demo/assets/samples") -> List[Image.Im
     if not directory.exists():
         return []
 
-    images: List[Image.Image] = []
+    images: list[Image.Image] = []
     for ext in ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"):
         for path in sorted(directory.glob(ext)):
             try:

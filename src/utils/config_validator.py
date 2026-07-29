@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def validate_config(cfg: Dict[str, Any]) -> List[str]:
+def validate_config(cfg: dict[str, Any]) -> list[str]:
     """
     Validate a training configuration dictionary.
 
@@ -27,7 +27,7 @@ def validate_config(cfg: Dict[str, Any]) -> List[str]:
     Raises:
         ValueError: If any validation errors are found.
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     # --- Required top-level keys ---
     required_sections = ("project", "dataset", "training", "paths")
@@ -105,9 +105,8 @@ def validate_config(cfg: Dict[str, Any]) -> List[str]:
         errors.append(f"training.patience must be a positive integer, got {patience}")
 
     grad_clip = training.get("grad_clip")
-    if grad_clip is not None:
-        if not isinstance(grad_clip, (int, float)) or grad_clip <= 0:
-            errors.append(f"training.grad_clip must be a positive number, got {grad_clip}")
+    if grad_clip is not None and (not isinstance(grad_clip, (int, float)) or grad_clip <= 0):
+        errors.append(f"training.grad_clip must be a positive number, got {grad_clip}")
 
     # Optimizer
     optim = training.get("optimizer", {})

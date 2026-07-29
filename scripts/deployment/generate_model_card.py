@@ -15,9 +15,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import torch
 
@@ -42,25 +43,21 @@ def generate_model_card(
     """Generate and save a MODEL_CARD.md."""
 
     # Load experiment info if available
-    exp_info: Dict[str, Any] = {}
+    exp_info: dict[str, Any] = {}
     exp_path = Path(experiment_json)
     if exp_path.exists():
-        try:
+        with suppress(Exception):
             exp_info = json.loads(exp_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
 
     # Load checkpoint info
-    ckpt_info: Dict[str, Any] = {}
+    ckpt_info: dict[str, Any] = {}
     ckpt_path = Path(checkpoint_path)
     if ckpt_path.exists():
-        try:
+        with suppress(Exception):
             ckpt = load_torch_checkpoint(checkpoint_path, map_location="cpu")
             ckpt_info = ckpt.get("arch_info", {})
             ckpt_info["epoch"] = ckpt.get("epoch", "unknown")
             ckpt_info["metrics"] = ckpt.get("metrics", {})
-        except Exception:
-            pass
 
     # Model info
     model = Pix2Pix(in_channels=1, out_channels=3)
@@ -104,8 +101,8 @@ thermal input and generates a 3-channel RGB visual interpretation.
 | Architecture | Pix2Pix (U-Net Generator + PatchGAN Discriminator) |
 | Generator | {ckpt_info.get('generator', 'UNetGenerator')} |
 | Discriminator | {ckpt_info.get('discriminator', 'PatchGANDiscriminator')} |
-| Input | 1 × 256 × 256 (thermal) |
-| Output | 3 × 256 × 256 (RGB) |
+| Input | 1 x 256 x 256 (thermal) |
+| Output | 3 x 256 x 256 (RGB) |
 | Total Parameters | {total_params:,} |
 | Generator Parameters | {gen_params:,} |
 | Discriminator Parameters | {disc_params:,} |
@@ -140,7 +137,7 @@ thermal input and generates a 3-channel RGB visual interpretation.
 - **Source**: Landsat 9 Level-2 Surface Temperature (Band 10)
 - **Regions**: Multiple geographic regions
 - **Resolution**: TIR at 100m/pixel, RGB at 100m/pixel
-- **Preprocessing**: Percentile-based normalization, resized to 256×256
+- **Preprocessing**: Percentile-based normalization, resized to 256x256
 
 ## Intended Use
 
@@ -179,7 +176,7 @@ This model is intended for:
 ```
 
 ---
-*Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*
+*Generated on {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}*
 """
 
     out = Path(output_path)

@@ -4,7 +4,8 @@ Dataset module for InfraNova AI.
 Currently supports Landsat 9 TIR-RGB pairs.
 """
 
-from typing import Optional
+
+
 from torch.utils.data import DataLoader
 
 
@@ -15,14 +16,14 @@ def get_dataloader(
     batch_size: int = 8,
     num_workers: int = 2,
     image_size: int = 256,
-    shuffle: Optional[bool] = None,
+    shuffle: bool | None = None,
     task: str = "colorization",
 ) -> DataLoader:
     """
     Create DataLoader for the specified dataset.
     """
     name = dataset_name.lower()
-    
+
     if name == "landsat9":
         from .landsat9_dataset import Landsat9Dataset
         dataset = Landsat9Dataset(
@@ -34,10 +35,10 @@ def get_dataloader(
         )
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
-    
+
     if shuffle is None:
         shuffle = (split == "train")
-    
+
     return DataLoader(
         dataset,
         batch_size=batch_size,

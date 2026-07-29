@@ -38,7 +38,7 @@ class TestCheckpoint:
         assert loaded_metrics["val_psnr"] == pytest.approx(28.5)
 
         # Verify weights match
-        for p1, p2 in zip(model.parameters(), model2.parameters()):
+        for p1, p2 in zip(model.parameters(), model2.parameters(), strict=False):
             assert torch.equal(p1, p2)
 
     def test_arch_info_saved(self, tmp_path):
@@ -84,7 +84,7 @@ class TestCheckpoint:
             "generator": torch.optim.Adam(model2.generator.parameters()),
             "discriminator": torch.optim.Adam(model2.discriminator.parameters()),
         }
-        epoch, metrics = load_checkpoint(path, model2, optimizer2)
+        epoch, _metrics = load_checkpoint(path, model2, optimizer2)
         assert epoch == 3
 
     def test_mismatched_architecture_raises(self, tmp_path):

@@ -1,8 +1,3 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Generate aggregate dataset statistics for InfraNova AI.
 
@@ -20,17 +15,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any
 
 import numpy as np
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 EXPECTED_FILES = ("tir_200m.npy", "tir_100m.npy", "rgb_100m.npy")
 
 
-def discover_samples(data_dir: Path) -> Dict[str, List[Path]]:
+def discover_samples(data_dir: Path) -> dict[str, list[Path]]:
     """Discover sample directories grouped by split."""
-    groups: Dict[str, List[Path]] = {}
+    groups: dict[str, list[Path]] = {}
 
     for child in sorted(data_dir.iterdir()):
         if not child.is_dir():
@@ -56,7 +59,7 @@ def discover_samples(data_dir: Path) -> Dict[str, List[Path]]:
     return groups
 
 
-def compute_band_stats(arrays: List[np.ndarray]) -> Dict[str, Any]:
+def compute_band_stats(arrays: list[np.ndarray]) -> dict[str, Any]:
     """Compute aggregate statistics across a list of arrays."""
     if not arrays:
         return {}
@@ -88,7 +91,7 @@ def compute_band_stats(arrays: List[np.ndarray]) -> Dict[str, Any]:
 def generate_statistics(
     data_dir: str = str(PROJECT_ROOT / "data/landsat9/splits"),
     output_path: str = "dataset_statistics.json",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate comprehensive dataset statistics."""
     data_path = Path(data_dir)
     if not data_path.exists():
@@ -100,7 +103,7 @@ def generate_statistics(
         print(f"No sample directories found in {data_path}")
         sys.exit(1)
 
-    stats: Dict[str, Any] = {
+    stats: dict[str, Any] = {
         "data_dir": str(data_path),
         "splits": {},
     }
@@ -110,11 +113,11 @@ def generate_statistics(
     total_patches = 0
 
     for split_name, samples in groups.items():
-        split_stats: Dict[str, Any] = {"num_samples": len(samples)}
+        split_stats: dict[str, Any] = {"num_samples": len(samples)}
         total_patches += len(samples)
 
         # Collect arrays per file type
-        arrays_by_file: Dict[str, List[np.ndarray]] = {f: [] for f in EXPECTED_FILES}
+        arrays_by_file: dict[str, list[np.ndarray]] = {f: [] for f in EXPECTED_FILES}
         corrupted = 0
         missing = Counter()
 

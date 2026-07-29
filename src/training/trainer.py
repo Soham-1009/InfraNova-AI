@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import torch
@@ -32,7 +32,7 @@ class Trainer:
         model: torch.nn.Module,
         train_loader: DataLoader,
         val_loader: DataLoader,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> None:
         self.model = model
         self.train_loader = train_loader
@@ -130,7 +130,7 @@ class Trainer:
         )
 
         self.start_epoch = 0
-        self.history: Dict[str, list] = {
+        self.history: dict[str, list] = {
             "g_loss": [],
             "d_loss": [],
             "l1": [],
@@ -145,8 +145,8 @@ class Trainer:
 
     @staticmethod
     def _to_device(
-        batch: Dict[str, torch.Tensor], device: torch.device
-    ) -> Dict[str, torch.Tensor]:
+        batch: dict[str, torch.Tensor], device: torch.device
+    ) -> dict[str, torch.Tensor]:
         return {
             k: v.to(device, non_blocking=True) if torch.is_tensor(v) else v
             for k, v in batch.items()
@@ -188,7 +188,7 @@ class Trainer:
 
     def _disc_forward(
         self, ir: torch.Tensor, rgb: torch.Tensor, return_features: bool = False,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
+    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]]:
         """
         Run discriminator and return final predictions (+ optional features).
 
@@ -200,13 +200,13 @@ class Trainer:
             # result is a dict: {"fine": ..., "coarse": ...}
             if return_features:
                 fine_pred, fine_feats = result["fine"]
-                coarse_pred, coarse_feats = result["coarse"]
+                _coarse_pred, coarse_feats = result["coarse"]
                 # Use the fine-scale prediction as the primary adversarial signal
                 # and average for D loss. Features are concatenated.
                 return fine_pred, fine_feats + coarse_feats
             else:
                 fine_pred = result["fine"]
-                coarse_pred = result["coarse"]
+                _coarse_pred = result["coarse"]
                 return fine_pred
         else:
             return result
@@ -242,7 +242,7 @@ class Trainer:
     # Training
     # ------------------------------------------------------------------
 
-    def train_one_epoch(self, epoch: int) -> Dict[str, float]:
+    def train_one_epoch(self, epoch: int) -> dict[str, float]:
         self.model.train()
         epoch_start = time.perf_counter()
 
@@ -309,8 +309,8 @@ class Trainer:
                     use_feats = self.use_feature_matching
                     disc_result = self._disc_forward(ir, fake_rgb, return_features=use_feats)
 
-                    fake_features: Optional[List[torch.Tensor]] = None
-                    real_features: Optional[List[torch.Tensor]] = None
+                    fake_features: list[torch.Tensor] | None = None
+                    real_features: list[torch.Tensor] | None = None
 
                     if use_feats:
                         fake_pred_for_g, fake_features = disc_result
@@ -370,7 +370,7 @@ class Trainer:
         return running
 
     @torch.no_grad()
-    def validate(self) -> Dict[str, float]:
+    def validate(self) -> dict[str, float]:
         self.model.eval()
 
         psnr_sum = 0.0
@@ -442,7 +442,7 @@ class Trainer:
             rgb = self._denorm(rgb).cpu()
             fake_rgb = self._denorm(fake_rgb).cpu()
 
-            fig, axes = plt.subplots(
+            _fig, axes = plt.subplots(
                 sample_count, 3, figsize=(10, 3 * sample_count), squeeze=False,
             )
 
@@ -480,7 +480,7 @@ class Trainer:
             if fig is not None:
                 plt.close(fig)
 
-    def fit(self, num_epochs: int) -> Dict[str, list]:
+    def fit(self, num_epochs: int) -> dict[str, list]:
         """Train end-to-end with scheduler, checkpointing, and early stopping."""
         fit_start = time.perf_counter()
         for epoch in range(self.start_epoch, num_epochs):

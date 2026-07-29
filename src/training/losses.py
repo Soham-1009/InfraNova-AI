@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 import logging
 
 import torch
@@ -107,8 +105,8 @@ class FeatureMatchingLoss(nn.Module):
 
     def forward(
         self,
-        fake_features: List[torch.Tensor],
-        real_features: List[torch.Tensor],
+        fake_features: list[torch.Tensor],
+        real_features: list[torch.Tensor],
     ) -> torch.Tensor:
         loss = fake_features[0].new_tensor(0.0)
         n = min(len(fake_features), len(real_features), self.num_layers)
@@ -127,7 +125,7 @@ class VGGPerceptualLoss(nn.Module):
 
     def __init__(
         self,
-        layer_weights: Optional[Dict[str, float]] = None,
+        layer_weights: dict[str, float] | None = None,
         requires_grad: bool = False,
     ) -> None:
         super().__init__()
@@ -324,9 +322,9 @@ class CombinedLoss(nn.Module):
         disc_fake_pred: torch.Tensor,
         fake_rgb: torch.Tensor,
         real_rgb: torch.Tensor,
-        fake_features: Optional[List[torch.Tensor]] = None,
-        real_features: Optional[List[torch.Tensor]] = None,
-    ) -> Dict[str, torch.Tensor]:
+        fake_features: list[torch.Tensor] | None = None,
+        real_features: list[torch.Tensor] | None = None,
+    ) -> dict[str, torch.Tensor]:
         """
         Compute weighted loss components.
 

@@ -1,8 +1,3 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Validate Landsat 9 dataset patches for training readiness.
 
@@ -20,10 +15,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import logging
-from collections import Counter
-from typing import Dict, List, Tuple
+import sys
+from pathlib import Path
 
 import numpy as np
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def compute_file_hash(filepath: Path) -> str:
     return h.hexdigest()
 
 
-def validate_sample(sample_dir: Path, verbose: bool = False) -> Tuple[List[str], Dict[str, str]]:
+def validate_sample(sample_dir: Path, verbose: bool = False) -> tuple[list[str], dict[str, str]]:
     """
     Validate a single sample directory.
 
@@ -57,8 +58,8 @@ def validate_sample(sample_dir: Path, verbose: bool = False) -> Tuple[List[str],
         (issues, file_hashes) — issues is a list of error strings,
         file_hashes maps filename to SHA256.
     """
-    issues: List[str] = []
-    file_hashes: Dict[str, str] = {}
+    issues: list[str] = []
+    file_hashes: dict[str, str] = {}
 
     for filename in EXPECTED_FILES:
         filepath = sample_dir / filename
@@ -125,7 +126,7 @@ def validate_sample(sample_dir: Path, verbose: bool = False) -> Tuple[List[str],
 def validate_directory(
     data_dir: Path,
     verbose: bool = False,
-) -> Tuple[int, int, Dict[str, List[str]], Dict[str, Dict[str, str]]]:
+) -> tuple[int, int, dict[str, list[str]], dict[str, dict[str, str]]]:
     """
     Validate all samples in a dataset directory.
 
@@ -137,7 +138,7 @@ def validate_directory(
         return 0, 0, {}, {}
 
     # Discover sample directories
-    sample_dirs: List[Path] = []
+    sample_dirs: list[Path] = []
 
     for child in sorted(data_dir.iterdir()):
         if not child.is_dir():
@@ -154,8 +155,8 @@ def validate_directory(
         return 0, 0, {}, {}
 
     total = len(sample_dirs)
-    errors_by_sample: Dict[str, List[str]] = {}
-    hashes_by_sample: Dict[str, Dict[str, str]] = {}
+    errors_by_sample: dict[str, list[str]] = {}
+    hashes_by_sample: dict[str, dict[str, str]] = {}
     valid = 0
 
     for sample_dir in sample_dirs:
@@ -181,18 +182,18 @@ def validate_directory(
 
 
 def find_duplicate_hashes(
-    hashes_by_sample: Dict[str, Dict[str, str]],
-) -> List[str]:
+    hashes_by_sample: dict[str, dict[str, str]],
+) -> list[str]:
     """Find samples with identical file content (SHA256 match)."""
     # Build composite hash per sample (hash of all file hashes)
-    composite: Dict[str, List[str]] = {}
+    composite: dict[str, list[str]] = {}
     for sample_key, file_hashes in hashes_by_sample.items():
         if len(file_hashes) == len(EXPECTED_FILES):
             combined = "|".join(file_hashes.get(f, "") for f in EXPECTED_FILES)
             composite.setdefault(combined, []).append(sample_key)
 
-    duplicates: List[str] = []
-    for combined_hash, samples in composite.items():
+    duplicates: list[str] = []
+    for _combined_hash, samples in composite.items():
         if len(samples) > 1:
             duplicates.append(
                 f"Identical content: {', '.join(samples[:5])}"
@@ -202,9 +203,9 @@ def find_duplicate_hashes(
     return duplicates
 
 
-def check_data_leakage(data_dir: Path) -> List[str]:
+def check_data_leakage(data_dir: Path) -> list[str]:
     """Check for duplicate region names across splits."""
-    region_to_splits: Dict[str, List[str]] = {}
+    region_to_splits: dict[str, list[str]] = {}
 
     for split_name in ("train", "val", "test"):
         split_dir = data_dir / split_name
@@ -218,7 +219,7 @@ def check_data_leakage(data_dir: Path) -> List[str]:
                 region = parts[0]
                 region_to_splits.setdefault(region, []).append(split_name)
 
-    duplicates: List[str] = []
+    duplicates: list[str] = []
     for region, splits in region_to_splits.items():
         unique_splits = set(splits)
         if len(unique_splits) > 1:
@@ -229,7 +230,7 @@ def check_data_leakage(data_dir: Path) -> List[str]:
     return duplicates
 
 
-def print_summary_stats(hashes_by_sample: Dict[str, Dict[str, str]], data_dir: Path) -> None:
+def print_summary_stats(hashes_by_sample: dict[str, dict[str, str]], data_dir: Path) -> None:
     """Print aggregate statistics across all samples."""
     print(f"\n{'=' * 60}")
     print("Aggregate Statistics")

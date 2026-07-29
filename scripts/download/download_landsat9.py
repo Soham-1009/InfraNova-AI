@@ -1,24 +1,29 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Download Landsat 9 TIR + RGB data directly to local disk.
 """
+
+from __future__ import annotations
 
 import argparse
 import concurrent.futures
 import datetime
 import io
 import logging
+import sys
 import time
 import zipfile
-from typing import Dict, List, Optional, Tuple
+from contextlib import suppress
+from pathlib import Path
 
 import ee
-import requests
 import rasterio
+import requests
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 EE_PROJECT_ID = "infranova-ai"  # Update if your project ID differs
 
@@ -224,7 +229,7 @@ REGIONS = {
 'burhanpur': {'lat': 21.3074, 'lon': 76.2303, 'name': 'Burhanpur'},
 'katni': {'lat': 23.8388, 'lon': 80.3940, 'name': 'Katni'},
 'singrauli': {'lat': 24.1998, 'lon': 82.6753, 'name': 'Singrauli'},
-    
+
     # 200 international cities
 'new_york': {'lat': 40.7128, 'lon': -74.0060, 'name': 'New York'},
 'los_angeles': {'lat': 34.0522, 'lon': -118.2437, 'name': 'Los Angeles'},
@@ -427,7 +432,7 @@ REGIONS = {
 'dar_es_salaam': {'lat': -6.7924, 'lon': 39.2083, 'name': 'Dar es Salaam'},
 'accra': {'lat': 5.6037, 'lon': -0.1870, 'name': 'Accra'},
 'algiers': {'lat': 36.7538, 'lon': 3.0588, 'name': 'Algiers'},
-    
+
     # 100 landscapes
 'himalayas': {'lat': 28.5983, 'lon': 83.9311, 'name': 'Himalayas'},
 'karakoram_range': {'lat': 35.8818, 'lon': 76.5133, 'name': 'Karakoram Range'},
@@ -540,7 +545,7 @@ def setup_logger(log_file: Path) -> logging.Logger:
     log_file.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger('downloader')
     logger.setLevel(logging.INFO)
-    
+
     if not logger.handlers:
         fh = logging.FileHandler(log_file)
         fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
@@ -555,19 +560,19 @@ def download_and_extract(url: str, dest_dir: Path, out_name: str) -> Path:
     """
     response = requests.get(url, timeout=120)
     response.raise_for_status()
-    
+
     out_path = dest_dir / out_name
-    
+
     # Check if the content is a ZIP file (magic number PK)
     if response.content[:4] == b'PK\x03\x04':
         with zipfile.ZipFile(io.BytesIO(response.content)) as z:
             tif_files = [f for f in z.namelist() if f.endswith('.tif')]
             if not tif_files:
                 raise ValueError("No .tif file found in downloaded zip.")
-            
+
             # Extract the first tif file
             extracted_path = z.extract(tif_files[0], path=dest_dir)
-            
+
             # Rename if necessary
             if Path(extracted_path).resolve() != out_path.resolve():
                 Path(extracted_path).replace(out_path)
@@ -575,7 +580,7 @@ def download_and_extract(url: str, dest_dir: Path, out_name: str) -> Path:
         # Save directly as tif
         with open(out_path, "wb") as f:
             f.write(response.content)
-            
+
     return out_path
 
 
@@ -583,7 +588,7 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
     """Verifies that the downloaded TIFF exists, is readable, and has expected bands."""
     if not filepath.exists():
         raise FileNotFoundError(f"File {filepath} was not created.")
-    
+
     try:
         with rasterio.open(filepath) as src:
             if src.count != expected_bands:
@@ -593,15 +598,15 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
             if src.crs is None:
                 raise ValueError("Image has no CRS defined")
     except rasterio.errors.RasterioIOError as e:
-        raise ValueError(f"Corrupted GeoTIFF: {e}")
+        raise ValueError(f"Corrupted GeoTIFF: {e}") from e
 
 
-def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False) -> Tuple[bool, str]:
+def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False) -> tuple[bool, str]:
     """Processes a single region. Returns (success, message)."""
     dest_dir = output_dir / region_id
     rgb_path = dest_dir / "rgb.tif"
     tir_path = dest_dir / "tir.tif"
-    
+
     if not overwrite and rgb_path.exists() and tir_path.exists():
         try:
             verify_tiff(rgb_path, 3)
@@ -609,12 +614,12 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
             return True, f"Skipping {region_info['name']} (already downloaded)"
         except Exception:
             pass  # Corrupted existing files, proceed to download and overwrite
-            
+
     dest_dir.mkdir(parents=True, exist_ok=True)
-    
+
     point = ee.Geometry.Point([region_info['lon'], region_info['lat']])
     region = point.buffer(BUFFER_METERS).bounds()
-    
+
     collection = (
         ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
         .filterBounds(point)
@@ -622,13 +627,13 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
         .filter(ee.Filter.lt('CLOUD_COVER', 20))
         .sort('CLOUD_COVER')
     )
-    
+
     count = collection.size().getInfo()
     if count == 0:
         raise ValueError(f"No clear images available for {region_info['name']}")
-        
+
     image = collection.first().clip(region)
-    
+
     # Download RGB (SR_B4, SR_B3, SR_B2)
     rgb_url = image.select(BANDS_RGB).getDownloadURL({
         'scale': 30,
@@ -637,7 +642,7 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
     })
     download_and_extract(rgb_url, dest_dir, "rgb.tif")
     verify_tiff(rgb_path, 3)
-    
+
     # Download TIR (ST_B10)
     tir_url = image.select(BANDS_TIR).getDownloadURL({
         'scale': 30,
@@ -646,14 +651,14 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
     })
     download_and_extract(tir_url, dest_dir, "tir.tif")
     verify_tiff(tir_path, 1)
-    
+
     return True, f"Successfully downloaded {region_info['name']}"
 
 
-def worker(task: Tuple) -> Tuple:
+def worker(task: tuple) -> tuple:
     """Worker function for threading. Handles retries and cleanup on failure."""
     idx, region_id, region_info, output_dir, overwrite, max_retries = task
-    
+
     error_msg = ""
     for attempt in range(1, max_retries + 1):
         try:
@@ -662,20 +667,18 @@ def worker(task: Tuple) -> Tuple:
                 return idx, region_id, True, msg, attempt
         except Exception as e:
             error_msg = str(e)
-            
+
             # Cleanup broken files
             dest_dir = output_dir / region_id
             for f in ["rgb.tif", "tir.tif"]:
                 fpath = dest_dir / f
                 if fpath.exists():
-                    try:
+                    with suppress(Exception):
                         fpath.unlink()
-                    except Exception:
-                        pass
-            
+
             if attempt < max_retries:
                 time.sleep(2 ** attempt)  # Exponential backoff
-                
+
     return idx, region_id, False, error_msg, max_retries
 
 
@@ -688,13 +691,13 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing files")
     parser.add_argument("--resume", action="store_true", help="Resume interrupted downloads (skip existing)")
     args = parser.parse_args()
-    
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     logger = setup_logger(Path("logs/download.log"))
     logger.info("Starting Landsat 9 direct local downloader")
-    
+
     try:
         ee.Initialize(project=EE_PROJECT_ID)
     except Exception as exc:
@@ -702,30 +705,30 @@ def main():
         print("Make sure you have authenticated with: earthengine authenticate")
         logger.error(f"Earth Engine init failed: {exc}")
         return
-        
+
     regions_list = list(REGIONS.items())
     end_idx = args.end_index if args.end_index is not None else len(regions_list)
     regions_to_process = regions_list[args.start_index:end_idx]
-    
+
     print(f"Total regions configured: {TOTAL_REGIONS}")
     print(f"Regions to process in this run: {len(regions_to_process)}")
-    
+
     tasks = [(i, k, v, output_dir, args.overwrite, 3) for i, (k, v) in enumerate(regions_to_process)]
-    
+
     start_time = time.time()
     success_count = 0
     failed_count = 0
     skipped_count = 0
     total = len(tasks)
-    
+
     failed_file = Path("failed_downloads.txt")
-    
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = {executor.submit(worker, t): t for t in tasks}
-        
+
         for future in concurrent.futures.as_completed(futures):
-            idx, region_id, success, msg, attempts = future.result()
-            
+            _idx, region_id, success, msg, attempts = future.result()
+
             if success:
                 if "Skipping" in msg:
                     skipped_count += 1
@@ -744,23 +747,23 @@ def main():
                 print(f"Reason: {msg}")
                 with open(failed_file, "a", encoding="utf-8") as f:
                     f.write(f"{region_id},{msg},{datetime.datetime.now()}\n")
-            
+
             completed = success_count + failed_count + skipped_count
             elapsed = time.time() - start_time
             avg_time = elapsed / completed if completed > 0 else 0
             remaining = avg_time * (total - completed)
-            
+
             print(f"Elapsed Time: {datetime.timedelta(seconds=int(elapsed))}")
             print(f"Remaining Time: {datetime.timedelta(seconds=int(remaining))}")
             print(f"Success Count: {success_count}")
             print(f"Failed Count: {failed_count}")
-            
+
     logger.info("Download process finished.")
     logger.info(f"Total elapsed time: {datetime.timedelta(seconds=int(time.time() - start_time))}")
     logger.info(f"Successfully downloaded: {success_count}")
     logger.info(f"Skipped: {skipped_count}")
     logger.info(f"Failed: {failed_count}")
-    
+
     print("\n" + "="*60)
     print("DOWNLOAD PROCESS FINISHED")
     print("="*60)

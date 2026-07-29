@@ -106,7 +106,7 @@ def visualize(
         ncols = 2
         col_labels = ["Thermal Input", "RGB Ground Truth"]
 
-    fig, axes = plt.subplots(
+    _fig, axes = plt.subplots(
         num_samples, ncols,
         figsize=(ncols * 4, num_samples * 4),
         squeeze=False,
@@ -140,7 +140,7 @@ def visualize(
             # Difference map (absolute)
             diff = np.abs(pred_np - rgb_np)
             diff_mean = diff.mean(axis=-1)  # Average across channels
-            im = axes[row, 3].imshow(diff_mean, cmap="hot", vmin=0, vmax=0.3)
+            axes[row, 3].imshow(diff_mean, cmap="hot", vmin=0, vmax=0.3)
             axes[row, 3].axis("off")
 
     # Column headers
@@ -156,12 +156,12 @@ def visualize(
     print(f"Saved: {output_path}")
 
     # Also save individual comparison strips
-    for row, idx in enumerate(indices):
+    for _row, idx in enumerate(indices):
         sample = dataset[int(idx)]
         ir = sample["ir"]
         rgb = sample["rgb"]
 
-        fig_single, ax_row = plt.subplots(1, ncols, figsize=(ncols * 4, 4), squeeze=False)
+        _fig_single, ax_row = plt.subplots(1, ncols, figsize=(ncols * 4, 4), squeeze=False)
 
         thermal_np = ((ir.squeeze(0).cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
         ax_row[0, 0].imshow(thermal_np, cmap="inferno")

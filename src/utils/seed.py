@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+from contextlib import suppress
 
 import numpy as np
 import torch
@@ -27,9 +28,14 @@ def seed_everything(seed: int = 42, deterministic: bool = False) -> None:
             (slower but bit-exact reproducible). If False, uses
             benchmark mode for faster training.
     """
+    # Python
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
+
+    # NumPy
     np.random.seed(seed)
+
+    # PyTorch
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -39,10 +45,8 @@ def seed_everything(seed: int = 42, deterministic: bool = False) -> None:
         torch.backends.cudnn.benchmark = False
         # PyTorch 1.8+
         if hasattr(torch, "use_deterministic_algorithms"):
-            try:
+            with suppress(Exception):
                 torch.use_deterministic_algorithms(True)
-            except Exception:
-                pass
         logger.info("Seeded with %d (fully deterministic mode)", seed)
     else:
         torch.backends.cudnn.deterministic = False

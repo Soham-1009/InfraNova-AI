@@ -7,7 +7,6 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 import streamlit as st
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -99,7 +98,7 @@ def get_theme(dark_mode: bool) -> dict:
     }
 
 
-def inject_css(theme: Dict[str, str]) -> None:
+def inject_css(theme: dict[str, str]) -> None:
     """Inject the full design system as a single <style> block."""
     bg = theme["bg"]
     bg_gradient = theme["bg_gradient"]
@@ -111,16 +110,13 @@ def inject_css(theme: Dict[str, str]) -> None:
     border = theme["border"]
     border_hover = theme["border_hover"]
     primary = theme["primary"]
-    primary_hover = theme["primary_hover"]
     primary_text = theme["primary_text"]
-    accent = theme["accent"]
     success = theme["success"]
     image_well = theme["image_well"]
     card_shadow = theme["card_shadow"]
     card_shadow_hover = theme["card_shadow_hover"]
     glow = theme["glow"]
     gradient_primary = theme["gradient_primary"]
-    gradient_accent = theme["gradient_accent"]
 
     css = f"""
     <style data-theme-id="{bg}">
@@ -472,7 +468,7 @@ def inject_css(theme: Dict[str, str]) -> None:
 # ---------------------------------------------------------------------------
 def load_uploaded_image(
     uploaded_file,
-) -> Tuple[Optional[Image.Image], Optional[str], Optional[str]]:
+) -> tuple[Image.Image | None, str | None, str | None]:
     """Validate an upload and keep its original pixel precision for inference."""
     declared_size = int(getattr(uploaded_file, "size", 0))
     if declared_size > MAX_UPLOAD_BYTES:
@@ -588,8 +584,8 @@ with header_left:
 # ---------------------------------------------------------------------------
 # Engine loading
 # ---------------------------------------------------------------------------
-engine: Optional[LandsatColorizationInference] = None
-engine_error: Optional[str] = None
+engine: LandsatColorizationInference | None = None
+engine_error: str | None = None
 
 if not CHECKPOINT_PATH.exists():
     engine_error = (
@@ -692,36 +688,34 @@ output_image = st.session_state.get("output_image")
 st.markdown("---")
 input_col, output_col = st.columns(2, gap="large")
 
-with input_col:
-    with st.container(border=True):
-        st.markdown(
-            '<p class="image-heading">Model input · thermal infrared</p>',
-            unsafe_allow_html=True,
+with input_col, st.container(border=True):
+    st.markdown(
+        '<p class="image-heading">Model input · thermal infrared</p>',
+        unsafe_allow_html=True,
+    )
+    if input_image is None:
+        st.info("Upload a thermal image to start a new analysis.")
+    else:
+        thermal_preview = visualize_tir_as_thermal(input_image).resize(
+            (PREVIEW_SIZE, PREVIEW_SIZE),
+            RESAMPLING.BICUBIC,
         )
-        if input_image is None:
-            st.info("Upload a thermal image to start a new analysis.")
-        else:
-            thermal_preview = visualize_tir_as_thermal(input_image).resize(
-                (PREVIEW_SIZE, PREVIEW_SIZE),
-                RESAMPLING.BICUBIC,
-            )
-            st.image(thermal_preview, use_container_width=True)
-            st.caption(
-                f"{st.session_state.get('input_name', 'Uploaded image')} · "
-                f"{input_image.width} × {input_image.height} · original precision preserved"
-            )
+        st.image(thermal_preview, use_container_width=True)
+        st.caption(
+            f"{st.session_state.get('input_name', 'Uploaded image')} · "
+            f"{input_image.width} x {input_image.height} · original precision preserved"
+        )
 
-with output_col:
-    with st.container(border=True):
-        st.markdown(
-            '<p class="image-heading">Generated RGB interpretation</p>',
-            unsafe_allow_html=True,
-        )
-        if output_image is None:
-            st.info("The generated RGB output will appear here.")
-        else:
-            st.image(output_image, use_container_width=True)
-            st.caption("Synthesised from the current thermal input.")
+with output_col, st.container(border=True):
+    st.markdown(
+        '<p class="image-heading">Generated RGB interpretation</p>',
+        unsafe_allow_html=True,
+    )
+    if output_image is None:
+        st.info("The generated RGB output will appear here.")
+    else:
+        st.image(output_image, use_container_width=True)
+        st.caption("Synthesised from the current thermal input.")
 
 # ---------------------------------------------------------------------------
 # Action buttons
@@ -806,13 +800,13 @@ if output_image is not None:
         st.metric("Inference time", f"{st.session_state.get('inference_time', 0.0):.2f} s")
     with m_input:
         if input_image is not None:
-            st.metric("Input size", f"{input_image.width} × {input_image.height}")
+            st.metric("Input size", f"{input_image.width} x {input_image.height}")
         else:
             st.metric("Input size", "—")
     with m_output:
-        st.metric("Output size", f"{output_image.width} × {output_image.height}")
+        st.metric("Output size", f"{output_image.width} x {output_image.height}")
     with m_mode:
-        mode = "TTA ×4" if st.session_state.get("used_tta") else "Single pass"
+        mode = "TTA x4" if st.session_state.get("used_tta") else "Single pass"
         st.metric("Inference mode", mode)
     with m_ckpt:
         st.metric("Checkpoint", CHECKPOINT_PATH.stem if CHECKPOINT_PATH.exists() else "—")

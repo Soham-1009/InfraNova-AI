@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import logging
-import os
-import random
 import shutil
+from datetime import UTC
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
-import numpy as np
 import torch
 import yaml
 from torch.utils.data import DataLoader, Dataset
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
-from src.training.losses import CombinedLoss
 from src.training.scheduler import build_scheduler
 from src.training.trainer import Trainer
 from src.utils.checkpoint import load_checkpoint, save_checkpoint
@@ -49,7 +46,7 @@ class LandsatBatchAdapter(Dataset):
         return len(self.base_dataset)
 
     @staticmethod
-    def _normalize(sample: Any) -> Dict[str, torch.Tensor]:
+    def _normalize(sample: Any) -> dict[str, torch.Tensor]:
         if isinstance(sample, dict):
             if "ir" in sample and "rgb" in sample:
                 return {"ir": sample["ir"], "rgb": sample["rgb"]}
@@ -69,16 +66,16 @@ class LandsatBatchAdapter(Dataset):
 
         raise TypeError(f"Unsupported dataset sample type: {type(sample)}")
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         return self._normalize(self.base_dataset[idx])
 
 
-def load_config(config_path: str = "configs/config.yaml") -> Dict[str, Any]:
-    with open(config_path, "r", encoding="utf-8") as f:
+def load_config(config_path: str = "configs/config.yaml") -> dict[str, Any]:
+    with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-def build_dataloaders(cfg: Dict[str, Any]) -> Tuple[DataLoader, DataLoader]:
+def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
     dataset_cfg = cfg["dataset"]
     training_cfg = cfg["training"]
 
@@ -139,10 +136,10 @@ def _set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:
         param_group["lr"] = lr
 
 
-def _save_experiment_comparison(cfg: Dict[str, Any], history: Dict[str, list]) -> None:
+def _save_experiment_comparison(cfg: dict[str, Any], history: dict[str, list]) -> None:
     """Append a row to logs/experiment_comparison.csv with config and best metrics."""
     import csv
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     training_cfg = cfg.get("training", {})
     loss_cfg = cfg.get("loss", training_cfg.get("loss", {}))
@@ -158,7 +155,7 @@ def _save_experiment_comparison(cfg: Dict[str, Any], history: Dict[str, list]) -
     best_psnr = max(val_psnr_values) if val_psnr_values else 0.0
 
     row = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "experiment_name": cfg.get("project", {}).get("name", "InfraNova AI"),
         "normalization_mode": norm_cfg.get("mode", "local"),
         "lambda_adv": loss_cfg.get("lambda_adv", 1.0),
@@ -190,7 +187,7 @@ def _save_experiment_comparison(cfg: Dict[str, Any], history: Dict[str, list]) -
     logger.info("Experiment comparison row appended to %s", csv_path)
 
 
-def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
+def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     """
     Train Pix2Pix on Landsat 9 TIR->RGB data using the existing Trainer class.
 
@@ -297,7 +294,7 @@ def run_training(cfg: Dict[str, Any]) -> Dict[str, list]:
         eta_min=float(sched_cfg.get("eta_min", 1e-6)),
     )
 
-    history: Dict[str, list] = {
+    history: dict[str, list] = {
         "g_loss": [],
         "d_loss": [],
         "l1": [],

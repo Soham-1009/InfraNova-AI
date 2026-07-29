@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from PIL import Image
 
-
 ImageInput = Union[Image.Image, np.ndarray]
 
 DEFAULT_PERCENTILE_LOW = 1.0

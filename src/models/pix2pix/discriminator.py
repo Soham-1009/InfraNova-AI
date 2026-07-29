@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Union
-
 import torch
 import torch.nn as nn
 from torch.nn.utils import spectral_norm
@@ -26,7 +24,7 @@ class DiscBlock(nn.Module):
     ) -> None:
         super().__init__()
 
-        layers: List[nn.Module] = [
+        layers: list[nn.Module] = [
             spectral_norm(
                 nn.Conv2d(
                     in_channels,
@@ -69,7 +67,7 @@ class PatchDiscriminator(nn.Module):
     def __init__(
         self,
         in_channels: int = 4,
-        features: List[int] | None = None,
+        features: list[int] | None = None,
     ) -> None:
         super().__init__()
 
@@ -117,7 +115,7 @@ class PatchDiscriminator(nn.Module):
         self,
         x: torch.Tensor,
         return_features: bool = False,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]:
+    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]]:
         """
         Forward pass.
 
@@ -159,7 +157,7 @@ class MultiScaleDiscriminator(nn.Module):
     def __init__(
         self,
         in_channels: int = 4,
-        features: Optional[List[int]] = None,
+        features: list[int] | None = None,
     ) -> None:
         super().__init__()
 
@@ -171,7 +169,7 @@ class MultiScaleDiscriminator(nn.Module):
         self,
         x: torch.Tensor,
         return_features: bool = False,
-    ) -> Dict[str, Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]]]]:
+    ) -> dict[str, torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]]]:
         """
         Forward pass through both scales.
 

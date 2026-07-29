@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -14,9 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from demo.utils import postprocess_output, preprocess_ir_image
 from src.models.pix2pix.pix2pix import Pix2Pix
 from src.utils.checkpoint import load_torch_checkpoint
-from demo.utils import postprocess_output, preprocess_ir_image
 
 
 class InferenceEngine:
@@ -33,7 +32,7 @@ class InferenceEngine:
     def __init__(
         self,
         checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
-        device: Optional[str] = None,
+        device: str | None = None,
         image_size: int = 256,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
@@ -43,7 +42,7 @@ class InferenceEngine:
         self.device = torch.device(
             device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
         )
-        self.model: Optional[Pix2Pix] = None
+        self.model: Pix2Pix | None = None
 
     def load_model(self) -> Pix2Pix:
         """
@@ -83,7 +82,7 @@ class InferenceEngine:
         return self.model
 
     @staticmethod
-    def _to_pil_or_array(image: Union[Image.Image, np.ndarray]) -> Image.Image:
+    def _to_pil_or_array(image: Image.Image | np.ndarray) -> Image.Image:
         """
         Convert PIL or numpy input to PIL grayscale image.
 
@@ -135,7 +134,7 @@ class InferenceEngine:
     @torch.inference_mode()
     def predict(
         self,
-        image: Union[Image.Image, np.ndarray],
+        image: Image.Image | np.ndarray,
         use_tta: bool = False,
     ) -> Image.Image:
         """
@@ -157,7 +156,7 @@ class InferenceEngine:
 
         # TTA: average predictions across a small set of geometric transforms.
         # For each transform, we invert the transform on the output before averaging.
-        preds: List[torch.Tensor] = []
+        preds: list[torch.Tensor] = []
 
         # Original
         preds.append(model.generate(ir_tensor))
@@ -186,9 +185,9 @@ class InferenceEngine:
     @torch.inference_mode()
     def predict_batch(
         self,
-        images: Sequence[Union[Image.Image, np.ndarray]],
+        images: Sequence[Image.Image | np.ndarray],
         use_tta: bool = False,
-    ) -> List[Image.Image]:
+    ) -> list[Image.Image]:
         """
         Predict RGB outputs for a batch of IR images.
 
@@ -199,7 +198,7 @@ class InferenceEngine:
         Returns:
             List of PIL RGB images.
         """
-        outputs: List[Image.Image] = []
+        outputs: list[Image.Image] = []
         for img in images:
             outputs.append(self.predict(img, use_tta=use_tta))
         return outputs

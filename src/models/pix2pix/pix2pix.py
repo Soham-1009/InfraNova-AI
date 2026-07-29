@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Union
-
 import torch
 import torch.nn as nn
 
@@ -50,7 +48,7 @@ class Pix2Pix(nn.Module):
 
         self.to(self.device)
 
-    def to(self, *args, **kwargs) -> "Pix2Pix":
+    def to(self, *args, **kwargs) -> Pix2Pix:
         """Move the model and keep the cached device in sync with its parameters."""
         super().to(*args, **kwargs)
         self.device = next(self.generator.parameters()).device
@@ -78,7 +76,7 @@ class Pix2Pix(nn.Module):
         ir: torch.Tensor,
         rgb: torch.Tensor,
         return_features: bool = False,
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[torch.Tensor]], Dict]:
+    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]] | dict:
         """
         Discriminate concatenated IR + RGB pair.
 
@@ -102,7 +100,7 @@ class Pix2Pix(nn.Module):
         """Alias for generate()."""
         return self.generate(ir)
 
-    def count_parameters(self) -> Tuple[int, int, int]:
+    def count_parameters(self) -> tuple[int, int, int]:
         """
         Count model parameters.
 

@@ -17,14 +17,14 @@ def main():
     parser = argparse.ArgumentParser(description="InfraNova AI End-to-End Pipeline Runner")
     parser.add_argument("--stage", type=str, choices=["download", "preprocess", "train", "evaluate", "all"], default="all")
     args = parser.parse_args()
-    
+
     stages = {
         "download": [sys.executable, "scripts/download/download_landsat9.py"],
         "preprocess": [sys.executable, "scripts/preprocessing/split_patches.py"],
         "train": [sys.executable, "scripts/training/run_ablation_study.py"],
         "evaluate": [sys.executable, "scripts/evaluation/evaluate.py"]
     }
-    
+
     if args.stage == "all":
         for s in stages:
             run_stage(s, stages[s])

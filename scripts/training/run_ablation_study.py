@@ -18,7 +18,7 @@ import csv
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml
 
@@ -32,7 +32,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # Experiment definitions
 # ---------------------------------------------------------------------------
 
-EXPERIMENTS: List[Dict[str, Any]] = [
+EXPERIMENTS: list[dict[str, Any]] = [
     {
         "name": "baseline",
         "description": "Original Pix2Pix with local normalization and original loss weights",
@@ -151,7 +151,7 @@ EXPERIMENTS: List[Dict[str, Any]] = [
 ]
 
 
-def _set_nested(d: Dict, dotted_key: str, value: Any) -> None:
+def _set_nested(d: dict, dotted_key: str, value: Any) -> None:
     """Set a value in a nested dict using dotted key notation."""
     keys = dotted_key.split(".")
     for k in keys[:-1]:
@@ -163,9 +163,9 @@ def generate_configs(
     base_config_path: str = str(PROJECT_ROOT / "configs/config.yaml"),
     output_dir: str = "configs/ablation",
     epochs: int = 200,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Generate ablation study config files."""
-    with open(base_config_path, "r", encoding="utf-8") as f:
+    with open(base_config_path, encoding="utf-8") as f:
         base_config = yaml.safe_load(f)
 
     out_path = Path(output_dir)
@@ -202,7 +202,7 @@ def generate_configs(
     return generated
 
 
-def run_experiments(configs: List[Dict[str, Any]]) -> None:
+def run_experiments(configs: list[dict[str, Any]]) -> None:
     """Run all ablation experiments sequentially."""
     from src.training.train_landsat import load_config, run_training
 

@@ -5,7 +5,7 @@ Landsat 9 Dataset for IR Super-Resolution and Colorization.
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -41,7 +41,7 @@ class Landsat9Dataset(Dataset):
         augment: bool = True,
         task: str = "colorization",
         normalization: str = "local",
-        stats_file: Optional[str] = None,
+        stats_file: str | None = None,
     ) -> None:
         self.root_dir = Path(root_dir)
         self.split = split
@@ -62,7 +62,7 @@ class Landsat9Dataset(Dataset):
             raise ValueError(f"No samples found in {self.split_dir}")
 
         # Load global stats if requested
-        self._global_stats: Optional[Dict[str, Any]] = None
+        self._global_stats: dict[str, Any] | None = None
         if normalization == "global":
             if stats_file is None:
                 raise ValueError(
@@ -184,7 +184,7 @@ class Landsat9Dataset(Dataset):
         - Random contrast adjustment ±10% (p=0.3)
 
         Input-only augmentations:
-        - Gaussian noise on TIR input (p=0.3, σ=0.02)
+        - Gaussian noise on TIR input (p=0.3, sigma=0.02)
         """
         # --- Spatial: horizontal flip ---
         if np.random.rand() < 0.5:
@@ -227,7 +227,7 @@ class Landsat9Dataset(Dataset):
     # __getitem__
     # ------------------------------------------------------------------
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         sample_dir = self.samples[idx]
 
         tir_200m = np.load(sample_dir / 'tir_200m.npy')

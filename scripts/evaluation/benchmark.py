@@ -18,7 +18,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Dict
 
 import torch
 
@@ -60,7 +59,7 @@ def benchmark_device(
     in_channels: int,
     warmup: int,
     iterations: int,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Run benchmark on a specific device."""
     generator = generator.to(device)
     generator.eval()
@@ -150,7 +149,7 @@ def main() -> None:
     print("InfraNova AI — Inference Benchmark")
     print("=" * 60)
     print(f"Checkpoint:  {args.checkpoint}")
-    print(f"Input size:  {args.in_channels} × {args.input_size} × {args.input_size}")
+    print(f"Input size:  {args.in_channels} x {args.input_size} x {args.input_size}")
     print(f"Warmup:      {args.warmup} iterations")
     print(f"Timed:       {args.iterations} iterations")
     print(f"PyTorch:     {torch.__version__}")
@@ -223,7 +222,7 @@ def main() -> None:
     # Speedup
     if gpu_results:
         speedup = cpu_results["avg_time_ms"] / max(gpu_results["avg_time_ms"], 1e-6)
-        print(f"\nGPU speedup: {speedup:.1f}×")
+        print(f"\nGPU speedup: {speedup:.1f}x")
 
     print()
     print("=" * 60)

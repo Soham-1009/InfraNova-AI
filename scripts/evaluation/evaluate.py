@@ -19,11 +19,9 @@ import csv
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List
 
 import numpy as np
 import torch
-from PIL import Image
 
 # Make project root importable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -184,7 +182,7 @@ def evaluate(
     image_size: int = 256,
     output_csv: str = "outputs/evaluation_results.csv",
     use_lpips: bool = True,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Evaluate model on a dataset split.
 
@@ -241,7 +239,7 @@ def evaluate(
         pass
 
     # Evaluate
-    results: List[Dict[str, float]] = []
+    results: list[dict[str, float]] = []
     start_time = time.perf_counter()
 
     try:
@@ -267,7 +265,7 @@ def evaluate(
         target_np = rgb_target_01.squeeze(0).cpu().numpy().transpose(1, 2, 0)
 
         # Compute metrics
-        row: Dict[str, float] = {
+        row: dict[str, float] = {
             "sample_idx": idx,
             "psnr": compute_psnr(pred_np, target_np),
             "ssim": compute_ssim_simple(pred_np, target_np),
@@ -303,7 +301,7 @@ def evaluate(
     if tm_ssim_fn is not None:
         metric_keys.append("ssim_windowed")
 
-    summary: Dict[str, float] = {}
+    summary: dict[str, float] = {}
     for key in metric_keys:
         values = [r[key] for r in results if key in r]
         if values:

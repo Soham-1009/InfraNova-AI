@@ -17,7 +17,6 @@ import csv
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -109,7 +108,7 @@ def compare_models(
     n = min(num_samples, len(dataset))
     indices = np.linspace(0, len(dataset) - 1, n, dtype=int)
 
-    results: List[Dict[str, float]] = []
+    results: list[dict[str, float]] = []
 
     for panel_idx, idx in enumerate(indices):
         sample = dataset[idx]
@@ -144,7 +143,7 @@ def compare_models(
         results.append(row)
 
         # Visual comparison
-        fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+        _fig, axes = plt.subplots(1, 4, figsize=(20, 5))
 
         axes[0].imshow(ir_np, cmap="inferno")
         axes[0].set_title("Thermal Input", fontsize=11, fontweight="bold")

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 import torch
 
 from src.models.pix2pix.pix2pix import Pix2Pix

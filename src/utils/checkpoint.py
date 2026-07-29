@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
-
 import logging
+from pathlib import Path
+from typing import Any
+
 import torch
 
 logger = logging.getLogger(__name__)
 
 
-def load_torch_checkpoint(path: Union[str, Path], map_location: Any = "cpu") -> Any:
+def load_torch_checkpoint(path: str | Path, map_location: Any = "cpu") -> Any:
     """
     Load a PyTorch checkpoint using the safer weights-only path when available.
 
@@ -26,9 +26,9 @@ def load_torch_checkpoint(path: Union[str, Path], map_location: Any = "cpu") -> 
 
 def save_checkpoint(
     model: torch.nn.Module,
-    optimizer: Union[torch.optim.Optimizer, Dict[str, torch.optim.Optimizer]],
+    optimizer: torch.optim.Optimizer | dict[str, torch.optim.Optimizer],
     epoch: int,
-    metrics: Dict[str, float],
+    metrics: dict[str, float],
     path: str,
     scaler: Any = None,
 ) -> None:
@@ -45,7 +45,7 @@ def save_checkpoint(
     """
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 
-    checkpoint: Dict[str, Any] = {
+    checkpoint: dict[str, Any] = {
         "epoch": epoch,
         "metrics": metrics,
         "model_state_dict": model.state_dict(),
@@ -116,9 +116,9 @@ def save_checkpoint(
 def load_checkpoint(
     path: str,
     model: torch.nn.Module,
-    optimizer: Union[torch.optim.Optimizer, Dict[str, torch.optim.Optimizer]],
+    optimizer: torch.optim.Optimizer | dict[str, torch.optim.Optimizer],
     scaler: Any = None,
-) -> Tuple[int, Dict[str, float]]:
+) -> tuple[int, dict[str, float]]:
     """
     Load a full training checkpoint.
 

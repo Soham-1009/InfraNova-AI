@@ -65,7 +65,7 @@ def estimate_flops(model: torch.nn.Module, input_size: tuple) -> str:
     try:
         from thop import profile
         dummy = torch.randn(*input_size)
-        flops, params = profile(model, inputs=(dummy,), verbose=False)
+        flops, _params = profile(model, inputs=(dummy,), verbose=False)
         if flops >= 1e9:
             return f"{flops / 1e9:.2f} GFLOPs"
         return f"{flops / 1e6:.2f} MFLOPs"
@@ -150,8 +150,8 @@ def generate_summary(
     p()
 
     p("=" * 80)
-    p(f"Input:  {in_channels} × {input_size} × {input_size}")
-    p(f"Output: 3 × {input_size} × {input_size}")
+    p(f"Input:  {in_channels} x {input_size} x {input_size}")
+    p(f"Output: 3 x {input_size} x {input_size}")
     p("=" * 80)
 
     text = buf.getvalue()

@@ -32,6 +32,11 @@ ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function call in argument defaults
     "SIM108", # ternary operator (readability preference)
+    "E402",   # module level import not at top of file
+    "UP006",
+    "UP007",
+    "UP035",
+    "UP045",
 ]
 
 [tool.ruff.lint.isort]

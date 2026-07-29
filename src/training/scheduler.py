@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List
-
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
@@ -31,10 +29,10 @@ class LinearLRScheduler:
             decay_epochs = max(self.total_epochs - self.decay_start_epoch, 1)
             lr_mult = max(0.0, 1.0 - (epoch - self.decay_start_epoch) / decay_epochs)
 
-        for base_lr, param_group in zip(self.initial_lrs, self.optimizer.param_groups):
+        for base_lr, param_group in zip(self.initial_lrs, self.optimizer.param_groups, strict=False):
             param_group["lr"] = base_lr * lr_mult
 
-    def get_last_lr(self) -> List[float]:
+    def get_last_lr(self) -> list[float]:
         return [group["lr"] for group in self.optimizer.param_groups]
 
 
@@ -70,7 +68,7 @@ class CosineScheduler:
     def step(self, epoch: int) -> None:
         self.scheduler.step(epoch)
 
-    def get_last_lr(self) -> List[float]:
+    def get_last_lr(self) -> list[float]:
         return [group["lr"] for group in self.optimizer.param_groups]
 
 

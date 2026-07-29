@@ -1,8 +1,3 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Organize flat Google Drive Landsat exports into per-region folders.
 
@@ -20,13 +15,21 @@ from __future__ import annotations
 
 import argparse
 import shutil
-from typing import Dict, Iterable, Tuple
+import sys
+from collections.abc import Iterable
+from pathlib import Path
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 
 BANDS = ("SR_B2", "SR_B3", "SR_B4", "ST_B10")
 
 
-def parse_export_name(path: Path) -> Tuple[str, str] | None:
+def parse_export_name(path: Path) -> tuple[str, str] | None:
     stem = path.stem
     for band in BANDS:
         suffix = f"_{band}"
@@ -42,13 +45,13 @@ def iter_tif_files(source: Path) -> Iterable[Path]:
     yield from source.glob("*.tiff")
 
 
-def organize_exports(source: Path, destination: Path, move: bool = False) -> Dict[str, int]:
+def organize_exports(source: Path, destination: Path, move: bool = False) -> dict[str, int]:
     if not source.exists():
         raise FileNotFoundError(f"Source directory not found: {source}")
 
     destination.mkdir(parents=True, exist_ok=True)
 
-    grouped: Dict[str, Dict[str, Path]] = {}
+    grouped: dict[str, dict[str, Path]] = {}
     ignored = 0
 
     for tif_path in sorted(iter_tif_files(source)):

@@ -4,9 +4,10 @@ import csv
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
@@ -34,7 +35,7 @@ class TrainingLogger:
         self.experiment_csv_path = self.log_dir / "experiment_history.csv"
         self.use_wandb = use_wandb
 
-        self.rows: List[Dict[str, Any]] = []
+        self.rows: list[dict[str, Any]] = []
 
         # Weights & Biases
         self._wandb = None
@@ -62,7 +63,7 @@ class TrainingLogger:
             except Exception:
                 pass
 
-    def log_epoch(self, epoch: int, metrics: Dict[str, float]) -> None:
+    def log_epoch(self, epoch: int, metrics: dict[str, float]) -> None:
         row = {"epoch": epoch, **metrics}
         self.rows.append(row)
 
@@ -89,7 +90,7 @@ class TrainingLogger:
 
     def log_experiment_info(
         self,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
         phase: str = "start",
     ) -> None:
         """
@@ -100,15 +101,13 @@ class TrainingLogger:
             phase: "start" or "end".
         """
         # Load existing JSON info if updating
-        info: Dict[str, Any] = {}
+        info: dict[str, Any] = {}
         if self.experiment_path.exists():
-            try:
+            with suppress(Exception):
                 info = json.loads(self.experiment_path.read_text(encoding="utf-8"))
-            except Exception:
-                pass
 
         if phase == "start":
-            info["timestamp_start"] = datetime.now(timezone.utc).isoformat()
+            info["timestamp_start"] = datetime.now(UTC).isoformat()
             info["python_version"] = sys.version
             info["pytorch_version"] = torch.__version__
             info["cuda_available"] = torch.cuda.is_available()
@@ -131,7 +130,7 @@ class TrainingLogger:
                 info["hyperparameters"] = config
 
         if phase == "end":
-            info["timestamp_end"] = datetime.now(timezone.utc).isoformat()
+            info["timestamp_end"] = datetime.now(UTC).isoformat()
 
             if self.rows:
                 val_ssim_values = [
@@ -170,7 +169,7 @@ class TrainingLogger:
             encoding="utf-8",
         )
 
-    def _append_experiment_csv(self, info: Dict[str, Any]) -> None:
+    def _append_experiment_csv(self, info: dict[str, Any]) -> None:
         """Append a summary row to the experiment history CSV."""
         hp = info.get("hyperparameters", {})
         loss_cfg = hp.get("loss", hp.get("training", {}).get("loss", {}))
@@ -224,7 +223,7 @@ class TrainingLogger:
             if key not in all_keys:
                 continue
             values = [row.get(key) for row in self.rows]
-            plot_epochs = [e for e, v in zip(epochs, values) if v is not None]
+            plot_epochs = [e for e, v in zip(epochs, values, strict=False) if v is not None]
             plot_values = [v for v in values if v is not None]
             if plot_values:
                 plt.plot(plot_epochs, plot_values, label=key)
@@ -285,7 +284,7 @@ class TrainingLogger:
             plt.figure(figsize=(10, 5))
             for key in available:
                 values = [row.get(key) for row in self.rows]
-                plot_epochs = [e for e, v in zip(epochs, values) if v is not None]
+                plot_epochs = [e for e, v in zip(epochs, values, strict=False) if v is not None]
                 plot_values = [v for v in values if v is not None]
                 if plot_values:
                     plt.plot(plot_epochs, plot_values, label=key, linewidth=1.5)
@@ -304,7 +303,5 @@ class TrainingLogger:
         if self._tb_writer is not None:
             self._tb_writer.close()
         if self._wandb is not None:
-            try:
+            with suppress(Exception):
                 self._wandb.finish()
-            except Exception:
-                pass

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from src.utils.checkpoint import save_checkpoint
 
@@ -33,10 +33,10 @@ class ModelCheckpoint:
     def step(
         self,
         model,
-        optimizers: Dict[str, Any],
+        optimizers: dict[str, Any],
         epoch: int,
-        metrics: Dict[str, float],
-        scaler: Optional[Any] = None,
+        metrics: dict[str, float],
+        scaler: Any | None = None,
     ) -> None:
         latest_path = self.checkpoint_dir / "latest" / "pix2pix_landsat_latest.pth"
         save_checkpoint(
@@ -85,7 +85,7 @@ class EarlyStopping:
             return score > self.best_score
         return score < self.best_score
 
-    def step(self, metrics: Dict[str, float]) -> bool:
+    def step(self, metrics: dict[str, float]) -> bool:
         score = float(metrics.get(self.monitor, 0.0))
 
         if self._is_improved(score):

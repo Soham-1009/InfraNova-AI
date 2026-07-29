@@ -1,8 +1,3 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Compute global normalization statistics across all dataset patches.
 
@@ -21,14 +16,22 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Any, Dict, List
+import sys
+from pathlib import Path
+from typing import Any
 
 import numpy as np
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 EXPECTED_FILES = ("tir_100m.npy", "rgb_100m.npy")
 
 
-def collect_stats(data_dir: str = "data/landsat9/patches") -> Dict[str, Any]:
+def collect_stats(data_dir: str = "data/landsat9/patches") -> dict[str, Any]:
     """
     Scan all sample directories and compute global per-band statistics.
 
@@ -42,7 +45,7 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> Dict[str, Any]:
         sys.exit(1)
 
     # Discover sample directories (supports both flat and split layouts)
-    sample_dirs: List[Path] = []
+    sample_dirs: list[Path] = []
 
     for child in sorted(data_path.rglob("*")):
         if child.is_dir() and any((child / f).exists() for f in EXPECTED_FILES):
@@ -57,18 +60,18 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> Dict[str, Any]:
     # Accumulate values using Welford's online algorithm for memory efficiency
     # For percentiles, we need to store per-file stats and combine
 
-    tir_values: List[float] = []
-    tir_means: List[float] = []
-    tir_stds: List[float] = []
+    _tir_values: list[float] = []
+    tir_means: list[float] = []
+    tir_stds: list[float] = []
 
-    rgb_means: List[List[float]] = [[], [], []]  # R, G, B
-    rgb_stds: List[List[float]] = [[], [], []]
-    rgb_mins: List[List[float]] = [[], [], []]
-    rgb_maxs: List[List[float]] = [[], [], []]
+    rgb_means: list[list[float]] = [[], [], []]  # R, G, B
+    rgb_stds: list[list[float]] = [[], [], []]
+    rgb_mins: list[list[float]] = [[], [], []]
+    rgb_maxs: list[list[float]] = [[], [], []]
 
     # For percentiles: subsample to keep memory reasonable
-    tir_subsample: List[float] = []
-    rgb_subsamples: List[List[float]] = [[], [], []]
+    tir_subsample: list[float] = []
+    rgb_subsamples: list[list[float]] = [[], [], []]
     subsample_rate = max(1, len(sample_dirs) // 500)  # Keep ~500 samples for percentiles
 
     for idx, sample_dir in enumerate(sample_dirs):
@@ -117,7 +120,7 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> Dict[str, Any]:
             print(f"  Processed {idx + 1}/{len(sample_dirs)} samples...")
 
     # Compute global statistics
-    stats: Dict[str, Any] = {"sample_count": len(sample_dirs)}
+    stats: dict[str, Any] = {"sample_count": len(sample_dirs)}
 
     # TIR stats
     if tir_means:

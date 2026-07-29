@@ -1,8 +1,3 @@
-
-from pathlib import Path
-import sys
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 """
 Validate region quality for the InfraNova AI dataset.
 
@@ -19,20 +14,27 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
+import sys
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from pathlib import Path
+from typing import Any
 
 import numpy as np
+
+# Make project root importable
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 
 EXPECTED_BANDS = {"SR_B2", "SR_B3", "SR_B4", "ST_B10"}
 EXPECTED_PATCH_FILES = {"tir_200m.npy", "tir_100m.npy", "rgb_100m.npy"}
 
 
-def _safe_load_npy(path: Path) -> Optional[np.ndarray]:
+def _safe_load_npy(path: Path) -> np.ndarray | None:
     """Load .npy file safely, returning None on failure."""
     try:
         return np.load(path)
@@ -40,7 +42,7 @@ def _safe_load_npy(path: Path) -> Optional[np.ndarray]:
         return None
 
 
-def validate_raw_regions(data_dir: str) -> Dict[str, Any]:
+def validate_raw_regions(data_dir: str) -> dict[str, Any]:
     """
     Validate the raw downloaded region directories.
 
@@ -62,7 +64,7 @@ def validate_raw_regions(data_dir: str) -> Dict[str, Any]:
 
     region_dirs = sorted([d for d in data_path.iterdir() if d.is_dir()])
 
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         "total_regions": len(region_dirs),
         "missing_bands": [],
         "empty_files": [],
@@ -83,7 +85,7 @@ def validate_raw_regions(data_dir: str) -> Dict[str, Any]:
     # Check each region
     for region_dir in region_dirs:
         tif_files = list(region_dir.glob("*.tif")) + list(region_dir.glob("*.tiff"))
-        found_bands: Set[str] = set()
+        found_bands: set[str] = set()
         for tif in tif_files:
             for band in EXPECTED_BANDS:
                 if band in tif.name:
@@ -103,7 +105,7 @@ def validate_raw_regions(data_dir: str) -> Dict[str, Any]:
     return report
 
 
-def validate_patches(patches_dir: str) -> Dict[str, Any]:
+def validate_patches(patches_dir: str) -> dict[str, Any]:
     """
     Validate processed .npy patch directories.
 
@@ -130,7 +132,7 @@ def validate_patches(patches_dir: str) -> Dict[str, Any]:
         if d.is_dir() and any((d / f).exists() for f in EXPECTED_PATCH_FILES)
     ])
 
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         "total_patches": len(sample_dirs),
         "missing_files": [],
         "corrupt_files": [],
@@ -141,7 +143,7 @@ def validate_patches(patches_dir: str) -> Dict[str, Any]:
         "issues_count": 0,
     }
 
-    hash_map: Dict[str, List[str]] = defaultdict(list)
+    hash_map: dict[str, list[str]] = defaultdict(list)
 
     for sample_dir in sample_dirs:
         for expected_file in EXPECTED_PATCH_FILES:
@@ -197,7 +199,7 @@ def validate_patches(patches_dir: str) -> Dict[str, Any]:
     return report
 
 
-def print_report(report: Dict[str, Any], title: str) -> None:
+def print_report(report: dict[str, Any], title: str) -> None:
     """Print a formatted validation report."""
     print(f"\n{'=' * 60}")
     print(f"  {title}")
@@ -250,7 +252,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    combined_report: Dict[str, Any] = {}
+    combined_report: dict[str, Any] = {}
 
     # Validate raw regions
     raw_dir = Path(args.dir)

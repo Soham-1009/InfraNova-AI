@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import List, Optional
-
 import torch
 import torch.nn as nn
 
@@ -17,7 +15,7 @@ class DownBlock(nn.Module):
     ) -> None:
         super().__init__()
 
-        layers: List[nn.Module] = [
+        layers: list[nn.Module] = [
             nn.Conv2d(
                 in_channels,
                 out_channels,
@@ -49,7 +47,7 @@ class UpBlock(nn.Module):
     ) -> None:
         super().__init__()
 
-        layers: List[nn.Module] = [
+        layers: list[nn.Module] = [
             # This is the fix: Upsample then Conv2d prevents checkerboard patterns
             nn.Upsample(scale_factor=2.0, mode='bilinear', align_corners=False),
             nn.Conv2d(
@@ -90,7 +88,7 @@ class GeneratorUNet(nn.Module):
         self,
         in_channels: int = 10,
         out_channels: int = 3,
-        features: Optional[List[int]] = None,
+        features: list[int] | None = None,
     ) -> None:
         super().__init__()
 
