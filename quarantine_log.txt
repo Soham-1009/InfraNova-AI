@@ -1,0 +1,4 @@
+Scanning c:\Users\soham\Desktop\Soham\InfraNova-AI\data\landsat9\raw for undersized regions...
+--------------------------------------------------
+Total checked: 500
+Quarantined  : 0

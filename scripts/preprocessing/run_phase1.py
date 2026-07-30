@@ -42,7 +42,7 @@ def main():
         ("Quarantine Undersized Regions", "scripts/preprocessing/quarantine_small.py", []),
         ("Download Missing/Replacement Regions", "scripts/download/download_landsat9.py", ["--workers", "8"]),
         ("Preprocess Patches", "scripts/preprocessing/process_landsat_patches.py", []),
-        ("Automated Dataset Validation", "scripts/preprocessing/validate_dataset.py", []),
+        ("Automated Dataset Validation", "scripts/preprocessing/validate_patch_dataset.py", []),
         ("Generate Visual Inspection Grid", "scripts/preprocessing/visualize_grid.py", []),
         ("Generate Dataset Manifest", "scripts/preprocessing/generate_manifest.py", [])
     ]

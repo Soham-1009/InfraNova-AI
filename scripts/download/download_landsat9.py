@@ -616,7 +616,9 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
             if src.crs is None:
                 raise ValueError("Image has no CRS defined")
     except rasterio.errors.RasterioIOError as e:
-        raise ValueError(f"Corrupted GeoTIFF: {edef process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
+        raise ValueError(f"Corrupted GeoTIFF: {e}")
+
+def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
     """Processes a single region with progressive fallback and adaptive radius expansion. Returns (success, message)."""
     dest_dir = output_dir / region_id
     rgb_path = dest_dir / "rgb.tif"
@@ -762,7 +764,7 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
                                         break
 
                             if verbose:
-                                print("Result : ✅ Success")
+                                print("Result : [OK] Success")
                             return True, f"Successfully downloaded {region_info['name']} on attempt {attempt}"
 
                         except NETWORK_ERRORS as e:
@@ -778,7 +780,7 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
                                         fpath.unlink()
                             break # Break inner radius loop, continue outer loops
 
-    return False, f"No imagery found for {region_info['name']} after {total_attempts} attempts"al_attempts} attempts"
+    return False, f"No imagery found for {region_info['name']} after {total_attempts} attempts"
 
 
 def worker(task: tuple) -> tuple:
@@ -883,7 +885,7 @@ def main():
 
                         if not args.verbose:
                             print(
-                                f"[{i}/{total}] ✅ {REGIONS[region_id]['name']}")
+                                f"[{i}/{total}] [OK] {REGIONS[region_id]['name']}")
                     else:
                         if is_network:
                             if region_id not in state["network_errors"]:
@@ -896,7 +898,7 @@ def main():
                                 state["failed_regions"].append(region_id)
                             if not args.verbose:
                                 print(
-                                    f"[{i}/{total}] ❌ Failed: {REGIONS[region_id]['name']} - {msg}")
+                                    f"[{i}/{total}] [FAIL] Failed: {REGIONS[region_id]['name']} - {msg}")
 
                     if success_in_pass > 0 and success_in_pass % 10 == 0:
                         save_progress(state, state_file)
