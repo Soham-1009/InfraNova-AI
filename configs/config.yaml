@@ -7,7 +7,7 @@ project:
 dataset:
   name: "landsat9"
   root_dir: "data/landsat9/splits"
-  image_size: 256
+  image_size: 128
   input_channels: 1
   output_channels: 3
   num_workers: 0
@@ -16,6 +16,8 @@ dataset:
     stats_file: null
 
 model:
+  generator:
+    implementation: "dynamic"
   multi_scale_disc: false
 
 training:
@@ -57,7 +59,7 @@ logging:
   tensorboard_dir: "logs/tensorboard"
 
 evaluation:
-  image_size: 256
+  image_size: 128
   percentile_low: 2.0
   percentile_high: 98.0
   tta: true

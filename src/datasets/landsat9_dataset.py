@@ -234,6 +234,26 @@ class Landsat9Dataset(Dataset):
         tir_100m = np.load(sample_dir / 'tir_100m.npy')
         rgb_100m = np.load(sample_dir / 'rgb_100m.npy')
 
+        # STRICT SHAPE VALIDATION (No silent resizing)
+        if tir_100m.shape[-2:] != (self.image_size, self.image_size):
+            raise RuntimeError(
+                f"TIR spatial shape {tir_100m.shape[-2:]} does not match configured image_size ({self.image_size}, {self.image_size})."
+            )
+        if rgb_100m.shape[-2:] != (self.image_size, self.image_size):
+            raise RuntimeError(
+                f"RGB spatial shape {rgb_100m.shape[-2:]} does not match configured image_size ({self.image_size}, {self.image_size})."
+            )
+            
+        # Ensure RGB channel count matches 3, agnostic to CHW vs HWC
+        if rgb_100m.shape[0] != 3 and rgb_100m.shape[-1] != 3:
+            raise RuntimeError(f"RGB array does not appear to contain 3 channels: {rgb_100m.shape}")
+            
+        # Ensure correct data type and no NaNs
+        if rgb_100m.dtype != np.float32 or tir_100m.dtype != np.float32:
+            raise RuntimeError("Arrays must be float32.")
+        if not np.isfinite(rgb_100m).all() or not np.isfinite(tir_100m).all():
+            raise RuntimeError("Arrays must not contain NaNs or Infs.")
+
         if self.task == "colorization":
             input_arr = tir_100m
             target_arr = rgb_100m

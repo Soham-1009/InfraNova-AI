@@ -18,6 +18,7 @@ from pathlib import Path
 import ee
 import rasterio
 import requests
+import numpy as np
 
 # Make project root importable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -544,6 +545,9 @@ SHIFTS = [(0, 0), (0.05, 0), (-0.05, 0), (0, 0.05), (0, -0.05)]
 DATE_RANGES = ["2024-01-01", "2023-01-01", "2022-01-01"]
 CLOUD_COVERS = [10, 20, 35, 50, 70, 100]
 
+PREPROCESS_SCALE = 3.0 / 20.0
+SWATH_EDGE_THRESHOLD = 0.10
+
 NETWORK_ERRORS = (
     ee.ee_exception.EEException,
     requests.exceptions.Timeout,
@@ -612,11 +616,8 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
             if src.crs is None:
                 raise ValueError("Image has no CRS defined")
     except rasterio.errors.RasterioIOError as e:
-        raise ValueError(f"Corrupted GeoTIFF: {e}") from e
-
-
-def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
-    """Processes a single region with progressive fallback. Returns (success, message)."""
+        raise ValueError(f"Corrupted GeoTIFF: {edef process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
+    """Processes a single region with progressive fallback and adaptive radius expansion. Returns (success, message)."""
     dest_dir = output_dir / region_id
     rgb_path = dest_dir / "rgb.tif"
     tir_path = dest_dir / "tir.tif"
@@ -633,95 +634,151 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
     base_lat = region_info['lat']
     base_lon = region_info['lon']
 
+    # Pre-flight radius filtering
+    valid_radii = []
+    for r in RADII:
+        # 1 pixel = 30m, bbox width ≈ 2*r. Scale to preprocessing grid.
+        est_grid = int((2 * r / 30.0) * PREPROCESS_SCALE)
+        if est_grid >= 80:
+            valid_radii.append(r)
+            
+    # Ensure minimum radius is mathematically valid if none exist
+    if not valid_radii or min(valid_radii) > 10000:
+        valid_radii = sorted(list(set([8000] + valid_radii)))
+
     attempt = 0
-    total_attempts = len(RADII) * len(SHIFTS) * \
+    total_attempts = len(valid_radii) * len(SHIFTS) * \
         len(DATE_RANGES) * len(CLOUD_COVERS)
 
-    for radius in RADII:
+    for base_radius in valid_radii:
         for shift_lat, shift_lon in SHIFTS:
             for date_start in DATE_RANGES:
                 for cloud in CLOUD_COVERS:
                     attempt += 1
                     lat = base_lat + shift_lat
                     lon = base_lon + shift_lon
+                    
+                    current_radius = base_radius
 
-                    if verbose:
-                        print(f"\\nAttempt {attempt}/{total_attempts}")
-                        print(f"Region : {region_info['name']}")
-                        print(f"Date   : {date_start} → Present")
-                        print(f"Cloud  : ≤{cloud}%")
-                        print(f"Shift  : ({shift_lat}, {shift_lon})")
-                        print(f"Radius : {radius//1000} km")
-
-                    point = ee.Geometry.Point([lon, lat])
-                    region = point.buffer(radius).bounds()
-
-                    collection = (
-                        ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
-                        .filterBounds(point)
-                        .filterDate(date_start, "2024-06-30")
-                    )
-
-                    if cloud < 100:
-                        collection = collection.filter(
-                            ee.Filter.lt('CLOUD_COVER', cloud))
-
-                    collection = (
-                        collection
-                        .sort('CLOUD_COVER')
-                        .sort('system:time_start', False)
-                    )
-
-                    try:
-                        count = collection.size().getInfo()
-                    except NETWORK_ERRORS as e:
+                    # Adaptive download loop
+                    while current_radius <= 40000:
                         if verbose:
-                            print(
-                                f"Result : Network Error ({type(e).__name__})")
-                        raise  # Re-raise to trigger exponential backoff in worker
-                    except Exception as e:
-                        if verbose:
-                            print(f"Result : EE Error ({e})")
-                        # Other EE error (like invalid geometry), skip
-                        continue
+                            print(f"\nAttempt {attempt}/{total_attempts} (Radius: {current_radius//1000} km)")
+                            print(f"Region : {region_info['name']}")
+                            print(f"Date   : {date_start} → Present")
+                            print(f"Cloud  : ≤{cloud}%")
+                            print(f"Shift  : ({shift_lat}, {shift_lon})")
 
-                    if count == 0:
-                        if verbose:
-                            print("Result : No imagery")
-                        continue
+                        point = ee.Geometry.Point([lon, lat])
+                        region = point.buffer(current_radius).bounds()
 
-                    if verbose:
-                        print("Result : Imagery found! Downloading...")
+                        collection = (
+                            ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+                            .filterBounds(point)
+                            .filterDate(date_start, "2024-06-30")
+                        )
 
-                    try:
-                        image = collection.first().clip(region)
-                        rgb_url = image.select(BANDS_RGB).getDownloadURL(
-                            {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
-                        download_and_extract(rgb_url, dest_dir, "rgb.tif")
-                        verify_tiff(rgb_path, 3)
+                        if cloud < 100:
+                            collection = collection.filter(
+                                ee.Filter.lt('CLOUD_COVER', cloud))
 
-                        tir_url = image.select(BANDS_TIR).getDownloadURL(
-                            {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
-                        download_and_extract(tir_url, dest_dir, "tir.tif")
-                        verify_tiff(tir_path, 1)
+                        collection = (
+                            collection
+                            .sort('CLOUD_COVER')
+                            .sort('system:time_start', False)
+                        )
+
+                        try:
+                            count = collection.size().getInfo()
+                        except NETWORK_ERRORS as e:
+                            if verbose:
+                                print(f"Result : Network Error ({type(e).__name__})")
+                            raise  # Re-raise to trigger exponential backoff in worker
+                        except Exception as e:
+                            if verbose:
+                                print(f"Result : EE Error ({e})")
+                            break # Break inner radius loop, continue outer loops
+
+                        if count == 0:
+                            if verbose:
+                                print("Result : No imagery")
+                            break # Break inner radius loop, continue outer loops
 
                         if verbose:
-                            print("Result : ✅ Success")
-                        return True, f"Successfully downloaded {region_info['name']} on attempt {attempt}"
-                    except NETWORK_ERRORS as e:
-                        raise  # Trigger network backoff
-                    except Exception as e:
-                        if verbose:
-                            print(f"Result : Download/Verify Failed ({e})")
-                        # Cleanup broken files for this attempt
-                        for f in ["rgb.tif", "tir.tif"]:
-                            fpath = dest_dir / f
-                            if fpath.exists():
-                                with suppress(Exception):
-                                    fpath.unlink()
-                        continue
+                            print("Result : Imagery found! Downloading...")
 
-    return False, f"No imagery found for {region_info['name']} after {total_attempts} attempts"
+                        try:
+                            image = collection.first().clip(region)
+                            rgb_url = image.select(BANDS_RGB).getDownloadURL(
+                                {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
+                            download_and_extract(rgb_url, dest_dir, "rgb.tif")
+                            verify_tiff(rgb_path, 3)
+
+                            tir_url = image.select(BANDS_TIR).getDownloadURL(
+                                {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
+                            download_and_extract(tir_url, dest_dir, "tir.tif")
+                            verify_tiff(tir_path, 1)
+                            
+                            # Post-download verification of actual image size and valid data
+                            with rasterio.open(rgb_path) as src:
+                                w, h = src.width, src.height
+                                # Use GDAL dataset mask for robust NoData detection across all bands
+                                mask = src.dataset_mask()
+                                valid_ratio = np.count_nonzero(mask) / mask.size
+                                
+                            grid_w = round(w * PREPROCESS_SCALE)
+                            grid_h = round(h * PREPROCESS_SCALE)
+                            
+                            if grid_w < 64 or grid_h < 64:
+                                if verbose:
+                                    print(f"\nRegion: {region_info['name']}")
+                                    print(f"Grid: {grid_w}x{grid_h}")
+                                    print(f"Valid pixels: {valid_ratio*100:.0f}%")
+                                    print("Decision:")
+                                
+                                # Clean up files so we can retry
+                                for f in ["rgb.tif", "tir.tif"]:
+                                    fpath = dest_dir / f
+                                    if fpath.exists():
+                                        with suppress(Exception):
+                                            fpath.unlink()
+                                            
+                                # Decision tree for recovery
+                                if (1.0 - valid_ratio) > SWATH_EDGE_THRESHOLD:
+                                    # Swath-edge issue: lots of NoData. A larger radius won't help the same scene.
+                                    if verbose:
+                                        print("Likely swath edge. Trying next acquisition.")
+                                    break # Give up on this scene, let outer loops try other shifts/dates
+                                else:
+                                    # Geographic extent issue: image is small but mostly valid. Increase radius.
+                                    if current_radius < 40000:
+                                        if verbose:
+                                            print(f"Increasing radius to {(current_radius + 5000)//1000} km.")
+                                        current_radius += 5000
+                                        continue
+                                    else:
+                                        if verbose:
+                                            print("Maximum radius reached, scene still too small.")
+                                        break
+
+                            if verbose:
+                                print("Result : ✅ Success")
+                            return True, f"Successfully downloaded {region_info['name']} on attempt {attempt}"
+
+                        except NETWORK_ERRORS as e:
+                            raise  # Trigger network backoff
+                        except Exception as e:
+                            if verbose:
+                                print(f"Result : Download/Verify Failed ({e})")
+                            # Cleanup broken files for this attempt
+                            for f in ["rgb.tif", "tir.tif"]:
+                                fpath = dest_dir / f
+                                if fpath.exists():
+                                    with suppress(Exception):
+                                        fpath.unlink()
+                            break # Break inner radius loop, continue outer loops
+
+    return False, f"No imagery found for {region_info['name']} after {total_attempts} attempts"al_attempts} attempts"
 
 
 def worker(task: tuple) -> tuple:

@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from .discriminator import MultiScaleDiscriminator, PatchDiscriminator
 from .generator import GeneratorUNet
+from .generator_dynamic import GeneratorUNetDynamic
 
 
 class Pix2Pix(nn.Module):
@@ -26,7 +27,9 @@ class Pix2Pix(nn.Module):
         device: torch.device | str | None = None,
         in_channels: int = 1,
         out_channels: int = 3,
+        image_size: int = 256,
         multi_scale: bool = False,
+        generator_impl: str = "legacy",
     ) -> None:
         super().__init__()
 
@@ -35,10 +38,17 @@ class Pix2Pix(nn.Module):
         )
         self.multi_scale = multi_scale
 
-        self.generator = GeneratorUNet(
-            in_channels=in_channels,
-            out_channels=out_channels,
-        )
+        if generator_impl == "dynamic":
+            self.generator = GeneratorUNetDynamic(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                image_size=image_size,
+            )
+        else:
+            self.generator = GeneratorUNet(
+                in_channels=in_channels,
+                out_channels=out_channels,
+            )
 
         disc_in_channels = in_channels + out_channels
         if multi_scale:
