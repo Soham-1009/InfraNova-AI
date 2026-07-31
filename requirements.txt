@@ -1,7 +1,7 @@
 # Deep Learning Core
 # The --extra-index-url ensures CPU-only PyTorch wheels are resolved.
 # For CUDA, replace with: --extra-index-url https://download.pytorch.org/whl/cu121
---extra-index-url https://download.pytorch.org/whl/cpu
+# --extra-index-url https://download.pytorch.org/whl/cpu
 
 torch>=2.0.0
 torchvision>=0.15.0
