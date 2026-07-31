@@ -83,6 +83,8 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
     image_size = int(dataset_cfg.get("image_size", 256))
     num_workers = int(dataset_cfg.get("num_workers", 2))
     batch_size = int(training_cfg.get("batch_size", 8))
+    subset_ratio = dataset_cfg.get("subset_ratio", None)
+    subset_seed = int(dataset_cfg.get("subset_seed", 42))
 
     # Normalization config (backward-compatible: defaults to "local")
     norm_cfg = dataset_cfg.get("normalization", {})
@@ -95,6 +97,8 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
         image_size=image_size,
         normalization=normalization,
         stats_file=stats_file,
+        subset_ratio=subset_ratio,
+        subset_seed=subset_seed,
     )
     val_base = Landsat9Dataset(
         root_dir=root_dir,
@@ -103,6 +107,8 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
         augment=False,
         normalization=normalization,
         stats_file=stats_file,
+        subset_ratio=subset_ratio,
+        subset_seed=subset_seed,
     )
 
     train_dataset = LandsatBatchAdapter(train_base)
@@ -135,6 +141,56 @@ def _set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
 
+
+def _save_experiment_json(
+    cfg: dict[str, Any],
+    dataset_info: dict[str, Any],
+    best_ssim: float,
+    best_psnr: float,
+    checkpoint_dir: Path
+) -> None:
+    """Save an experiment.json and config.yaml alongside the checkpoint."""
+    import json
+    import platform
+    import hashlib
+    import yaml
+    
+    experiment_id = cfg.get("project", {}).get("name", "InfraNova-AI").replace(" ", "_")
+    
+    # Extract manifest if possible
+    manifest_hash = "unknown"
+    manifest_path = Path(cfg.get("dataset", {}).get("root_dir", "")).parent / "dataset_manifest.json"
+    if manifest_path.exists():
+        with open(manifest_path, "rb") as f:
+            manifest_hash = hashlib.sha256(f.read()).hexdigest()[:12]
+            
+    # Write config copy
+    config_copy_path = checkpoint_dir / f"{experiment_id}_config.yaml"
+    with open(config_copy_path, "w", encoding="utf-8") as f:
+        yaml.dump(cfg, f, default_flow_style=False)
+        
+    with open(config_copy_path, "rb") as f:
+        config_hash = hashlib.sha256(f.read()).hexdigest()[:12]
+        
+    exp_data = {
+        "experiment_id": experiment_id,
+        "python": platform.python_version(),
+        "torch": torch.__version__,
+        "cuda": torch.version.cuda if torch.cuda.is_available() else "None",
+        "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
+        "config_hash": config_hash,
+        "dataset_fingerprint": manifest_hash,
+        "train_samples": dataset_info.get("train_samples", 0),
+        "val_samples": dataset_info.get("val_samples", 0),
+        "subset_ratio": cfg.get("dataset", {}).get("subset_ratio", None),
+        "subset_seed": cfg.get("dataset", {}).get("subset_seed", 42),
+        "best_ssim": float(best_ssim),
+        "best_psnr": float(best_psnr)
+    }
+    
+    exp_path = checkpoint_dir / f"{experiment_id}_experiment.json"
+    with open(exp_path, "w", encoding="utf-8") as f:
+        json.dump(exp_data, f, indent=2)
 
 def _save_experiment_comparison(cfg: dict[str, Any], history: dict[str, list]) -> None:
     """Append a row to logs/experiment_comparison.csv with config and best metrics."""
@@ -234,7 +290,9 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
         device=device,
         in_channels=int(dataset_cfg.get("input_channels", 1)),
         out_channels=int(dataset_cfg.get("output_channels", 3)),
+        image_size=int(dataset_cfg.get("image_size", 256)),
         multi_scale=multi_scale,
+        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "legacy"),
     )
 
     trainer = Trainer(
@@ -318,6 +376,11 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     # Log experiment info at start
     trainer.logger.log_experiment_info(config=cfg, phase="start")
 
+    dataset_info = {
+        "train_samples": len(train_loader.dataset),
+        "val_samples": len(val_loader.dataset),
+    }
+
     for epoch in range(start_epoch, epochs):
         scheduler_g.step(epoch)
         scheduler_d.step(epoch)
@@ -345,6 +408,27 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
             path=latest_path,
             scaler=trainer.scaler,
         )
+        _save_experiment_json(
+            cfg,
+            dataset_info,
+            best_val_ssim,
+            val_metrics["val_psnr"],
+            Path(latest_path).parent
+        )
+
+        # Save epoch-specific checkpoint for resume testing
+        epoch_path = Path(paths_cfg["checkpoints"]) / f"epoch_{epoch + 1}.pth"
+        save_checkpoint(
+            model=trainer.model,
+            optimizer={
+                "generator": trainer.optimizer_g,
+                "discriminator": trainer.optimizer_d,
+            },
+            epoch=epoch + 1,
+            metrics=epoch_metrics,
+            path=str(epoch_path),
+            scaler=trainer.scaler,
+        )
 
         # Best checkpoint based on validation SSIM
         if val_metrics["val_ssim"] > best_val_ssim:
@@ -362,6 +446,13 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                 metrics=epoch_metrics,
                 path=best_path,
                 scaler=trainer.scaler,
+            )
+            _save_experiment_json(
+                cfg,
+                dataset_info,
+                best_val_ssim,
+                val_metrics["val_psnr"],
+                Path(best_path).parent
             )
             logger.info("Epoch %d: new best val_ssim=%.4f", epoch + 1, best_val_ssim)
         else:
@@ -406,6 +497,15 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     if Path(paths_cfg["latest_checkpoint"]).exists():
         shutil.copy2(paths_cfg["latest_checkpoint"], final_path)
         logger.info("Saved final checkpoint to %s", final_path)
+        
+        # Copy the latest experiment config and json to final directory
+        latest_dir = Path(paths_cfg["latest_checkpoint"]).parent
+        final_dir = Path(final_path).parent
+        if latest_dir != final_dir:
+            for json_file in latest_dir.glob("*_experiment.json"):
+                shutil.copy2(json_file, final_dir / json_file.name)
+            for yaml_file in latest_dir.glob("*_config.yaml"):
+                shutil.copy2(yaml_file, final_dir / yaml_file.name)
 
     return history
 

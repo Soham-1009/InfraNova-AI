@@ -56,9 +56,9 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
     image_size = dataset.get("image_size", 256)
     if not isinstance(image_size, int) or image_size <= 0:
         errors.append(f"dataset.image_size must be a positive integer, got {image_size}")
-    elif image_size < 256 or image_size % 256 != 0:
+    elif image_size < 32 or (image_size & (image_size - 1)) != 0:
         errors.append(
-            f"dataset.image_size must be a multiple of 256 for the generator, got {image_size}"
+            f"dataset.image_size must be a power of 2 >= 32 for the generator, got {image_size}"
         )
 
     input_channels = dataset.get("input_channels", 1)

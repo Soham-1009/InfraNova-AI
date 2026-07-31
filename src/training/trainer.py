@@ -380,7 +380,7 @@ class Trainer:
         lab_error_sum = 0.0
         num_batches = len(self.val_loader)
 
-        for batch in self.val_loader:
+        for batch_idx, batch in enumerate(self.val_loader):
             batch = self._to_device(batch, self.device)
             ir = batch["ir"]
             rgb = batch["rgb"]

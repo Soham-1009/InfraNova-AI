@@ -14,6 +14,8 @@ dataset:
   normalization:
     mode: "local"
     stats_file: null
+  subset_ratio: null
+  subset_seed: null
 
 model:
   generator:
@@ -28,7 +30,7 @@ training:
   amp: true
   grad_clip: 1.0
   sample_every: 5
-  resume_from: "outputs/models/best/pix2pix_landsat_best.pth"
+  resume_from: null
   optimizer:
     lr: 0.0002
     beta1: 0.5

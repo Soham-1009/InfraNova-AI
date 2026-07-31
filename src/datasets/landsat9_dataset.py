@@ -42,6 +42,8 @@ class Landsat9Dataset(Dataset):
         task: str = "colorization",
         normalization: str = "local",
         stats_file: str | None = None,
+        subset_ratio: float | None = None,
+        subset_seed: int = 42,
     ) -> None:
         self.root_dir = Path(root_dir)
         self.split = split
@@ -61,6 +63,16 @@ class Landsat9Dataset(Dataset):
         if not self.samples:
             raise ValueError(f"No samples found in {self.split_dir}")
 
+        if subset_ratio is not None and 0.0 < subset_ratio < 1.0:
+            import random
+            rng = random.Random(subset_seed)
+            # Create a deterministic copy and shuffle it
+            shuffled_samples = list(self.samples)
+            rng.shuffle(shuffled_samples)
+            subset_size = max(1, int(len(shuffled_samples) * subset_ratio))
+            self.samples = shuffled_samples[:subset_size]
+
+
         # Load global stats if requested
         self._global_stats: dict[str, Any] | None = None
         if normalization == "global":
@@ -79,8 +91,8 @@ class Landsat9Dataset(Dataset):
             logger.info("Loaded global normalization stats from %s", stats_file)
 
         logger.info(
-            "Loaded %d samples for %s split, task=%s, normalization=%s",
-            len(self.samples), split, task, normalization,
+            "Loaded %d samples for %s split (subset_ratio=%s), task=%s, normalization=%s",
+            len(self.samples), split, subset_ratio, task, normalization,
         )
 
     def __len__(self) -> int:
