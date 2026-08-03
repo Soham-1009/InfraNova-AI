@@ -8,11 +8,11 @@ The project is designed around a simple idea: thermal images show heat patterns,
 
 - Downloads Landsat 9 thermal and RGB bands from Google Earth Engine.
 - Organizes raw `.tif` exports into region folders.
-- Builds paired 128x128 training patches, filtering out anomalous data (NoData/Blank).
+- Builds paired 128×128 training patches, filtering out anomalous data (NoData/Blank).
 - Generates reproducible dataset fingerprints and experiment telemetry.
 - Trains a Pix2Pix GAN (with Dynamic U-Net generator) for TIR-to-RGB colorization.
-- Features a Kaggle-ready deployment suite (`kaggle_smoke_test.md`).
-- Runs inference from a checkpoint.
+- Supports Kaggle GPU training with a dedicated smoke-test configuration.
+- Runs inference from a checkpoint with optional test-time augmentation.
 - Provides a Streamlit app for uploading thermal images and viewing generated RGB output.
 
 ## Important Limitation
@@ -30,13 +30,13 @@ Landsat 9 bands
     |-- ST_B10              -> thermal input
     |
     v
-Patch preparation
+Patch preparation (128×128)
     |
     v
 Pix2Pix model
     |
-    |-- U-Net generator       -> creates RGB image
-    |-- PatchGAN discriminator -> checks realism
+    |-- Dynamic U-Net generator  -> creates RGB image
+    |-- PatchGAN discriminator   -> checks realism
     |
     v
 RGB-like satellite output
@@ -46,14 +46,26 @@ RGB-like satellite output
 
 ```text
 configs/
-  config.yaml                 Training and inference configuration
+  config.yaml                 Production training configuration (250 epochs)
+  config_smoke.yaml           Smoke-test configuration (1 epoch)
 
 src/
   datasets/                   Landsat 9 dataset loader
-  models/pix2pix/             Generator, discriminator, Pix2Pix wrapper
+  models/pix2pix/             Dynamic U-Net generator, PatchGAN discriminator, Pix2Pix wrapper
   training/                   Losses, trainer, callbacks, scheduler
   inference/                  Production inference engine
-  utils/                      Checkpoint and logging helpers
+  losses/                     Loss function definitions
+  evaluation/                 Metric computation
+  detection/                  Object detection integration
+  utils/                      Checkpoint, logging, and helper utilities
+
+scripts/
+  download/                   Earth Engine export scripts
+  preprocessing/              Patch building, splitting, filtering, normalization
+  evaluation/                 Evaluation, benchmarking, dataset validation, inference testing
+  deployment/                 Model card generation, batch inference, ONNX/TorchScript export
+  training/                   Training launch scripts
+  pipeline/                   End-to-end pipeline orchestration
 
 demo/
   streamlit_app.py            Web demo
@@ -62,15 +74,17 @@ demo/
 
 docs/
   architecture.md             Model architecture notes
-  methodology.md              Thermal-to-RGB methodology
+  methodology.md              Thermal-to-RGB methodology and mathematical analysis
   training_strategy.md        Training plan and monitoring notes
+  inference_optimization.md   Inference performance and optimization
+  demo_strategy.md            Demo UI layout and design
+  roadmap.md                  Project roadmap
 
-scripts/
-  download/download_landsat9.py     Earth Engine export
-  preprocessing/organize_files.py   Organizes .tif exports
-  preprocessing/process_landsat_patches.py Builds .npy patches
-  preprocessing/split_patches.py    Creates train/val/test splits
-requirements.txt                    Main Python dependencies
+notebooks/
+  MAIN.ipynb                  Kaggle training notebook
+
+tests/                        Unit and integration tests
+requirements.txt              Python dependencies
 ```
 
 ## Setup
@@ -90,7 +104,7 @@ venv\Scripts\python.exe -m pip install -r requirements.txt
 
 ### PyTorch Install Options
 
-`requirements.txt` keeps the PyTorch packages listed, but you should install the build that matches your machine before the rest of the dependencies.
+`requirements.txt` lists the PyTorch packages, but you should install the build that matches your hardware before the rest of the dependencies.
 
 CPU-only:
 
@@ -105,6 +119,8 @@ CUDA 12.1:
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
+
+On Kaggle, PyTorch is pre-installed. Skip the PyTorch install step and install only the remaining dependencies.
 
 ## Data Pipeline
 
@@ -143,7 +159,7 @@ data/landsat9/input/
 venv\Scripts\python.exe scripts\preprocessing\process_landsat_patches.py
 ```
 
-This creates samples under:
+This creates 128×128 paired samples under:
 
 ```text
 data/landsat9/patches/
@@ -180,12 +196,13 @@ venv\Scripts\python.exe -m src.training.train_landsat
 The current setup uses:
 
 - Pix2Pix conditional GAN
-- U-Net generator
+- Dynamic U-Net generator (depth computed from input size)
 - PatchGAN discriminator
-- L1, adversarial, perceptual, and SSIM losses
-- 250 epochs
-- linear learning-rate decay near the end of training
-- checkpoint saving for best, latest, and final models
+- L1, adversarial, perceptual, SSIM, and chroma losses
+- 250 epochs with linear LR decay from epoch 230
+- Automatic mixed precision (AMP) training
+- Checkpoint saving for best, latest, and final models
+- Deterministic resume from any checkpoint
 
 Checkpoints are written under:
 
@@ -209,7 +226,11 @@ It loads the trained checkpoint:
 outputs/models/best/pix2pix_landsat_best.pth
 ```
 
-The existing checkpoint can be used for demo and inference. Retraining is only needed if you want a clean benchmark using the latest region-level split and corrected training settings.
+Run the standalone inference test:
+
+```powershell
+venv\Scripts\python.exe scripts\evaluation\test_inference.py
+```
 
 ## Streamlit Demo
 
@@ -229,7 +250,7 @@ It includes:
 
 ## Docker
 
-The repo now includes a Docker setup for the Streamlit demo:
+The repo includes a Docker setup for the Streamlit demo:
 
 ```powershell
 docker compose up --build
@@ -269,12 +290,14 @@ docker compose up --build
 Useful quick checks:
 
 ```powershell
-venv\Scripts\python.exe -m compileall -q scripts/download/download_landsat9.py scripts/preprocessing/organize_files.py scripts/preprocessing/process_landsat_patches.py scripts/preprocessing/split_patches.py src demo
+venv\Scripts\python.exe -m compileall -q src demo scripts
 venv\Scripts\python.exe -m pip check
+venv\Scripts\python.exe -m pytest tests/
 ```
 
 ## Notes
 
-- `data/`, `outputs/models/`, `logs/`, and generated outputs are intentionally not committed.
+- `data/`, `outputs/`, `logs/`, and generated outputs are intentionally not committed.
 - The model output is best described as RGB-like visual synthesis, not exact color recovery.
 - For trustworthy reported metrics, evaluate on region-level splits rather than random patch-level splits.
+- The codebase is frozen and validated. See `docs/roadmap.md` for project status.

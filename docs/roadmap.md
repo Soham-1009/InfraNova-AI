@@ -1,184 +1,150 @@
-Here is the comprehensive strategic playbook to transition InfraNova AI to the Landsat 9 TIR specification and finalize the project.
-
----
-
 # 🛰️ InfraNova AI: Landsat 9 TIR Colorization Roadmap
 
-**File Location:** `docs/landsat9_roadmap.md`
-**Objective:** End-to-End Pipeline for 200m TIR $\rightarrow$ 100m TIR $\rightarrow$ 100m RGB
+**Objective:** End-to-End Pipeline for Landsat 9 TIR → RGB satellite image colorization
 
 ---
 
-### 📅 1. EXECUTION TIMELINE (8-DAY SPRINT)
+### ✅ Phase 1: Data Pipeline
 
-**Day 1: Training Setup & Data Alignment**
+* Configured PyTorch DataLoaders to accept 1-channel Landsat 9 Band 10 (TIRS-2) data.
+* Built 128×128 paired patches with telemetry-driven filtering (NoData/Blank rejection).
+* Implemented region-level train/val/test splits to prevent geographic leakage.
 
-* **Deliverables:** Reconfigure PyTorch DataLoaders to accept 1-channel Landsat 9 Band 10 (TIRS-2) data instead of Sentinel-2. Verify all 1800 patches are strictly paired.
-* **Time Estimate:** 4 Hours.
-* **Risk:** Landsat 9 TIRS-2 has absolute radiometric temperature ranges differing from Sentinel-2 NIR.
-* **Backup:** Hard-cap pixel intensity normalization between 270K and 320K (typical Earth surface temperatures) to prevent vanishing gradients.
+### ✅ Phase 2: Training
 
-**Day 2: Training Execution (Colorization)**
+* Launched the Pix2Pix training loop on the 100m TIR → 100m RGB task.
+* Implemented deterministic checkpointing with full optimizer state for clean resume.
+* Validated 10-epoch stability test: Generator/Discriminator losses stable, SSIM/PSNR trending upward.
 
-* **Deliverables:** Launch the Pix2Pix training loop on the 100m TIR $\rightarrow$ 100m RGB task.
-* **Time Estimate:** 8–10 Hours (Background execution).
-* **Risk:** Kaggle timeout during training.
-* **Backup:** Save optimizer state and model weights every 10 epochs to Kaggle outputs.
+### ✅ Phase 3: Evaluation and Tuning
 
-**Day 3: Evaluation and Tuning**
+* Extracted LPIPS, PSNR, and SSIM metrics.
+* Created inference consistency tests (`scripts/evaluation/test_inference.py`).
+* Validated checkpoint reload consistency (0.0 float diff).
 
-* **Deliverables:** Extract LPIPS, PSNR, and SSIM metrics. Run initial qualitative tests.
-* **Time Estimate:** 3 Hours.
-* **Risk:** The model produces "muddy" or desaturated outputs.
-* **Backup:** Temporarily halve the L1 structural loss weight to force the GAN to take more risks with color generation.
+### ✅ Phase 4: Streamlit Demo
 
-**Day 4: Super-Resolution (SR) Module Integration**
+* Built full-featured Streamlit demo with dark mode, TTA toggle, contrast enhancement, and download.
+* Implemented `@st.cache_resource` for model loading to ensure responsive UI.
+* Added pre-loaded sample cards for instant testing.
 
-* **Deliverables:** Implement the 200m $\rightarrow$ 100m TIR upscaling. Use a lightweight pre-trained Real-ESRGAN or standard bicubic interpolation if VRAM is tight, feeding the output directly into the colorizer.
-* **Time Estimate:** 5 Hours.
-* **Risk:** The SR artifacts confuse the Pix2Pix colorizer.
-* **Backup:** Apply a slight Gaussian blur to the SR output before passing it to the colorization module to smooth out jagged upsampling edges.
+### ✅ Phase 5: Deployment Preparation
 
-**Day 5: Update Streamlit Demo UI**
-
-* **Deliverables:** Refactor the UI to process the three-step pipeline (Upload $\rightarrow$ SR $\rightarrow$ Colorize). Integrate YOLOv10 for the final downstream task.
-* **Time Estimate:** 6 Hours.
-* **Risk:** The UI becomes unresponsive due to the heavy triple-inference pipeline.
-* **Backup:** Use `@st.cache_data` aggressively and restrict test inputs to 128x128 crops during live UI interactions.
-
-**Day 6: Pitch Deck & Demo Video**
-
-* **Deliverables:** Finalize the 8-slide presentation and record the 90-second video.
-* **Time Estimate:** 5 Hours.
-
-**Day 7: Polish and Test**
-
-* **Deliverables:** Conduct a full mock presentation. Test the Streamlit app with edge-case images (e.g., heavily clouded TIR images).
-* **Time Estimate:** 3 Hours.
-
-**Day 8: Final Submission**
-
-* **Deliverables:** Upload weights to GitHub/Hugging Face. Submit the technical PDF and video to the Hack2Skill platform.
-* **Time Estimate:** 2 Hours (Do this 6 hours before the actual deadline).
+* Created Kaggle smoke-test configuration (`configs/config_smoke.yaml`).
+* Prepared `kaggle_smoke_test.md` deployment guide.
+* Generated model card via `scripts/deployment/generate_model_card.py`.
+* Docker setup for local demo deployment.
 
 ---
 
-### 🖥️ 2. DEMO STRATEGY UPDATE
+### 🖥️ Demo Strategy
 
-The Streamlit UI must tell a technical story of mission capability, not just image processing.
+The Streamlit UI tells a technical story of capability, not just image processing.
 
-* **The Input Zone:** Allow users to upload a 200m Landsat 9 TIR TIFF or select from 3 pre-loaded scenarios (e.g., Urban Heat Island, Coastal Zone, Agricultural Basin).
-* **The Pipeline View:** * *Column 1:* Raw 200m TIR.
-* *Column 2:* Super-Resolved 100m TIR.
-* *Column 3:* Synthesized 100m RGB.
-
-
-* **The "Mission Value" Toggle:** A switch labeled "Run Object Detection (YOLO)". When flipped, it overlays bounding boxes and confidence scores on both the TIR and RGB images, proving the colorization adds machine-readable semantic value.
-* **Export Options:** Provide a button to download the synthesized RGB as a properly banded geoTIFF for GIS software compatibility.
+* **The Input Zone:** Users upload a Landsat 9 TIR TIFF or select from pre-loaded scenarios (e.g., Urban Heat Island, Coastal Zone, Agricultural Basin).
+* **The Pipeline View:**
+  * *Column 1:* Raw TIR input.
+  * *Column 2:* Synthesized RGB output.
+* **The Object Detection Toggle:** A switch labeled "Run Object Detection (YOLO)". When enabled, it overlays bounding boxes and confidence scores on both the TIR and RGB images, proving the colorization adds machine-readable semantic value.
+* **Export Options:** Download the synthesized RGB for further analysis.
 
 ---
 
-### 📊 3. PITCH DECK STRUCTURE
+### 📊 Presentation Structure
 
 **Slide 1: Title**
-
-* *Content:* "InfraNova AI: TIR Super-Resolution & Colorization for Mission Operations"
+* *Content:* "InfraNova AI: TIR Colorization for Earth Observation"
 * *Visual:* Clean, high-contrast side-by-side of a TIR patch and our RGB output.
 
 **Slide 2: The Problem**
-
-* *Content:* Night-time and thermal imaging (Landsat 9/INSAT) is monochrome and lacks semantic texture, bottlenecking automated disaster and border monitoring.
+* *Content:* Night-time and thermal imaging is monochrome and lacks semantic texture, limiting automated disaster and environmental monitoring.
 
 **Slide 3: Solution Architecture**
-
-* *Content:* 2-Stage Pipeline. Stage 1: Spatial enhancement (200m $\rightarrow$ 100m). Stage 2: Generative Colorization (100m TIR $\rightarrow$ 100m RGB).
-* *Visual:* A block diagram of the neural network topology.
+* *Content:* Dynamic U-Net generator with PatchGAN discriminator. Combined L1 + adversarial + perceptual + SSIM + chroma losses.
+* *Visual:* Block diagram of the neural network topology.
 
 **Slide 4: Innovation & Differentiation**
-
-* *Content:* Highlighting our unique object-detection validation loop. We don't just optimize for human eyes; we optimize for downstream machine learning interpretability.
+* *Content:* Object-detection validation loop. We don't just optimize for human eyes; we optimize for downstream machine learning interpretability.
 
 **Slide 5: Results & Metrics**
+* *Content:* Display SSIM, PSNR, LPIPS, and YOLO mAP improvements.
+* *Visual:* 3×3 grid of the hardest test patches (e.g., distinguishing a dark river from a dark road).
 
-* *Content:* Display SSIM, PSNR, and YOLO mAP improvements.
-* *Visual:* 3x3 grid of the hardest test patches (e.g., distinguishing a dark river from a dark road).
-
-**Slide 6: Technical Details & Team Rigor**
-
-* *Content:* Highlight the robustness of the engineering stack. Emphasize the full-stack architecture (leveraging Python for the heavy ML lifting with React/Tailwind design principles applied to the Streamlit UI) and your postgraduate AI/ML research context to establish academic credibility.
+**Slide 6: Technical Stack**
+* *Content:* Python, PyTorch, Dynamic U-Net, Kaggle GPU training, Streamlit demo, Docker deployment.
 
 **Slide 7: Demo Screenshots**
-
 * *Content:* Clean, high-res captures of the Streamlit interface demonstrating the user flow.
 
-**Slide 8: Future Work **
-
-* *Content:* Direct pathway to integrating this module into the Bhuvan Geoportal for real-time agricultural and urban heat mapping.
+**Slide 8: Future Work**
+* *Content:* Multi-spectral fusion, higher resolution (256×256), temporal context conditioning, production API deployment.
 
 ---
 
-### 🎬 4. DEMO VIDEO SCRIPT (90 Seconds)
+### 🎬 Demo Video Script (90 Seconds)
 
-*(Visual: Screen recording starts on the Streamlit landing page. Confident, steady tech-demo tone. No background music, keep it strictly professional.)*
+*(Visual: Screen recording starts on the Streamlit landing page.)*
 
-**[0:00 - 0:15] The Hook:**
-"Welcome to InfraNova AI. Satellite platforms capture critical thermal infrared data at night, but these monochrome images are notoriously difficult for both humans and AI to interpret. Today, we are solving that."
+**[0:00–0:15] The Hook:**
+"Welcome to InfraNova AI. Satellite platforms capture critical thermal infrared data at night, but these monochrome images are difficult for both humans and AI to interpret. Today, we are solving that."
 
-**[0:15 - 0:40] The Transformation:**
-*(Visual: Click the 'Urban Nagpur Heat Map' sample. The UI processes the image.)*
-"Here we load a raw 200-meter resolution Landsat 9 Band 10 thermal image. Watch as our dual-stage pipeline first applies structural super-resolution to bring it to 100 meters, and then utilizes a custom Pix2Pix generative network to synthesize highly accurate, photorealistic RGB textures."
+**[0:15–0:40] The Transformation:**
+*(Visual: Click a preloaded sample card. The UI processes the image.)*
+"Here we load a raw Landsat 9 Band 10 thermal image. Watch as our Dynamic U-Net Pix2Pix network synthesizes photorealistic RGB textures from the thermal input."
 
-**[0:40 - 1:10] The Proof (Object Detection):**
+**[0:40–1:10] The Proof (Object Detection):**
 *(Visual: Toggle the Object Detection button. Bounding boxes appear.)*
 "But the true value is machine interpretability. When we run a standard YOLO detector on the raw TIR, confidence is low. When applied to our synthesized RGB output, vehicle and structural detection confidence surges. We've converted unreadable thermal noise into actionable data."
 
-**[1:10 - 1:30] The Close:**
-"InfraNova AI provides a deployable, end-to-end framework ready for integration with platforms like Bhuvan to revolutionize 24/7 earth observation. Thank you."
+**[1:10–1:30] The Close:**
+"InfraNova AI provides a deployable, end-to-end framework for 24/7 earth observation. Thank you."
 
 ---
 
-### 🚀 5. PROJECT NARRATIVE
+### 🚀 Project Narrative
 
-To win, the judges must see how this fits into their actual workflow:
+Use cases this project directly addresses:
 
-* **The Bhuvan Geoportal:** Position the colorizer as a potential microservice API for Bhuvan, allowing users to view night-time passes as if they were taken at noon.
-* **Urban Heat Island & Micro-climate Tracking:** Since TIR explicitly measures heat, mention how colorizing these thermal maps helps urban planners track temperature anomalies in expanding metropolitan hubs like Nagpur.
-* **Disaster Response:** Highlight that during a flood or landslide under heavy cloud cover or at night, TIR is the only reliable sensor. Colorizing it instantly helps emergency responders identify roads vs. water bodies.
-
----
-
-### 🧠 6. TECHNICAL DIFFERENTIATION
-
-What separates InfraNova AI from other models:
-
-1. **Real Satellite Data:** We are using actual multi-band Landsat 9 Level-2 data, not ground-level synthetic datasets like FLIR.
-2. **The "Delta" Approach:** We prove success not just through SSIM metrics, but by measuring the improvement in an entirely separate AI model (YOLO) acting on our outputs.
-3. **Production-Ready Code:** The GitHub repository is structured like an enterprise product (`/data`, `/models`, `/notebooks`, `/app`), not a messy single Jupyter notebook.
+* **Urban Heat Island & Micro-climate Tracking:** Since TIR explicitly measures heat, colorizing these thermal maps helps urban planners track temperature anomalies in expanding metropolitan areas.
+* **Disaster Response:** During a flood or landslide under heavy cloud cover or at night, TIR is the only reliable sensor. Colorizing it instantly helps emergency responders identify roads vs. water bodies.
+* **Agricultural Monitoring:** Thermal imagery reveals crop stress, irrigation patterns, and soil moisture — all more interpretable when presented as natural-looking RGB.
 
 ---
 
-### 🛡️ 7. RISK MITIGATION
+### 🧠 Technical Differentiation
 
-* **Training Fails (Mode Collapse):** *Mitigation:* Immediately fall back to the Day 3 weights. An imperfect colorizer with a working Streamlit demo scores higher than a broken model with no demo.
-* **Demo Breaks During Judging:** *Mitigation:* Have a pre-recorded video loaded locally on your machine, and cache the absolute best 5 outputs directly into the GitHub repository as static images.
-* **Submission Portal Crash:** *Mitigation:* Submission portals often crash in the final 30 minutes. The hard rule is to submit the final URL and PDF exactly 6 hours before the official midnight deadline.
+What separates InfraNova AI from other approaches:
+
+1. **Real Satellite Data:** Uses actual multi-band Landsat 9 Level-2 data, not ground-level synthetic datasets like FLIR.
+2. **The "Delta" Approach:** Success is measured not just through SSIM metrics, but by the improvement in a separate AI model (YOLO) acting on our outputs.
+3. **Production-Ready Code:** Repository is structured with clear separation of concerns (`configs/`, `src/`, `scripts/`, `demo/`, `tests/`).
+4. **Dynamic Architecture:** U-Net depth adapts automatically to input dimensions, supporting multiple resolutions without code changes.
 
 ---
 
-### ✅ 8. FINAL SUBMISSION CHECKLIST
+### 🛡️ Risk Mitigation
+
+* **Training Fails (Mode Collapse):** Fall back to earlier checkpoint weights. An imperfect colorizer with a working demo is better than a broken model with no demo.
+* **Demo Breaks During Testing:** Have pre-rendered outputs cached and a pre-recorded video as backup.
+
+---
+
+### ✅ Final Checklist
 
 * [ ] **GitHub Repository Public:** Check in an Incognito window.
-* [ ] **`README.md` Polished:** Must include a high-level architecture diagram and standard `pip install -r requirements.txt` instructions.
-* [ ] **Model Weights Uploaded:** Do not push `.pth` files to GitHub if they exceed 100MB; use Hugging Face or a Kaggle Dataset link.
-* [ ] **Technical Report PDF:** Exported and under the file size limit.
-* [ ] **Demo Video:** Uploaded to YouTube as 'Unlisted', link included in the submission form.
-* [ ] **Code Cleansed:** Remove any hardcoded local paths (e.g., `C:/Users/...` or `/content/drive/...`) and replace with relative paths.
+* [ ] **`README.md` Polished:** Must include architecture diagram and setup instructions.
+* [ ] **Model Weights Uploaded:** Do not push `.pth` files to GitHub if they exceed 100MB; use Hugging Face or a Kaggle Dataset.
+* [ ] **Code Cleansed:** Remove any hardcoded local paths (e.g., `C:/Users/...`) and replace with relative paths.
 
 ---
 
-### 🔭 9. FUTURE STRATEGY
+### 🔭 Future Strategy
 
-* **Open Source Release:** Package the inference module as a standalone PyPi library (`pip install infranovatir`) for the remote sensing community.
-* **Academic Publication:** If the final SSIM breaks 0.70 on Landsat 9 data, draft a short paper focusing on the downstream YOLO accuracy improvements for the IEEE IGARSS conference or CVPR's EarthVision workshop.
+* **Open Source Release:** Package the inference module as a standalone PyPI library for the remote sensing community.
+* **Academic Publication:** If final SSIM breaks 0.70 on Landsat 9 data, draft a paper focusing on downstream object detection accuracy improvements.
+* **Higher Resolution:** Scale to 256×256 and explore multi-spectral input conditioning.
+* **Temporal Context:** Add time-of-day and season metadata as auxiliary conditioning to improve disambiguation.
 
-**Update 2026:** All phases completed. Pipeline is frozen and validated for Kaggle deployment via kaggle_smoke_test.md.
+---
+
+**Status:** All phases completed. Pipeline is frozen and validated for Kaggle deployment via `configs/config_smoke.yaml`.

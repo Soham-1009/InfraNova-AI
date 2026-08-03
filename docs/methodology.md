@@ -1,5 +1,3 @@
-**Update 2026:** Pipeline is frozen and validated for Kaggle deployment. Base resolution is now 128x128 with Dynamic U-Net.
-
 ## Landsat 9 TIR‑to‑RGB Colorisation: Mathematical and Strategic Analysis
 
 **Switch rationale:** Landsat 9 Band 10 (10.9 µm, 100 m native) provides true thermal infrared imaging, which is far more challenging than the near‑infrared (NIR) bands used earlier. Operational needs (night‑time, cloud‑penetrating surveillance) are exactly what TIR addresses. Below is a rigorous analysis of how the physics of thermal emission changes the problem, and how to adapt our loss, architecture, training, and evaluation accordingly.

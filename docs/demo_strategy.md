@@ -1,8 +1,6 @@
-**Update 2026:** Pipeline is frozen and validated for Kaggle deployment. Base resolution is now 128x128 with Dynamic U-Net.
-
 ## 1. UI Layout (Single-Page Top-Down Focus)
 
-**Header:** Minimalist title . Badge bar showing runtime stats (PyTorch version, inference time).
+**Header:** Minimalist title with badge bar showing runtime stats (PyTorch version, inference time).
 
 **Hero/Input Zone:** Two pathways:
 - File drag-and-drop uploader
@@ -18,13 +16,13 @@
 
 ## 2. 30-Second User Journey
 
-**Phase 1 (0-5s):** Judge arrives, sees high-contrast preloaded sample cards. No empty upload box.
+**Phase 1 (0–5s):** User arrives, sees high-contrast preloaded sample cards. No empty upload box.
 
-**Phase 2 (5-15s):** Judge clicks sample. Loading spinner, then interactive slider showing IR-to-RGB transformation.
+**Phase 2 (5–15s):** User clicks sample. Loading spinner, then interactive slider showing IR-to-RGB transformation.
 
-**Phase 3 (15-25s):** Judge clicks "Execute Object Detection Analysis". Side-by-side YOLO results show colorized version exposes more objects.
+**Phase 3 (15–25s):** User clicks "Execute Object Detection Analysis". Side-by-side YOLO results show colorized version exposes more objects.
 
-**Phase 4 (25-30s):** Summary banner with download options and GitHub link.
+**Phase 4 (25–30s):** Summary banner with download options and GitHub link.
 
 ---
 
@@ -41,7 +39,7 @@
 
 ---
 
-## 4. Judge-Friendly Critical Signals
+## 4. Critical Signals
 
 **Avoid Black Box Outputs:**
 - Show performance telemetry inside results
@@ -63,7 +61,7 @@ With one click, our model ingests raw IR. Slide across the interactive viewport 
 
 [Toggle Object Detection button]
 
-This isn't aesthetic - piping our colorized data into a standard object detector boosts target identification confidence by over 45%, converting uninterpretable monochrome noise into actionable mission-critical analytics."
+This isn't aesthetic — piping our colorized data into a standard object detector boosts target identification confidence by over 45%, converting uninterpretable monochrome noise into actionable analytics."
 
 ---
 

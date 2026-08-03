@@ -1,5 +1,3 @@
-**Update 2026:** Pipeline is frozen and validated for Kaggle deployment. Base resolution is now 128x128 with Dynamic U-Net.
-
 ## 1. Performance Estimates
 
 | Hardware | Inference Time | Notes |
@@ -13,8 +11,8 @@
 
 - Parameters (fp32): 228 MB
 - Parameters (fp16): 114 MB
-- Activations (128x128, fp32): ~200 MB
-- Total RAM needed: ~450 MB (fp32) or 150 MB (fp16)
+- Activations (128×128, fp32): ~200 MB
+- Total RAM needed: ~450 MB (fp32) or ~150 MB (fp16)
 
 ## 3. Optimization Strategy
 
@@ -40,13 +38,13 @@
 ### Acceptable Formats
 - PNG, JPG, TIFF
 - Max file size: 20 MB
-- Max resolution: 4096x4096
+- Max resolution: 4096×4096
 
 ### Preprocessing
 1. If RGB uploaded, extract red channel only as IR
 2. Resize maintaining aspect ratio
 3. Pad to square with zeros
-4. Resize to 128x128 with Lanczos interpolation
+4. Resize to 128×128 with Lanczos interpolation
 5. Normalize to [-1, 1]
 
 ### Auto-reject
@@ -66,7 +64,7 @@ Run inference on 4 augmented versions, average results:
 - Vertical flip
 - 90 degree rotation
 
-Improves SSIM by 0.01-0.02. Costs 4x inference time.
+Improves SSIM by 0.01-0.02. Costs 4x inference time. Configured via `evaluation.tta: true` in config.
 
 ### Post-processing
 - CLAHE on luminance channel for contrast
@@ -83,7 +81,7 @@ Improves SSIM by 0.01-0.02. Costs 4x inference time.
 ## 6. Confidence Score
 
 Use discriminator output as quality metric:
-- > 0.7: High quality
+- \> 0.7: High quality
 - 0.4-0.7: Acceptable
 - < 0.4: Low confidence warning
 
