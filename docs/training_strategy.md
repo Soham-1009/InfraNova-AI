@@ -68,7 +68,7 @@ Kaggle instances wipe data. Checkpoints are saved to /kaggle/working/outputs/mod
 
 - **12-Hour Limit:** Free Colab has hard 12-hour limit, ~90 min idle timeout
 - **If browser sleeps:** Training dies
-- **Recommended:** Colab Pro (~$10) for Background Execution during hackathon week
+- **Recommended:** Colab Pro (~$10) for Background Execution during intensive training phases
 - **Disconnection Handling:** Wrap training in `try/except KeyboardInterrupt` to save state cleanly
 
 ---

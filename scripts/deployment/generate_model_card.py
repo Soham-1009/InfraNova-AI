@@ -85,7 +85,6 @@ tags:
   - landsat-9
   - pix2pix
   - remote-sensing
-  - ISRO
 ---
 
 # InfraNova AI — Thermal IR to RGB Synthesis
@@ -144,7 +143,7 @@ thermal input and generates a 3-channel RGB visual interpretation.
 This model is intended for:
 - Visual interpretation of thermal satellite imagery
 - Research and educational purposes
-- Hackathon demonstrations
+- Interactive demonstrations
 
 > **Note**: The output is a *learned, plausible* RGB-like interpretation and should
 > **not** be treated as ground truth visible imagery.
@@ -171,7 +170,6 @@ This model is intended for:
 @misc{{infranNova2026,
   title={{InfraNova AI: Thermal IR to RGB Synthesis}},
   year={{2026}},
-  note={{Bharatiya Antariksh Hackathon 2026 — ISRO}}
 }}
 ```
 

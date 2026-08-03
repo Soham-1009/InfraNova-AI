@@ -2,7 +2,7 @@
 
 ## 1. UI Layout (Single-Page Top-Down Focus)
 
-**Header:** Minimalist title with ISRO BAH 2026 problem statement ID. Badge bar showing runtime stats (PyTorch version, inference time).
+**Header:** Minimalist title . Badge bar showing runtime stats (PyTorch version, inference time).
 
 **Hero/Input Zone:** Two pathways:
 - File drag-and-drop uploader

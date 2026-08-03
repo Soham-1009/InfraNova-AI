@@ -2,7 +2,7 @@
 
 ## Landsat 9 TIR‑to‑RGB Colorisation: Mathematical and Strategic Analysis
 
-**Switch rationale:** Landsat 9 Band 10 (10.9 µm, 100 m native) provides true thermal infrared imaging, which is far more challenging than the near‑infrared (NIR) bands used earlier. ISRO’s operational needs (night‑time, cloud‑penetrating surveillance) are exactly what TIR addresses. Below is a rigorous analysis of how the physics of thermal emission changes the problem, and how to adapt our loss, architecture, training, and evaluation accordingly.
+**Switch rationale:** Landsat 9 Band 10 (10.9 µm, 100 m native) provides true thermal infrared imaging, which is far more challenging than the near‑infrared (NIR) bands used earlier. Operational needs (night‑time, cloud‑penetrating surveillance) are exactly what TIR addresses. Below is a rigorous analysis of how the physics of thermal emission changes the problem, and how to adapt our loss, architecture, training, and evaluation accordingly.
 
 ---
 
@@ -44,9 +44,9 @@ The conditional entropy \(H(\text{RGB}|\text{TIR})\) is large because a single T
 **Additional context:** Time of day (solar heating), season (vegetation state, snow cover), and geographic location (climate zone) strongly affect TIR values for the same object class. For example, a road in Delhi at noon (45 °C) is much hotter than the same road in Moscow in winter (–5 °C), yet both are grey in RGB. The model would need to learn that a given TIR value can mean different colours depending on context.
 
 **Should we input context?**  
-For a hackathon, simplifying assumptions are acceptable. The dataset’s diversity (50 regions across all seasons and climates) will force the model to learn a robust mapping that implicitly captures context from the TIR image itself (spatial patterns, neighbouring texture). Adding explicit metadata (time, lat/lon, season) as auxiliary channels or conditioning vectors could improve performance, but it complicates the model. We recommend **not adding extra inputs** for the baseline, but mention it as a future enhancement. The model will learn to disambiguate using spatial context alone, as Pix2Pix already does.
+For an initial baseline, simplifying assumptions are acceptable. The dataset’s diversity (50 regions across all seasons and climates) will force the model to learn a robust mapping that implicitly captures context from the TIR image itself (spatial patterns, neighbouring texture). Adding explicit metadata (time, lat/lon, season) as auxiliary channels or conditioning vectors could improve performance, but it complicates the model. We recommend **not adding extra inputs** for the baseline, but mention it as a future enhancement. The model will learn to disambiguate using spatial context alone, as Pix2Pix already does.
 
-**Realistic SSIM target:** With 1800 patches (after augmentation ~14 000 unique views), the Pix2Pix‑like model should reach **SSIM ≈ 0.25–0.28, LPIPS ≈ 0.25–0.30, FID ≈ 40–60**. These are acceptable for ISRO’s demonstration.
+**Realistic SSIM target:** With 1800 patches (after augmentation ~14 000 unique views), the Pix2Pix‑like model should reach **SSIM ≈ 0.25–0.28, LPIPS ≈ 0.25–0.30, FID ≈ 40–60**. These are acceptable for demonstration purposes.
 
 ---
 
@@ -180,7 +180,7 @@ For RGB, we simply rescale from [0,255] to [−1,1] using \(x = I/127.5 - 1\), a
 
 1. **LPIPS** (AlexNet backbone): captures perceptual similarity well; target <0.30 for satellite imagery.
 2. **FID**: measures how well the distribution of generated images matches the real RGB distribution (requires computing Inception features over many samples). Target <70 (lower is better).
-3. **Object detection mAP improvement:** Run a pre‑trained object detector (YOLOv8 or DETR) on: (a) the original TIR image (converted to 3‑channel by replication), (b) the coloured output. Show that detection accuracy is far higher on the coloured output. This directly addresses ISRO’s “improved situational awareness” requirement.
+3. **Object detection mAP improvement:** Run a pre‑trained object detector (YOLOv8 or DETR) on: (a) the original TIR image (converted to 3‑channel by replication), (b) the coloured output. Show that detection accuracy is far higher on the coloured output. This directly addresses the “improved situational awareness” requirement.
 4. **Edge preservation index (EPI):** Compute Canny edges on TIR and on the coloured output, measure overlap to quantify structural fidelity. This is a custom metric that does not punish colour deviation.
 
 **Do not rely solely on SSIM.** We will report SSIM as a secondary number, but the primary evaluation will be LPIPS + FID + object detection gain.
@@ -189,7 +189,7 @@ For RGB, we simply rescale from [0,255] to [−1,1] using \(x = I/127.5 - 1\), a
 
 ### 9. Super‑Resolution Component (200 m → 100 m) + Colorisation
 
-**Problem:** ISRO requires both enhancing the resolution of TIR data (from 200 m to 100 m) and converting it to RGB. We can solve both tasks jointly with a single generator that takes a low‑resolution TIR image and outputs a high‑resolution RGB.
+**Problem:** We require both enhancing the resolution of TIR data (from 200 m to 100 m) and converting it to RGB. We can solve both tasks jointly with a single generator that takes a low‑resolution TIR image and outputs a high‑resolution RGB.
 
 **Approach:**  
 - Downsample our 100 m TIR patches to 50% (64×64) using bicubic interpolation to simulate 200 m input.
@@ -205,13 +205,13 @@ Separate super‑resolution (SR) of TIR then colorisation would amplify artefact
 
 **Loss function for super‑resolution:** We already have L1, perceptual, and adversarial losses that naturally encourage sharpness. The SSIM loss also promotes structural similarity at the finer scale. So no new loss term is needed.
 
-**Recommendation:** Present the combined super‑resolution + colorisation as a single end‑to‑end model. This is a strong selling point for the hackathon.
+**Recommendation:** Present the combined super‑resolution + colorisation as a single end‑to‑end model. This is a strong selling point architectural advantage.
 
 ---
 
-### 10. Publication‑Worthy Targets for ISRO Submission
+### 10. Publication‑Worthy Targets 
 
-For a successful ISRO demonstration, we must hit certain numeric and visual benchmarks:
+For a successful demonstration, we must hit certain numeric and visual benchmarks:
 
 | Metric | Minimum Acceptable | Good | Excellent |
 |--------|--------------------|------|-----------|
@@ -250,4 +250,4 @@ This comparative evaluation will convincingly prove the value of our approach.
 - **Targets:** SSIM ≥0.25, PSNR ≥22 dB, LPIPS ≤0.25, detection mAP +25% over TIR baseline.
 - **Training:** 250 epochs with linear LR decay from epoch 230 and early stopping on validation SSIM.
 
-These recommendations are mathematically sound and tuned for the thermal infrared domain. They will form the core methodology for our ISRO submission.
+These recommendations are mathematically sound and tuned for the thermal infrared domain. They will form the core methodology for our final model.

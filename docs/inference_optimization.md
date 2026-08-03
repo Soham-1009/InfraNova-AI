@@ -139,7 +139,7 @@ Use discriminator output as quality metric:
 
 ## Final Recommendations
 
-**For Hackathon Demo (Laptop):**
+**For Local Demo (Laptop):**
 - Use PyTorch on CPU
 - Single image inference (2-3s)
 - Show spinner during processing

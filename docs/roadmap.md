@@ -1,11 +1,10 @@
-Here is the comprehensive strategic playbook to transition InfraNova AI to the Landsat 9 TIR specification and finalize the submission for the ISRO BAH 2026 hackathon.
+Here is the comprehensive strategic playbook to transition InfraNova AI to the Landsat 9 TIR specification and finalize the project.
 
 ---
 
 # 🛰️ InfraNova AI: Landsat 9 TIR Colorization Roadmap
 
 **File Location:** `docs/landsat9_roadmap.md`
-**Target:** ISRO BAH 2026 Submission
 **Objective:** End-to-End Pipeline for 200m TIR $\rightarrow$ 100m TIR $\rightarrow$ 100m RGB
 
 ---
@@ -86,7 +85,7 @@ The Streamlit UI must tell a technical story of mission capability, not just ima
 * *Content:* "InfraNova AI: TIR Super-Resolution & Colorization for Mission Operations"
 * *Visual:* Clean, high-contrast side-by-side of a TIR patch and our RGB output.
 
-**Slide 2: The ISRO Problem**
+**Slide 2: The Problem**
 
 * *Content:* Night-time and thermal imaging (Landsat 9/INSAT) is monochrome and lacks semantic texture, bottlenecking automated disaster and border monitoring.
 
@@ -112,7 +111,7 @@ The Streamlit UI must tell a technical story of mission capability, not just ima
 
 * *Content:* Clean, high-res captures of the Streamlit interface demonstrating the user flow.
 
-**Slide 8: Future Work & ISRO Integration**
+**Slide 8: Future Work **
 
 * *Content:* Direct pathway to integrating this module into the Bhuvan Geoportal for real-time agricultural and urban heat mapping.
 
@@ -123,7 +122,7 @@ The Streamlit UI must tell a technical story of mission capability, not just ima
 *(Visual: Screen recording starts on the Streamlit landing page. Confident, steady tech-demo tone. No background music, keep it strictly professional.)*
 
 **[0:00 - 0:15] The Hook:**
-"Welcome to InfraNova AI. ISRO's satellite platforms capture critical thermal infrared data at night, but these monochrome images are notoriously difficult for both humans and AI to interpret. Today, we are solving that."
+"Welcome to InfraNova AI. Satellite platforms capture critical thermal infrared data at night, but these monochrome images are notoriously difficult for both humans and AI to interpret. Today, we are solving that."
 
 **[0:15 - 0:40] The Transformation:**
 *(Visual: Click the 'Urban Nagpur Heat Map' sample. The UI processes the image.)*
@@ -138,7 +137,7 @@ The Streamlit UI must tell a technical story of mission capability, not just ima
 
 ---
 
-### 🚀 5. ISRO ALIGNMENT NARRATIVE
+### 🚀 5. PROJECT NARRATIVE
 
 To win, the judges must see how this fits into their actual workflow:
 
@@ -150,7 +149,7 @@ To win, the judges must see how this fits into their actual workflow:
 
 ### 🧠 6. TECHNICAL DIFFERENTIATION
 
-What separates InfraNova AI from the 50 other hackathon teams:
+What separates InfraNova AI from other models:
 
 1. **Real Satellite Data:** We are using actual multi-band Landsat 9 Level-2 data, not ground-level synthetic datasets like FLIR.
 2. **The "Delta" Approach:** We prove success not just through SSIM metrics, but by measuring the improvement in an entirely separate AI model (YOLO) acting on our outputs.
@@ -162,7 +161,7 @@ What separates InfraNova AI from the 50 other hackathon teams:
 
 * **Training Fails (Mode Collapse):** *Mitigation:* Immediately fall back to the Day 3 weights. An imperfect colorizer with a working Streamlit demo scores higher than a broken model with no demo.
 * **Demo Breaks During Judging:** *Mitigation:* Have a pre-recorded video loaded locally on your machine, and cache the absolute best 5 outputs directly into the GitHub repository as static images.
-* **Submission Portal Crash:** *Mitigation:* Hackathon portals often crash in the final 30 minutes. The hard rule is to submit the final URL and PDF exactly 6 hours before the official midnight deadline.
+* **Submission Portal Crash:** *Mitigation:* Submission portals often crash in the final 30 minutes. The hard rule is to submit the final URL and PDF exactly 6 hours before the official midnight deadline.
 
 ---
 
@@ -171,13 +170,13 @@ What separates InfraNova AI from the 50 other hackathon teams:
 * [ ] **GitHub Repository Public:** Check in an Incognito window.
 * [ ] **`README.md` Polished:** Must include a high-level architecture diagram and standard `pip install -r requirements.txt` instructions.
 * [ ] **Model Weights Uploaded:** Do not push `.pth` files to GitHub if they exceed 100MB; use Hugging Face or a Kaggle Dataset link.
-* [ ] **Technical Report PDF:** Exported and under the hackathon file size limit.
+* [ ] **Technical Report PDF:** Exported and under the file size limit.
 * [ ] **Demo Video:** Uploaded to YouTube as 'Unlisted', link included in the submission form.
 * [ ] **Code Cleansed:** Remove any hardcoded local paths (e.g., `C:/Users/...` or `/content/drive/...`) and replace with relative paths.
 
 ---
 
-### 🔭 9. POST-HACKATHON STRATEGY
+### 🔭 9. FUTURE STRATEGY
 
 * **Open Source Release:** Package the inference module as a standalone PyPi library (`pip install infranovatir`) for the remote sensing community.
 * **Academic Publication:** If the final SSIM breaks 0.70 on Landsat 9 data, draft a short paper focusing on the downstream YOLO accuracy improvements for the IEEE IGARSS conference or CVPR's EarthVision workshop.

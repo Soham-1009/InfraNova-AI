@@ -827,7 +827,7 @@ st.markdown(
         </p>
         <p style="margin-top: 0.5rem;">
             <span class="footer-brand">InfraNova AI</span>
-            &nbsp;·&nbsp; Bharatiya Antariksh Hackathon 2026 &nbsp;·&nbsp; ISRO
+           
         </p>
     </div>
     """,
