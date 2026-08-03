@@ -1,3 +1,5 @@
+**Update 2026:** Pipeline is frozen and validated for Kaggle deployment. Base resolution is now 128x128 with Dynamic U-Net.
+
 ## 1. Performance Estimates
 
 | Hardware | Inference Time | Notes |
@@ -11,8 +13,8 @@
 
 - Parameters (fp32): 228 MB
 - Parameters (fp16): 114 MB
-- Activations (256x256, fp32): 800 MB
-- Total RAM needed: ~1 GB (fp32) or 500 MB (fp16)
+- Activations (128x128, fp32): ~200 MB
+- Total RAM needed: ~450 MB (fp32) or 150 MB (fp16)
 
 ## 3. Optimization Strategy
 

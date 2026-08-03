@@ -27,7 +27,7 @@ Training a GAN is not like training a standard classifier; the loss curves will 
 
 ### Visual Strategy
 
-Log a fixed grid of 4 test images to W&B at the end of EVERY epoch. Watching the same 4 images evolve is the best way to spot colour washing.
+Log a fixed grid of 4 test images to outputs/visualizations/ at the end of EVERY epoch. Watching the same 4 images evolve is the best way to spot colour washing.
 
 ---
 
@@ -45,9 +45,9 @@ Log a fixed grid of 4 test images to W&B at the end of EVERY epoch. Watching the
 
 ## 4. Checkpoint Management
 
-Colab instances wipe data on disconnect. MUST save to Google Drive.
+Kaggle instances wipe data. Checkpoints are saved to /kaggle/working/outputs/models/.
 
-- **Path:** `/content/drive/MyDrive/InfraNova-AI/checkpoints/`
+- **Path:** `/kaggle/working/outputs/models/best/`
 - **Naming:** `pix2pix_epoch_{epoch}_PSNR_{psnr:.2f}.pth`
 - **Keep Top 3:** Save only when val SSIM/PSNR improves, keep best 3 files
 - **Resume Logic:** Save optimizer states alongside weights for clean resumption

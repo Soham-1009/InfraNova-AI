@@ -8,8 +8,10 @@ The project is designed around a simple idea: thermal images show heat patterns,
 
 - Downloads Landsat 9 thermal and RGB bands from Google Earth Engine.
 - Organizes raw `.tif` exports into region folders.
-- Builds paired training patches from thermal infrared and RGB bands.
-- Trains a Pix2Pix GAN for TIR-to-RGB colorization.
+- Builds paired 128x128 training patches, filtering out anomalous data (NoData/Blank).
+- Generates reproducible dataset fingerprints and experiment telemetry.
+- Trains a Pix2Pix GAN (with Dynamic U-Net generator) for TIR-to-RGB colorization.
+- Features a Kaggle-ready deployment suite (`kaggle_smoke_test.md`).
 - Runs inference from a checkpoint.
 - Provides a Streamlit app for uploading thermal images and viewing generated RGB output.
 
@@ -63,11 +65,12 @@ docs/
   methodology.md              Thermal-to-RGB methodology
   training_strategy.md        Training plan and monitoring notes
 
-download_landsat9.py          Earth Engine export script
-organize_files.py             Organizes downloaded .tif exports
-process_landsat_patches.py    Builds .npy patch samples
-split_patches.py              Creates region-level train/val/test splits
-requirements.txt              Main Python dependencies
+scripts/
+  download/download_landsat9.py     Earth Engine export
+  preprocessing/organize_files.py   Organizes .tif exports
+  preprocessing/process_landsat_patches.py Builds .npy patches
+  preprocessing/split_patches.py    Creates train/val/test splits
+requirements.txt                    Main Python dependencies
 ```
 
 ## Setup
@@ -108,7 +111,7 @@ pip install -r requirements.txt
 ### 1. Export Landsat 9 data
 
 ```powershell
-venv\Scripts\python.exe download_landsat9.py
+venv\Scripts\python.exe scripts\download\download_landsat9.py
 ```
 
 This starts Earth Engine export tasks for Landsat 9 bands:
@@ -125,7 +128,7 @@ The files are exported to Google Drive.
 After downloading the Drive exports locally:
 
 ```powershell
-venv\Scripts\python.exe organize_files.py --source path\to\downloaded\folder
+venv\Scripts\python.exe scripts\preprocessing\organize_files.py --source path\to\downloaded\folder
 ```
 
 This creates per-region folders under:
@@ -137,7 +140,7 @@ data/landsat9/input/
 ### 3. Build patches
 
 ```powershell
-venv\Scripts\python.exe process_landsat_patches.py
+venv\Scripts\python.exe scripts\preprocessing\process_landsat_patches.py
 ```
 
 This creates samples under:
@@ -155,7 +158,7 @@ Each sample contains:
 ### 4. Create splits
 
 ```powershell
-venv\Scripts\python.exe split_patches.py --overwrite
+venv\Scripts\python.exe scripts\preprocessing\split_patches.py --overwrite
 ```
 
 The split is region-level. Patches from the same region are kept in only one of train, validation, or test to avoid evaluation leakage. The splitter also keeps small datasets usable by avoiding empty train/val partitions when there are only a few regions.
@@ -171,7 +174,7 @@ configs/config.yaml
 Run:
 
 ```powershell
-venv\Scripts\python.exe src\training\train_landsat.py
+venv\Scripts\python.exe -m src.training.train_landsat
 ```
 
 The current setup uses:
@@ -187,7 +190,7 @@ The current setup uses:
 Checkpoints are written under:
 
 ```text
-checkpoints/
+outputs/models/
 ```
 
 Large checkpoint files are intentionally ignored by Git.
@@ -203,7 +206,7 @@ src/inference/landsat_inference.py
 It loads the trained checkpoint:
 
 ```text
-checkpoints/best/pix2pix_landsat_best.pth
+outputs/models/best/pix2pix_landsat_best.pth
 ```
 
 The existing checkpoint can be used for demo and inference. Retraining is only needed if you want a clean benchmark using the latest region-level split and corrected training settings.
@@ -245,8 +248,8 @@ The Docker image installs CPU PyTorch explicitly before the rest of the requirem
 You can also run one-off scripts inside the container, for example:
 
 ```powershell
-docker compose run --rm app python process_landsat_patches.py
-docker compose run --rm app python src/training/train_landsat.py
+docker compose run --rm app python scripts/preprocessing/process_landsat_patches.py
+docker compose run --rm app python -m src.training.train_landsat
 ```
 
 For GPU training on Docker, swap the base image to a CUDA-enabled PyTorch image and run the container with NVIDIA runtime support. The current Dockerfile is aimed at the demo and CPU-friendly utility scripts.
@@ -266,12 +269,12 @@ docker compose up --build
 Useful quick checks:
 
 ```powershell
-venv\Scripts\python.exe -m compileall -q download_landsat9.py organize_files.py process_landsat_patches.py split_patches.py src demo
+venv\Scripts\python.exe -m compileall -q scripts/download/download_landsat9.py scripts/preprocessing/organize_files.py scripts/preprocessing/process_landsat_patches.py scripts/preprocessing/split_patches.py src demo
 venv\Scripts\python.exe -m pip check
 ```
 
 ## Notes
 
-- `data/`, `checkpoints/`, `logs/`, and generated outputs are intentionally not committed.
+- `data/`, `outputs/models/`, `logs/`, and generated outputs are intentionally not committed.
 - The model output is best described as RGB-like visual synthesis, not exact color recovery.
 - For trustworthy reported metrics, evaluate on region-level splits rather than random patch-level splits.

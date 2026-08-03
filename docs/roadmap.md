@@ -181,3 +181,5 @@ What separates InfraNova AI from the 50 other hackathon teams:
 
 * **Open Source Release:** Package the inference module as a standalone PyPi library (`pip install infranovatir`) for the remote sensing community.
 * **Academic Publication:** If the final SSIM breaks 0.70 on Landsat 9 data, draft a short paper focusing on the downstream YOLO accuracy improvements for the IEEE IGARSS conference or CVPR's EarthVision workshop.
+
+**Update 2026:** All phases completed. Pipeline is frozen and validated for Kaggle deployment via kaggle_smoke_test.md.

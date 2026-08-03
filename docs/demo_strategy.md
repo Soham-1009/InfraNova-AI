@@ -1,3 +1,5 @@
+**Update 2026:** Pipeline is frozen and validated for Kaggle deployment. Base resolution is now 128x128 with Dynamic U-Net.
+
 ## 1. UI Layout (Single-Page Top-Down Focus)
 
 **Header:** Minimalist title with ISRO BAH 2026 problem statement ID. Badge bar showing runtime stats (PyTorch version, inference time).
