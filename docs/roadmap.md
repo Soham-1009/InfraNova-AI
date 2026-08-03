@@ -23,8 +23,8 @@ Here is the comprehensive strategic playbook to transition InfraNova AI to the L
 
 * **Deliverables:** Launch the Pix2Pix training loop on the 100m TIR $\rightarrow$ 100m RGB task.
 * **Time Estimate:** 8–10 Hours (Background execution).
-* **Risk:** Colab/Kaggle timeout during training.
-* **Backup:** Save optimizer state and model weights every 10 epochs to Google Drive.
+* **Risk:** Kaggle timeout during training.
+* **Backup:** Save optimizer state and model weights every 10 epochs to Kaggle outputs.
 
 **Day 3: Evaluation and Tuning**
 
@@ -45,7 +45,7 @@ Here is the comprehensive strategic playbook to transition InfraNova AI to the L
 * **Deliverables:** Refactor the UI to process the three-step pipeline (Upload $\rightarrow$ SR $\rightarrow$ Colorize). Integrate YOLOv10 for the final downstream task.
 * **Time Estimate:** 6 Hours.
 * **Risk:** The UI becomes unresponsive due to the heavy triple-inference pipeline.
-* **Backup:** Use `@st.cache_data` aggressively and restrict test inputs to 256x256 crops during live UI interactions.
+* **Backup:** Use `@st.cache_data` aggressively and restrict test inputs to 128x128 crops during live UI interactions.
 
 **Day 6: Pitch Deck & Demo Video**
 
@@ -170,7 +170,7 @@ What separates InfraNova AI from the 50 other hackathon teams:
 
 * [ ] **GitHub Repository Public:** Check in an Incognito window.
 * [ ] **`README.md` Polished:** Must include a high-level architecture diagram and standard `pip install -r requirements.txt` instructions.
-* [ ] **Model Weights Uploaded:** Do not push `.pth` files to GitHub if they exceed 100MB; use Hugging Face or a public Google Drive link.
+* [ ] **Model Weights Uploaded:** Do not push `.pth` files to GitHub if they exceed 100MB; use Hugging Face or a Kaggle Dataset link.
 * [ ] **Technical Report PDF:** Exported and under the hackathon file size limit.
 * [ ] **Demo Video:** Uploaded to YouTube as 'Unlisted', link included in the submission form.
 * [ ] **Code Cleansed:** Remove any hardcoded local paths (e.g., `C:/Users/...` or `/content/drive/...`) and replace with relative paths.

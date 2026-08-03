@@ -46,7 +46,7 @@
 1. If RGB uploaded, extract red channel only as IR
 2. Resize maintaining aspect ratio
 3. Pad to square with zeros
-4. Resize to 256x256 with Lanczos interpolation
+4. Resize to 128x128 with Lanczos interpolation
 5. Normalize to [-1, 1]
 
 ### Auto-reject
