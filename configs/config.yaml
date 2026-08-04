@@ -10,12 +10,12 @@ dataset:
   image_size: 128
   input_channels: 1
   output_channels: 3
-  num_workers: 0
+  num_workers: 2
   normalization:
     mode: "local"
     stats_file: null
   subset_ratio: null
-  subset_seed: null
+  subset_seed: 42
 
 model:
   generator:
@@ -24,7 +24,7 @@ model:
 
 training:
   epochs: 250
-  batch_size: 32
+  batch_size: 128
   decay_start_epoch: 230
   patience: 40
   amp: true

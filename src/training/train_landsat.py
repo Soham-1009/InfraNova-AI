@@ -84,7 +84,8 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
     num_workers = int(dataset_cfg.get("num_workers", 2))
     batch_size = int(training_cfg.get("batch_size", 8))
     subset_ratio = dataset_cfg.get("subset_ratio", None)
-    subset_seed = int(dataset_cfg.get("subset_seed", 42))
+    subset_seed_raw = dataset_cfg.get("subset_seed")
+    subset_seed = int(subset_seed_raw) if subset_seed_raw is not None else 42
 
     # Normalization config (backward-compatible: defaults to "local")
     norm_cfg = dataset_cfg.get("normalization", {})
