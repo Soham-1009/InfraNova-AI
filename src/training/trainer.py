@@ -43,6 +43,11 @@ class Trainer:
             config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
         )
         self.model.to(self.device)
+        
+        # Automatically use multiple GPUs if available
+        if self.device.type == "cuda" and torch.cuda.device_count() > 1:
+            print(f"Using {torch.cuda.device_count()} GPUs for training!")
+            self.model = torch.nn.DataParallel(self.model)
 
         training_cfg = config.get("training", {})
         optim_cfg = training_cfg.get("optimizer", {})
