@@ -65,7 +65,7 @@ Key production settings from `configs/config.yaml`:
 |-----------|-------|
 | Image size | 128×128 |
 | Epochs | 250 |
-| Batch size | 8 |
+| Batch size | 128 |
 | LR decay start | Epoch 230 |
 | Learning rate | 0.0002 |
 | AMP | Enabled |
