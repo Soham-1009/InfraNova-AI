@@ -43,12 +43,6 @@ class Trainer:
             config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
         )
         self.model.to(self.device)
-        
-        # Automatically use multiple GPUs if available
-        if self.device.type == "cuda" and torch.cuda.device_count() > 1:
-            print(f"Using {torch.cuda.device_count()} GPUs for training!")
-            self.model.generator = torch.nn.DataParallel(self.model.generator)
-            self.model.discriminator = torch.nn.DataParallel(self.model.discriminator)
 
         training_cfg = config.get("training", {})
         optim_cfg = training_cfg.get("optimizer", {})
@@ -77,6 +71,7 @@ class Trainer:
         self.visual_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create optimizers BEFORE DataParallel wrapping to avoid attribute access issues
         # Generator optimizer - full learning rate
         self.optimizer_g = torch.optim.Adam(
             self.model.generator.parameters(),
@@ -90,6 +85,12 @@ class Trainer:
             lr=self.lr * 0.5,
             betas=(self.beta1, self.beta2),
         )
+
+        # Wrap with DataParallel AFTER optimizer creation
+        if self.device.type == "cuda" and torch.cuda.device_count() > 1:
+            print(f"Using {torch.cuda.device_count()} GPUs for training!")
+            self.model.generator = torch.nn.DataParallel(self.model.generator)
+            self.model.discriminator = torch.nn.DataParallel(self.model.discriminator)
 
         self.criterion = CombinedLoss(
             lambda_adv=float(loss_cfg.get("lambda_adv", 1.0)),
