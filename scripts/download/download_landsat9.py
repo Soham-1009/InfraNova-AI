@@ -16,9 +16,9 @@ from contextlib import suppress
 from pathlib import Path
 
 import ee
+import numpy as np
 import rasterio
 import requests
-import numpy as np
 
 # Make project root importable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -616,7 +616,7 @@ def verify_tiff(filepath: Path, expected_bands: int) -> None:
             if src.crs is None:
                 raise ValueError("Image has no CRS defined")
     except rasterio.errors.RasterioIOError as e:
-        raise ValueError(f"Corrupted GeoTIFF: {e}")
+        raise ValueError(f"Corrupted GeoTIFF: {e}") from e
 
 def process_region(region_id: str, region_info: dict, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
     """Processes a single region with progressive fallback and adaptive radius expansion. Returns (success, message)."""
@@ -643,10 +643,10 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
         est_grid = int((2 * r / 30.0) * PREPROCESS_SCALE)
         if est_grid >= 80:
             valid_radii.append(r)
-            
+
     # Ensure minimum radius is mathematically valid if none exist
     if not valid_radii or min(valid_radii) > 10000:
-        valid_radii = sorted(list(set([8000] + valid_radii)))
+        valid_radii = sorted(list(set([8000, *valid_radii])))
 
     attempt = 0
     total_attempts = len(valid_radii) * len(SHIFTS) * \
@@ -659,7 +659,7 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
                     attempt += 1
                     lat = base_lat + shift_lat
                     lon = base_lon + shift_lon
-                    
+
                     current_radius = base_radius
 
                     # Adaptive download loop
@@ -720,31 +720,31 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
                                 {'scale': 30, 'region': region, 'format': 'GEO_TIFF'})
                             download_and_extract(tir_url, dest_dir, "tir.tif")
                             verify_tiff(tir_path, 1)
-                            
+
                             # Post-download verification of actual image size and valid data
                             with rasterio.open(rgb_path) as src:
                                 w, h = src.width, src.height
                                 # Use GDAL dataset mask for robust NoData detection across all bands
                                 mask = src.dataset_mask()
                                 valid_ratio = np.count_nonzero(mask) / mask.size
-                                
+
                             grid_w = round(w * PREPROCESS_SCALE)
                             grid_h = round(h * PREPROCESS_SCALE)
-                            
+
                             if grid_w < 64 or grid_h < 64:
                                 if verbose:
                                     print(f"\nRegion: {region_info['name']}")
                                     print(f"Grid: {grid_w}x{grid_h}")
                                     print(f"Valid pixels: {valid_ratio*100:.0f}%")
                                     print("Decision:")
-                                
+
                                 # Clean up files so we can retry
                                 for f in ["rgb.tif", "tir.tif"]:
                                     fpath = dest_dir / f
                                     if fpath.exists():
                                         with suppress(Exception):
                                             fpath.unlink()
-                                            
+
                                 # Decision tree for recovery
                                 if (1.0 - valid_ratio) > SWATH_EDGE_THRESHOLD:
                                     # Swath-edge issue: lots of NoData. A larger radius won't help the same scene.
@@ -767,7 +767,7 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
                                 print("Result : [OK] Success")
                             return True, f"Successfully downloaded {region_info['name']} on attempt {attempt}"
 
-                        except NETWORK_ERRORS as e:
+                        except NETWORK_ERRORS:
                             raise  # Trigger network backoff
                         except Exception as e:
                             if verbose:
@@ -847,7 +847,7 @@ def main():
 
     if state_file.exists():
         try:
-            with open(state_file, "r", encoding="utf-8") as f:
+            with open(state_file, encoding="utf-8") as f:
                 saved = json.load(f)
                 state.update(saved)
                 print(
@@ -870,7 +870,7 @@ def main():
             with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
                 futures = {executor.submit(worker, t): t for t in tasks}
                 for i, future in enumerate(concurrent.futures.as_completed(futures), 1):
-                    region_id, success, msg, attempts, is_network = future.result()
+                    region_id, success, msg, _attempts, is_network = future.result()
 
                     state["completed"] += 1
 

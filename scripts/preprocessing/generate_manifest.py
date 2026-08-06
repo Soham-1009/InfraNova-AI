@@ -4,7 +4,6 @@ Generate Dataset Manifest
 Creates a reproducible dataset_manifest.json with all parameters.
 """
 
-import sys
 import json
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +12,7 @@ PROJECT_ROOT = Path("c:/Users/soham/Desktop/Soham/InfraNova-AI")
 
 def generate_manifest():
     out_path = PROJECT_ROOT / "data/landsat9/dataset_manifest.json"
-    
+
     # Normally these would be pulled dynamically from constants, but we hardcode them here for the script
     manifest = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -27,10 +26,10 @@ def generate_manifest():
             "swath_edge_threshold": 0.10
         }
     }
-    
+
     with open(out_path, "w") as f:
         json.dump(manifest, f, indent=4)
-        
+
     print(f"Dataset manifest saved to {out_path}")
 
 if __name__ == "__main__":

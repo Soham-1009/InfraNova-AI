@@ -1,13 +1,11 @@
 import argparse
 import logging
-from pathlib import Path
 
 import torch
 import yaml
 
-from src.models.pix2pix.pix2pix import Pix2Pix
 from src.datasets.landsat9_dataset import Landsat9Dataset
-
+from src.models.pix2pix.pix2pix import Pix2Pix
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +23,13 @@ def validate_tensor(tensor: torch.Tensor, name: str) -> None:
     logger.info(f"Validating {name}...")
     logger.info(f"  Shape: {tensor.shape}")
     logger.info(f"  Dtype: {tensor.dtype}")
-    
+
     if not torch.isfinite(tensor).all():
         raise ValueError(f"{name} contains NaNs or Infs!")
-        
+
     min_val, max_val = tensor.min().item(), tensor.max().item()
     logger.info(f"  Min: {min_val:.4f}, Max: {max_val:.4f}")
-    
+
     if min_val < -2.0 or max_val > 2.0:
         logger.warning(f"{name} values ({min_val:.4f}, {max_val:.4f}) seem heavily out of bounds for normalized data.")
     else:
@@ -39,13 +37,13 @@ def validate_tensor(tensor: torch.Tensor, name: str) -> None:
 
 def test_inference_consistency(config_path: str, checkpoint_path: str):
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    logger.info(f"Starting Standalone Inference & Reload Consistency Test")
+    logger.info("Starting Standalone Inference & Reload Consistency Test")
     logger.info(f"Config: {config_path}")
     logger.info(f"Checkpoint: {checkpoint_path}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     cfg = load_config(config_path)
-    
+
     # 1. Prepare a single data sample deterministically
     dataset = Landsat9Dataset(
         root_dir=cfg["dataset"]["root_dir"],
@@ -54,7 +52,7 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
         augment=False,
         normalization=cfg["dataset"]["normalization"]["mode"],
     )
-    
+
     sample = dataset[0]
     ir_tensor = sample["ir"].unsqueeze(0).to(device)
     logger.info(f"Loaded validation sample 0. IR Tensor shape: {ir_tensor.shape}")
@@ -72,7 +70,7 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
     )
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     model_pass1.load_state_dict(checkpoint["model_state_dict"])
-    
+
     output_pass1 = run_inference_pass(model_pass1, ir_tensor)
     validate_tensor(output_pass1, "Output Pass 1")
 
@@ -88,7 +86,7 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
     )
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     model_pass2.load_state_dict(checkpoint["model_state_dict"])
-    
+
     output_pass2 = run_inference_pass(model_pass2, ir_tensor)
     validate_tensor(output_pass2, "Output Pass 2")
 
@@ -97,11 +95,11 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
     diff = torch.abs(output_pass1 - output_pass2)
     max_diff = diff.max().item()
     logger.info(f"Maximum absolute difference between Pass 1 and Pass 2: {max_diff:.8e}")
-    
+
     # Assert using standard floating point tolerance
     if not torch.allclose(output_pass1, output_pass2, atol=1e-6, rtol=1e-5):
         raise AssertionError(f"Reload consistency failed! Max diff {max_diff} exceeds tolerance.")
-        
+
     logger.info("SUCCESS: Checkpoint reload consistency verified (outputs match within floating-point tolerance).")
 
 if __name__ == "__main__":
@@ -109,5 +107,5 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, default="configs/config.yaml")
     parser.add_argument("--checkpoint", type=str, required=True)
     args = parser.parse_args()
-    
+
     test_inference_consistency(args.config, args.checkpoint)

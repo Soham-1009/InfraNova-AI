@@ -255,11 +255,11 @@ class Landsat9Dataset(Dataset):
             raise RuntimeError(
                 f"RGB spatial shape {rgb_100m.shape[-2:]} does not match configured image_size ({self.image_size}, {self.image_size})."
             )
-            
+
         # Ensure RGB channel count matches 3, agnostic to CHW vs HWC
         if rgb_100m.shape[0] != 3 and rgb_100m.shape[-1] != 3:
             raise RuntimeError(f"RGB array does not appear to contain 3 channels: {rgb_100m.shape}")
-            
+
         # Ensure correct data type and no NaNs
         if rgb_100m.dtype != np.float32 or tir_100m.dtype != np.float32:
             raise RuntimeError("Arrays must be float32.")

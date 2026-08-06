@@ -3,18 +3,18 @@ Architectural Verification and Shape Trace
 """
 
 import sys
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 import torch
-import torch.nn as nn
 
 PROJECT_ROOT = Path("c:/Users/soham/Desktop/Soham/InfraNova-AI")
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.pix2pix.generator import GeneratorUNet
 from src.models.pix2pix.discriminator import PatchDiscriminator
+from src.models.pix2pix.generator import GeneratorUNet
+
 
 def trace_shapes():
     print("="*60)
@@ -24,30 +24,30 @@ def trace_shapes():
     # 1. Initialize models
     print("\n[1] Initializing GeneratorUNet (8 blocks)...")
     gen = GeneratorUNet(in_channels=1)
-    
+
     print("\n[2] Initializing PatchDiscriminator...")
     disc = PatchDiscriminator(in_channels=4)
-    
+
     # 2. Register forward hooks to trace shapes
     shapes = []
     def hook_fn(module, input, output):
         name = module.__class__.__name__
         if hasattr(module, 'trace_name'):
             name = module.trace_name
-        
+
         in_shape = tuple(input[0].shape)
         if isinstance(output, tuple):
             out_shape = "Tuple: " + str([tuple(o.shape) for o in output])
         else:
             out_shape = tuple(output.shape)
-            
-        shapes.append(f"{name:<15} | In: {str(in_shape):<20} | Out: {str(out_shape)}")
+
+        shapes.append(f"{name:<15} | In: {in_shape!s:<20} | Out: {out_shape!s}")
 
     # Attach trace names and hooks
     for name, module in gen.named_children():
         module.trace_name = f"Gen:{name}"
         module.register_forward_hook(hook_fn)
-        
+
     for name, module in disc.named_children():
         module.trace_name = f"Disc:{name}"
         module.register_forward_hook(hook_fn)
@@ -55,7 +55,7 @@ def trace_shapes():
     # 3. Forward Pass: Generator
     print("\n[3] Executing Generator Forward Pass (1x1x128x128)...")
     x = torch.randn(1, 1, 128, 128)
-    
+
     try:
         y = gen(x)
         print("Generator forward pass SUCCEEDED.")
@@ -73,15 +73,15 @@ def trace_shapes():
         print("\nGenerator Trace:")
         for s in shapes:
             print("  " + s)
-            
+
         shapes.clear()
-        
+
         # 4. Forward Pass: Discriminator
         print("\n[4] Executing Discriminator Forward Pass (1x4x128x128)...")
         # Generator output is 1x3x128x128. Concat with input 1x1x128x128 = 1x4x128x128
         disc_input = torch.cat([x, y], dim=1)
         try:
-            d_out = disc(disc_input)
+            _ = disc(disc_input)
             print("Discriminator forward pass SUCCEEDED.")
             print("\nDiscriminator Trace:")
             for s in shapes:
@@ -100,7 +100,7 @@ def trace_shapes():
     print("="*60)
     print(f"Generator     : {count_parameters(gen):,}")
     print(f"Discriminator : {count_parameters(disc):,}")
-    
+
     print("\nNow initializing a dynamic GeneratorUNet (Solution D test)...")
     try:
         # Dynamic depth generator logic test (if we were to implement it)

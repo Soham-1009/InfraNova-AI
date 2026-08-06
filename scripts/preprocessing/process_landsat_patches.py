@@ -261,7 +261,7 @@ def main() -> None:
     input_dir = Path(args.input_dir)
     if not input_dir.is_absolute():
         input_dir = PROJECT_ROOT / input_dir
-        
+
     output_dir = Path(args.output_dir)
     if not output_dir.is_absolute():
         output_dir = PROJECT_ROOT / output_dir

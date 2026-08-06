@@ -3,13 +3,13 @@ End-to-End Training Integration Test for Dynamic Generator
 """
 
 import sys
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from torch.amp import GradScaler, autocast
+from torch.utils.data import DataLoader
 
 PROJECT_ROOT = Path("c:/Users/soham/Desktop/Soham/InfraNova-AI")
 if str(PROJECT_ROOT) not in sys.path:
@@ -18,11 +18,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
 
+
 def test_training_integration():
     print("="*60)
     print("TRAINING INTEGRATION VERIFICATION")
     print("="*60)
-    
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[1] Using device: {device}")
 
@@ -71,7 +72,7 @@ def test_training_integration():
             "ir": torch.randn(2, 1, 128, 128),
             "rgb": torch.randn(2, 3, 128, 128)
         }
-        
+
     ir = batch["ir"].to(device)
     rgb = batch["rgb"].to(device)
     print(f"    Batch shapes - IR: {ir.shape}, RGB: {rgb.shape}")
@@ -87,7 +88,7 @@ def test_training_integration():
             generator_impl="dynamic"
         )
         model.train()
-    except Exception as e:
+    except Exception:
         print("[FAIL] Model initialization failed:")
         traceback.print_exc()
         sys.exit(1)
@@ -95,32 +96,32 @@ def test_training_integration():
     # 3. Optimizers & Losses
     opt_g = torch.optim.Adam(model.generator.parameters(), lr=1e-4)
     opt_d = torch.optim.Adam(model.discriminator.parameters(), lr=1e-4)
-    
+
     criterion_gan = nn.BCEWithLogitsLoss()
     criterion_l1 = nn.L1Loss()
-    
+
     scaler = GradScaler("cuda", enabled=(device.type == "cuda"))
-    
+
     print("\n[4] Executing Forward & Backward Pass (with AMP)...")
     try:
         # ----- Train Discriminator -----
         opt_d.zero_grad()
-        
+
         with autocast(device_type=device.type, enabled=(device.type == "cuda")):
             # Fake
             fake_rgb = model.generate(ir)
             pred_fake = model.discriminate(ir, fake_rgb.detach())
             loss_d_fake = criterion_gan(pred_fake, torch.zeros_like(pred_fake))
-            
+
             # Real
             pred_real = model.discriminate(ir, rgb)
             loss_d_real = criterion_gan(pred_real, torch.ones_like(pred_real))
-            
+
             loss_d = (loss_d_fake + loss_d_real) * 0.5
-            
+
         scaler.scale(loss_d).backward()
         scaler.step(opt_d)
-        
+
         # Check D gradients
         d_grads = [p.grad is not None for p in model.discriminator.parameters() if p.requires_grad]
         if not all(d_grads):
@@ -130,15 +131,15 @@ def test_training_integration():
 
         # ----- Train Generator -----
         opt_g.zero_grad()
-        
+
         with autocast(device_type=device.type, enabled=(device.type == "cuda")):
             # We already have fake_rgb, but standard cycle recomputes or uses it
             pred_fake_for_g = model.discriminate(ir, fake_rgb)
             loss_g_gan = criterion_gan(pred_fake_for_g, torch.ones_like(pred_fake_for_g))
             loss_g_l1 = criterion_l1(fake_rgb, rgb) * 10.0
-            
+
             loss_g = loss_g_gan + loss_g_l1
-            
+
         scaler.scale(loss_g).backward()
         scaler.step(opt_g)
         scaler.update()
@@ -149,14 +150,14 @@ def test_training_integration():
             print("    [WARNING] Some generator parameters have no gradients!")
         else:
             print("    Generator gradients verified.")
-            
+
         print(f"    Loss D: {loss_d.item():.4f} | Loss G: {loss_g.item():.4f}")
-        
+
         if not torch.isfinite(loss_d) or not torch.isfinite(loss_g):
             print("    [FAIL] Losses are not finite!")
             sys.exit(1)
-            
-    except Exception as e:
+
+    except Exception:
         print("[FAIL] Training step failed:")
         traceback.print_exc()
         sys.exit(1)
@@ -164,17 +165,17 @@ def test_training_integration():
     print("\n[5] Checkpoint Save/Load Verification...")
     try:
         # Test state dict saving
-        chkpt_path = PROJECT_ROOT / "scripts/experiments/test_dynamic_chkpt.pth"
+        chkpt_path = PROJECT_ROOT / "experiments/test_dynamic_chkpt.pth"
         torch.save({
             "generator": model.generator.state_dict(),
             "discriminator": model.discriminator.state_dict()
         }, chkpt_path)
-        
+
         # Test loading
         loaded = torch.load(chkpt_path, map_location=device, weights_only=True)
         model.generator.load_state_dict(loaded["generator"])
         model.discriminator.load_state_dict(loaded["discriminator"])
-        
+
         chkpt_path.unlink()
         print("    [PASS] State dict serialization and deserialization successful.")
     except Exception as e:

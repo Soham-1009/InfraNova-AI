@@ -151,28 +151,29 @@ def _save_experiment_json(
     checkpoint_dir: Path
 ) -> None:
     """Save an experiment.json and config.yaml alongside the checkpoint."""
+    import hashlib
     import json
     import platform
-    import hashlib
+
     import yaml
-    
+
     experiment_id = cfg.get("project", {}).get("name", "InfraNova-AI").replace(" ", "_")
-    
+
     # Extract manifest if possible
     manifest_hash = "unknown"
     manifest_path = Path(cfg.get("dataset", {}).get("root_dir", "")).parent / "dataset_manifest.json"
     if manifest_path.exists():
         with open(manifest_path, "rb") as f:
             manifest_hash = hashlib.sha256(f.read()).hexdigest()[:12]
-            
+
     # Write config copy
     config_copy_path = checkpoint_dir / f"{experiment_id}_config.yaml"
     with open(config_copy_path, "w", encoding="utf-8") as f:
         yaml.dump(cfg, f, default_flow_style=False)
-        
+
     with open(config_copy_path, "rb") as f:
         config_hash = hashlib.sha256(f.read()).hexdigest()[:12]
-        
+
     exp_data = {
         "experiment_id": experiment_id,
         "python": platform.python_version(),
@@ -188,7 +189,7 @@ def _save_experiment_json(
         "best_ssim": float(best_ssim),
         "best_psnr": float(best_psnr)
     }
-    
+
     exp_path = checkpoint_dir / f"{experiment_id}_experiment.json"
     with open(exp_path, "w", encoding="utf-8") as f:
         json.dump(exp_data, f, indent=2)
@@ -498,7 +499,7 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     if Path(paths_cfg["latest_checkpoint"]).exists():
         shutil.copy2(paths_cfg["latest_checkpoint"], final_path)
         logger.info("Saved final checkpoint to %s", final_path)
-        
+
         # Copy the latest experiment config and json to final directory
         latest_dir = Path(paths_cfg["latest_checkpoint"]).parent
         final_dir = Path(final_path).parent
