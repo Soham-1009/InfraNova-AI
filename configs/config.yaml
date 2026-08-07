@@ -30,7 +30,7 @@ training:
   amp: true
   grad_clip: 1.0
   sample_every: 5
-  resume_from: null
+  resume_from: "outputs/models/best/pix2pix_landsat_latest.pth"
   optimizer:
     lr: 0.0002
     beta1: 0.5

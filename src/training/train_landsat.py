@@ -418,20 +418,6 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
             Path(latest_path).parent
         )
 
-        # Save epoch-specific checkpoint for resume testing
-        epoch_path = Path(paths_cfg["checkpoints"]) / f"epoch_{epoch + 1}.pth"
-        save_checkpoint(
-            model=trainer.model,
-            optimizer={
-                "generator": trainer.optimizer_g,
-                "discriminator": trainer.optimizer_d,
-            },
-            epoch=epoch + 1,
-            metrics=epoch_metrics,
-            path=str(epoch_path),
-            scaler=trainer.scaler,
-        )
-
         # Best checkpoint based on validation SSIM
         if val_metrics["val_ssim"] > best_val_ssim:
             best_val_ssim = float(val_metrics["val_ssim"])
