@@ -70,7 +70,7 @@ def process_single_image(
             return False, f"Skipped {image_path.name}: RGB image", 0.0
 
         start = time.perf_counter()
-        result = engine.predict(image, tta=tta)
+        result = engine.predict(image, use_tta=tta)
         elapsed = time.perf_counter() - start
 
         stem = image_path.stem

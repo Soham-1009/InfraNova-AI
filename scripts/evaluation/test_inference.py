@@ -68,8 +68,12 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
         multi_scale=multi_scale,
         generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "dynamic"),
     )
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    model_pass1.load_state_dict(checkpoint["model_state_dict"])
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    
+    # Strip ".module." from state dict keys (caused by Kaggle multi-GPU training)
+    state_dict = checkpoint["model_state_dict"]
+    clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
+    model_pass1.load_state_dict(clean_state_dict)
 
     output_pass1 = run_inference_pass(model_pass1, ir_tensor)
     validate_tensor(output_pass1, "Output Pass 1")
@@ -84,8 +88,10 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
         multi_scale=multi_scale,
         generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "dynamic"),
     )
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
-    model_pass2.load_state_dict(checkpoint["model_state_dict"])
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    state_dict = checkpoint["model_state_dict"]
+    clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
+    model_pass2.load_state_dict(clean_state_dict)
 
     output_pass2 = run_inference_pass(model_pass2, ir_tensor)
     validate_tensor(output_pass2, "Output Pass 2")

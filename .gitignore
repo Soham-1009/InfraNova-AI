@@ -12,6 +12,17 @@ venv/
 env/
 .venv/
 
+# Node
+web/node_modules/
+web/dist/
+
+# Test artifacts
+test_output/
+test_input.tif
+
+# Ruff
+.ruff_cache/
+
 # Large files - NEVER commit
 *.pth
 *.zip

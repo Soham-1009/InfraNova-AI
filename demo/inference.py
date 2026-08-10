@@ -33,12 +33,12 @@ class InferenceEngine:
         self,
         checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
         device: str | None = None,
-        image_size: int = 256,
+        image_size: int = 128,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         self.image_size = int(image_size)
-        if self.image_size < 256 or self.image_size % 256 != 0:
-            raise ValueError("image_size must be a multiple of 256 for this generator")
+        if self.image_size < 128 or self.image_size % 128 != 0:
+            raise ValueError("image_size must be a multiple of 128 for this generator")
         self.device = torch.device(
             device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
         )
@@ -58,7 +58,11 @@ class InferenceEngine:
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
         # Create model on selected device
-        model = Pix2Pix(device=self.device)
+        model = Pix2Pix(
+            device=self.device, 
+            generator_impl="dynamic",
+            image_size=self.image_size
+        )
 
         checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
 
@@ -75,7 +79,8 @@ class InferenceEngine:
             # Assume raw model state_dict
             state_dict = checkpoint
 
-        model.load_state_dict(state_dict, strict=True)
+        clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
+        model.load_state_dict(clean_state_dict, strict=True)
         model.eval()
 
         self.model = model

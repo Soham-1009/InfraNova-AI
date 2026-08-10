@@ -71,7 +71,12 @@ class LandsatColorizationInference:
         if not self.checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
-        model = Pix2Pix(device=self.device, in_channels=1, out_channels=3)
+        model = Pix2Pix(
+            device=self.device, 
+            in_channels=1, 
+            out_channels=3, 
+            generator_impl="dynamic"
+        )
         checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
 
         if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
@@ -85,7 +90,8 @@ class LandsatColorizationInference:
         else:
             state_dict = checkpoint
 
-        model.load_state_dict(state_dict, strict=True)
+        clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
+        model.load_state_dict(clean_state_dict, strict=True)
         model.eval()
         self.model = model
         logger.info("Loaded model from %s on %s", self.checkpoint_path, self.device)
