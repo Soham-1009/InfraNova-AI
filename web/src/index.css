@@ -207,7 +207,7 @@ img {
    ================================================================ */
 .hero {
   text-align: center;
-  padding: var(--space-3xl) 0 var(--space-2xl);
+  padding: var(--space-2xl) 0 var(--space-lg);
 }
 
 .hero__badge {
@@ -266,14 +266,14 @@ img {
    Upload Zone
    ================================================================ */
 .upload-section {
-  padding: var(--space-xl) 0 var(--space-3xl);
+  padding: var(--space-lg) 0 var(--space-xl);
 }
 
 .upload-zone {
   position: relative;
   border: 2px dashed var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: var(--space-3xl) var(--space-xl);
+  padding: var(--space-xl) var(--space-xl);
   text-align: center;
   cursor: pointer;
   transition: all var(--transition-base);

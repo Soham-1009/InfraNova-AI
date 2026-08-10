@@ -1,0 +1,17 @@
+{
+    "total_samples": 17328,
+    "class_counts": {
+        "VALID": 16661,
+        "HIGH_NODATA": 643,
+        "ALL_ZERO": 24
+    },
+    "percentages": {
+        "VALID": 96.15,
+        "HIGH_NODATA": 3.71,
+        "ALL_ZERO": 0.14
+    },
+    "thresholds": {
+        "low_variance": 0.0001,
+        "high_nodata_percent": 50.0
+    }
+}

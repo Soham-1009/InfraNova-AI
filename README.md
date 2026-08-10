@@ -13,7 +13,7 @@ The project is designed around a simple idea: thermal images show heat patterns,
 - Trains a Pix2Pix GAN (with Dynamic U-Net generator) for TIR-to-RGB colorization.
 - Supports Kaggle GPU training with a dedicated smoke-test configuration.
 - Runs inference from a checkpoint with optional test-time augmentation.
-- Provides a Streamlit app for uploading thermal images and viewing generated RGB output.
+- Provides a **React + FastAPI web app** for uploading thermal images and viewing generated RGB output.
 
 ## Important Limitation
 
@@ -67,10 +67,17 @@ scripts/
   training/                   Training launch scripts
   pipeline/                   End-to-end pipeline orchestration
 
+api/
+  main.py                     FastAPI backend (REST API for inference)
+
+web/                          React frontend (Vite)
+  src/
+    App.jsx                   Main application component
+    index.css                 Design system and styles
+
 demo/
-  streamlit_app.py            Web demo
-  inference.py                Demo inference wrapper
-  utils.py                    Demo preprocessing and display helpers
+  inference.py                Inference engine wrapper
+  utils.py                    Preprocessing and display helpers
 
 docs/
   architecture.md             Model architecture notes
@@ -232,58 +239,61 @@ Run the standalone inference test:
 venv\Scripts\python.exe scripts\evaluation\test_inference.py
 ```
 
-## Streamlit Demo
+## Web App
 
-Run:
+InfraNova AI includes a full-stack web application for interactive colorization:
+
+- **Backend**: FastAPI REST API (`api/main.py`) serving the PyTorch model
+- **Frontend**: React app (`web/`) with a dark-themed UI built with Vite
+
+### Running the Web App
+
+**1. Start the backend:**
 
 ```powershell
-venv\Scripts\python.exe -m streamlit run demo\streamlit_app.py
+venv\Scripts\uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
-The app lets you upload a thermal image and generate an RGB-like output.
-It includes:
+**2. Start the frontend:**
 
-- a light/dark mode toggle
-- optional test-time augmentation
-- optional contrast enhancement
-- download of the generated RGB image
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+**3. Open http://localhost:5173** in your browser.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check (returns model status) |
+| `/colorize` | POST | Upload a thermal image, returns colorized RGB PNG |
+| `/thermal-preview` | POST | Upload a thermal image, returns INFERNO heatmap preview |
+
+### Features
+
+- Drag-and-drop or click-to-upload thermal images
+- Supports `.tif`, `.tiff`, `.png`, `.jpg`, `.npy` formats
+- Side-by-side thermal vs RGB comparison view
+- Optional test-time augmentation (TTA) toggle
+- Inference time display
+- Download colorized output as PNG
 
 ## Docker
 
-The repo includes a Docker setup for the Streamlit demo:
+The repo includes a Docker setup:
 
 ```powershell
 docker compose up --build
-```
-
-Then open:
-
-```text
-http://localhost:8501
 ```
 
 The container mounts the repo into `/app`, so you can edit files locally and refresh the browser without rebuilding every time.
 
-The Docker image installs CPU PyTorch explicitly before the rest of the requirements, which keeps the demo image smaller and avoids pulling CUDA-only wheels unless you choose to change the base image yourself.
+The Docker image installs CPU PyTorch explicitly before the rest of the requirements, which keeps the image smaller and avoids pulling CUDA-only wheels unless you choose to change the base image yourself.
 
-You can also run one-off scripts inside the container, for example:
-
-```powershell
-docker compose run --rm app python scripts/preprocessing/process_landsat_patches.py
-docker compose run --rm app python -m src.training.train_landsat
-```
-
-For GPU training on Docker, swap the base image to a CUDA-enabled PyTorch image and run the container with NVIDIA runtime support. The current Dockerfile is aimed at the demo and CPU-friendly utility scripts.
-
-## Working Locally
-
-If you change only Python source files while the Docker volume mount is active, restart the container or refresh the browser.
-
-If you change `Dockerfile`, `requirements.txt`, or system-level dependencies, rebuild the image:
-
-```powershell
-docker compose up --build
-```
+For GPU training on Docker, swap the base image to a CUDA-enabled PyTorch image and run the container with NVIDIA runtime support.
 
 ## Verification Commands
 

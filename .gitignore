@@ -87,5 +87,4 @@ Thumbs.db
 # EXCEPTION: Allow the final model for the live website
 !best_model.pth
 # Pipeline State files
-*.json
 quarantine_log.txt

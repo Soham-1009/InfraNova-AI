@@ -137,7 +137,7 @@ function App() {
             <span className="navbar__tag">v1.0</span>
           </div>
           <ul className="navbar__links">
-            <li className="navbar__link" onClick={() => window.open('https://github.com/sohamdeshpande10/InfraNova-AI', '_blank')}>
+            <li className="navbar__link" onClick={() => window.open('https://github.com/Soham-1009/InfraNova-AI', '_blank')}>
               GitHub
             </li>
           </ul>
@@ -325,7 +325,6 @@ function App() {
       <footer className="footer">
         <div className="container">
           <p className="footer__text">
-            Built by <a href="https://github.com/sohamdeshpande10" target="_blank" rel="noopener noreferrer">Soham Deshpande</a> · 
             Powered by PyTorch & Pix2Pix GAN
           </p>
         </div>
