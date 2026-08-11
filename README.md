@@ -1,5 +1,7 @@
 # InfraNova AI
 
+**[📖 Read the Master Codebase Guide](docs/project/MASTER_CODEBASE_GUIDE.md)** for complete, truth-based technical documentation, architecture diagrams, and developer onboarding guides.
+
 InfraNova AI converts Landsat 9 thermal infrared imagery into RGB-like satellite imagery using a Pix2Pix conditional GAN.
 
 The project is designed around a simple idea: thermal images show heat patterns, while most humans and computer vision tools are easier to work with when imagery looks like normal RGB satellite data. The model learns from paired Landsat 9 thermal and RGB bands, then generates a plausible RGB view from a single thermal input.
@@ -80,12 +82,12 @@ demo/
   utils.py                    Preprocessing and display helpers
 
 docs/
-  architecture.md             Model architecture notes
-  methodology.md              Thermal-to-RGB methodology and mathematical analysis
-  training_strategy.md        Training plan and monitoring notes
-  inference_optimization.md   Inference performance and optimization
-  demo_strategy.md            Demo UI layout and design
-  roadmap.md                  Project roadmap
+  project/                    Comprehensive truth-based documentation system
+    MASTER_CODEBASE_GUIDE.md  Start here! Master index for all documents
+    AI_HANDOVER.md            State document for AI agent onboarding
+    ARCHITECTURE.md           System architecture and diagrams
+    FLOW.md                   Execution flow traces
+    ... (and 20+ other technical deep-dives)
 
 notebooks/
   MAIN.ipynb                  Kaggle training notebook
@@ -310,4 +312,4 @@ venv\Scripts\python.exe -m pytest tests/
 - `data/`, `outputs/`, `logs/`, and generated outputs are intentionally not committed.
 - The model output is best described as RGB-like visual synthesis, not exact color recovery.
 - For trustworthy reported metrics, evaluate on region-level splits rather than random patch-level splits.
-- The codebase is frozen and validated. See `docs/roadmap.md` for project status.
+- For a complete understanding of the system, start with `docs/project/MASTER_CODEBASE_GUIDE.md`.
