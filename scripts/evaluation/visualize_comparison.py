@@ -59,7 +59,7 @@ def generate_comparison(
     # Load model
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-    model = Pix2Pix(device=device, in_channels=1, out_channels=3)
+    model = Pix2Pix(device=device, in_channels=1, out_channels=3, generator_impl="dynamic", image_size=image_size)
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"], strict=False)
     else:
