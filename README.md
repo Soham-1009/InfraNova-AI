@@ -131,6 +131,24 @@ pip install -r requirements.txt
 
 On Kaggle, PyTorch is pre-installed. Skip the PyTorch install step and install only the remaining dependencies.
 
+### Troubleshooting: C++ Build Tools Error
+
+If you see this error while running `pip install -r requirements.txt`:
+`error: Microsoft Visual C++ 14.0 or greater is required. Failed building wheel for stringzilla`
+
+This happens because `pip` cannot find a pre-compiled Windows binary for `stringzilla` and tries to compile it from source, which requires a C++ compiler. 
+
+**Recommended Fix (Permanent):**
+1. Download [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+2. Run the installer and check **"Desktop development with C++"**.
+3. Install, restart your terminal, activate your `venv`, and run the `pip install` command again.
+
+**Quick Workaround (Bypass Compilation):**
+If you want to force pip to only use pre-compiled binaries (which will skip compilation but may fail if no binary exists at all), run this in your `venv` before installing requirements:
+```powershell
+pip install --only-binary=:all: stringzilla
+```
+
 ## Data Pipeline
 
 ### 1. Export Landsat 9 data
