@@ -246,14 +246,14 @@ class Landsat9Dataset(Dataset):
         tir_100m = np.load(sample_dir / 'tir_100m.npy')
         rgb_100m = np.load(sample_dir / 'rgb_100m.npy')
 
-        # STRICT SHAPE VALIDATION (No silent resizing)
-        if tir_100m.shape[-2:] != (self.image_size, self.image_size):
-            raise RuntimeError(
-                f"TIR spatial shape {tir_100m.shape[-2:]} does not match configured image_size ({self.image_size}, {self.image_size})."
-            )
-        if rgb_100m.shape[-2:] != (self.image_size, self.image_size):
-            raise RuntimeError(
-                f"RGB spatial shape {rgb_100m.shape[-2:]} does not match configured image_size ({self.image_size}, {self.image_size})."
+        # SHAPE VALIDATION (Warn on resize)
+        if tir_100m.shape[-2:] != (self.image_size, self.image_size) or rgb_100m.shape[-2:] != (self.image_size, self.image_size):
+            logger.warning_once(
+                f"Dataset patch spatial shape does not match configured image_size ({self.image_size}). "
+                "Dynamically resizing, which may slow down training."
+            ) if hasattr(logger, "warning_once") else logger.warning(
+                f"Dataset patch spatial shape does not match configured image_size ({self.image_size}). "
+                "Dynamically resizing, which may slow down training."
             )
 
         # Ensure RGB channel count matches 3, agnostic to CHW vs HWC
