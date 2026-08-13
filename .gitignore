@@ -88,3 +88,5 @@ Thumbs.db
 !best_model.pth
 # Pipeline State files
 quarantine_log.txt
+
+docs/project

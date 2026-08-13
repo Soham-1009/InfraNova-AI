@@ -93,7 +93,7 @@ def save_checkpoint(
             "discriminator": type(disc).__name__ if disc is not None else "unknown",
             "input_channels": in_ch,
             "output_channels": out_ch,
-            "image_size": 256,  # from config default
+            "image_size": getattr(model, "image_size", 128),  # dynamic or default 128
             "git_version": git_version,
             "config_hash": config_hash,
         }

@@ -49,7 +49,6 @@ RGB-like satellite output
 ```text
 configs/
   config.yaml                 Production training configuration (250 epochs)
-  config_smoke.yaml           Smoke-test configuration (1 epoch)
 
 src/
   datasets/                   Landsat 9 dataset loader

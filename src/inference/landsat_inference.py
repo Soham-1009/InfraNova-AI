@@ -55,8 +55,8 @@ class LandsatColorizationInference:
         self.image_size = int(image_size)
         self.percentile_low = float(percentile_low)
         self.percentile_high = float(percentile_high)
-        if self.image_size < 256 or self.image_size % 256 != 0:
-            raise ValueError("image_size must be a multiple of 256 for this generator")
+        if self.image_size < 128 or self.image_size % 128 != 0:
+            raise ValueError("image_size must be a multiple of 128 for this generator")
         if not 0.0 <= self.percentile_low < self.percentile_high <= 100.0:
             raise ValueError("percentile_low and percentile_high must satisfy 0 <= low < high <= 100")
         self.model: Pix2Pix | None = None
