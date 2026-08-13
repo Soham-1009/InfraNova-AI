@@ -98,6 +98,8 @@ requirements.txt              Python dependencies
 
 ## Setup
 
+**Prerequisite:** Python 3.11 is required. If you are creating a new virtual environment, ensure you use Python 3.11.
+
 Use the existing virtual environment if it is already present:
 
 ```powershell
