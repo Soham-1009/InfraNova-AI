@@ -1,16 +1,40 @@
-# React + Vite
+# InfraNova AI Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This is the React frontend for InfraNova AI, built with Vite. It provides a polished, responsive, dark-themed "glassmorphism" interface for colorizing Landsat 9 thermal infrared satellite imagery.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Interactive Comparison Slider:** Drag to smoothly compare the raw thermal input with the generated RGB output.
+- **CLAHE Post-Processing:** Built-in toggle to apply Contrast Limited Adaptive Histogram Equalization in LAB color space for enhanced visibility.
+- **Test-Time Augmentation (TTA):** Toggle advanced 4-way geometric ensembling for higher quality (at the cost of longer inference time).
+- **Responsive 100vh Layout:** Designed to act like a desktop application, fitting perfectly within the browser viewport without scrolling.
+- **API Health Indicator:** Real-time status dot indicating backend connectivity.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Framework:** React 18 + Vite
+- **Styling:** Vanilla CSS (custom design system and tokens in `index.css`)
+- **No Heavy CSS Frameworks:** Strict adherence to pure CSS to keep the application lightning-fast and perfectly tailored to the project's unique aesthetic.
 
-## Expanding the Oxlint configuration
+## Development
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+The frontend expects the FastAPI backend to be running (usually on `http://localhost:8000`).
+
+To start the Vite development server:
+
+```bash
+npm install
+npm run dev
+```
+
+You can then view the app at [http://localhost:5173](http://localhost:5173).
+
+## Production Build
+
+In production, the frontend is built into static files and served directly by the FastAPI backend to eliminate CORS issues and simplify deployment.
+
+```bash
+npm run build
+```
+
+This will output the static assets to the `dist/` directory, which FastAPI is configured to mount at the root path (`/`).

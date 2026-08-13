@@ -298,8 +298,10 @@ npm run dev
 
 - Drag-and-drop or click-to-upload thermal images
 - Supports `.tif`, `.tiff`, `.png`, `.jpg`, `.npy` formats
-- Side-by-side thermal vs RGB comparison view
+- **Interactive Comparison Slider** to smoothly compare thermal vs RGB
+- **CLAHE Post-Processing** toggle for enhanced contrast and saturation
 - Optional test-time augmentation (TTA) toggle
+- Real-time API health status indicator
 - Inference time display
 - Download colorized output as PNG
 
