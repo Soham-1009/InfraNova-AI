@@ -306,17 +306,22 @@ npm run dev
 
 ## Docker
 
-The repo includes a Docker setup:
+The repo uses a multi-container Docker Compose setup with two services:
+
+- **`api`**: FastAPI backend serving the PyTorch model on port `8000`
+- **`web`**: React frontend (Vite dev server) on port `5173`
 
 ```powershell
 docker compose up --build
 ```
 
-The container mounts the repo into `/app`, so you can edit files locally and refresh the browser without rebuilding every time.
+Both services mount the local source code for hot-reloading during development. Edit files locally and changes will be reflected automatically.
 
-The Docker image installs CPU PyTorch explicitly before the rest of the requirements, which keeps the image smaller and avoids pulling CUDA-only wheels unless you choose to change the base image yourself.
+The API container installs CPU PyTorch by default. To use a CUDA build, override the build arg:
 
-For GPU training on Docker, swap the base image to a CUDA-enabled PyTorch image and run the container with NVIDIA runtime support.
+```powershell
+TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 docker compose up --build
+```
 
 ## Verification Commands
 
