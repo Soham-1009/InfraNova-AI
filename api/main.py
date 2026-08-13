@@ -6,6 +6,9 @@ Serves the Pix2Pix colorization model via a REST API.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import io
 import sys
 import time
@@ -15,6 +18,7 @@ import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 # Make project root importable
@@ -32,12 +36,27 @@ CHECKPOINT_PATH = PROJECT_ROOT / "outputs" / "models" / "best" / "pix2pix_landsa
 IMAGE_SIZE = 128
 
 # ---------------------------------------------------------------------------
+# Serve built React frontend (production Docker build)
+# ---------------------------------------------------------------------------
+FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Mount static frontend assets on startup if a production build exists."""
+    if FRONTEND_DIR.is_dir():
+        application.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
+    yield
+
+
+# ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="InfraNova AI",
     description="Thermal-to-RGB satellite image colorization powered by Pix2Pix.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -48,23 +67,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------------------------------------------------------
-# Serve built React frontend (production Docker build)
-# ---------------------------------------------------------------------------
-FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
 if FRONTEND_DIR.is_dir():
-    from fastapi.staticfiles import StaticFiles
     from starlette.responses import FileResponse
 
     @app.get("/", include_in_schema=False)
     async def serve_index():
         return FileResponse(FRONTEND_DIR / "index.html")
-
-    # Mount static assets AFTER the API routes are registered (see below)
-    # We use a startup event to ensure API routes take priority.
-    @app.on_event("startup")
-    async def _mount_static():
-        app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
 # Lazy-loaded inference engine (loaded on first request)
 engine: InferenceEngine | None = None
