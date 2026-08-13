@@ -1,28 +1,44 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import './App.css'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 function App() {
   const [file, setFile] = useState(null)
   const [inputPreview, setInputPreview] = useState(null)
   const [thermalPreview, setThermalPreview] = useState(null)
   const [outputImage, setOutputImage] = useState(null)
+  const [displayImage, setDisplayImage] = useState(null) // current output (may be post-processed)
   const [loading, setLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState('')
   const [useTTA, setUseTTA] = useState(false)
   const [inferenceTime, setInferenceTime] = useState(null)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState(null)
+  const [sliderPos, setSliderPos] = useState(50)
+  const [claheApplied, setClaheApplied] = useState(false)
+  const [apiStatus, setApiStatus] = useState('checking') // 'checking' | 'online' | 'offline'
   const fileInputRef = useRef(null)
+  const sliderContainerRef = useRef(null)
+  const isDraggingSlider = useRef(false)
+
+  // Check API health on mount
+  useEffect(() => {
+    fetch(`${API_URL}/health`)
+      .then(res => res.ok ? setApiStatus('online') : setApiStatus('offline'))
+      .catch(() => setApiStatus('offline'))
+  }, [])
 
   const handleFile = useCallback((selectedFile) => {
     setFile(selectedFile)
     setOutputImage(null)
+    setDisplayImage(null)
     setInferenceTime(null)
     setError(null)
     setThermalPreview(null)
+    setClaheApplied(false)
+    setSliderPos(50)
 
-    // Create a local preview for the file
     const isNpy = selectedFile.name.toLowerCase().endsWith('.npy')
     if (!isNpy) {
       const reader = new FileReader()
@@ -32,7 +48,7 @@ function App() {
       setInputPreview(null)
     }
 
-    // Fetch thermal preview from backend
+    // Fetch thermal preview
     const formData = new FormData()
     formData.append('file', selectedFile)
     fetch(`${API_URL}/thermal-preview`, { method: 'POST', body: formData })
@@ -73,7 +89,9 @@ function App() {
     if (!file) return
 
     setLoading(true)
+    setLoadingMessage('Colorizing satellite imagery…')
     setError(null)
+    setClaheApplied(false)
 
     try {
       const formData = new FormData()
@@ -93,12 +111,50 @@ function App() {
       if (time) setInferenceTime(parseFloat(time))
 
       const blob = await res.blob()
-      setOutputImage(URL.createObjectURL(blob))
+      const url = URL.createObjectURL(blob)
+      setOutputImage(url)
+      setDisplayImage(url)
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
+      setLoadingMessage('')
     }
+  }
+
+  const applyCLAHE = async () => {
+    if (!outputImage) return
+
+    setLoading(true)
+    setLoadingMessage('Applying CLAHE enhancement…')
+
+    try {
+      // Fetch the original output blob
+      const originalBlob = await fetch(outputImage).then(r => r.blob())
+      const formData = new FormData()
+      formData.append('file', originalBlob, 'output.png')
+
+      const res = await fetch(`${API_URL}/postprocess/clahe`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) throw new Error('CLAHE failed')
+
+      const blob = await res.blob()
+      setDisplayImage(URL.createObjectURL(blob))
+      setClaheApplied(true)
+    } catch (err) {
+      setError(`Post-processing failed: ${err.message}`)
+    } finally {
+      setLoading(false)
+      setLoadingMessage('')
+    }
+  }
+
+  const removeCLAHE = () => {
+    setDisplayImage(outputImage)
+    setClaheApplied(false)
   }
 
   const resetAll = () => {
@@ -106,35 +162,79 @@ function App() {
     setInputPreview(null)
     setThermalPreview(null)
     setOutputImage(null)
+    setDisplayImage(null)
     setInferenceTime(null)
     setError(null)
+    setClaheApplied(false)
+    setSliderPos(50)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const downloadOutput = () => {
-    if (!outputImage) return
+    if (!displayImage) return
     const a = document.createElement('a')
-    a.href = outputImage
-    a.download = `infranova_colorized_${Date.now()}.png`
+    a.href = displayImage
+    a.download = `infranova_colorized_${claheApplied ? 'clahe_' : ''}${Date.now()}.png`
     a.click()
   }
 
+  // --- Slider interaction ---
+  const updateSliderPos = useCallback((clientX) => {
+    const container = sliderContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const x = clientX - rect.left
+    const pct = Math.max(0, Math.min(100, (x / rect.width) * 100))
+    setSliderPos(pct)
+  }, [])
+
+  const onSliderMouseDown = useCallback((e) => {
+    e.preventDefault()
+    isDraggingSlider.current = true
+    updateSliderPos(e.clientX)
+  }, [updateSliderPos])
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (isDraggingSlider.current) updateSliderPos(e.clientX)
+    }
+    const onMouseUp = () => { isDraggingSlider.current = false }
+    const onTouchMove = (e) => {
+      if (isDraggingSlider.current) updateSliderPos(e.touches[0].clientX)
+    }
+    const onTouchEnd = () => { isDraggingSlider.current = false }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    window.addEventListener('touchmove', onTouchMove)
+    window.addEventListener('touchend', onTouchEnd)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [updateSliderPos])
+
+  const thermalSrc = thermalPreview || inputPreview
+
   return (
-    <>
+    <div className="app-shell">
       {/* Loading Overlay */}
       {loading && (
         <div className="loader-overlay">
           <div className="loader-ring" />
-          <p className="loader-text">Colorizing satellite imagery…</p>
+          <p className="loader-text">{loadingMessage}</p>
         </div>
       )}
 
       {/* Navbar */}
       <nav className="navbar">
-        <div className="container">
+        <div className="container navbar__inner">
           <div className="navbar__brand">
             <span className="navbar__title">InfraNova AI</span>
             <span className="navbar__tag">v1.0</span>
+            <span className={`status-dot status-dot--${apiStatus}`} title={`API ${apiStatus}`} />
           </div>
           <ul className="navbar__links">
             <li className="navbar__link" onClick={() => window.open('https://github.com/Soham-1009/InfraNova-AI', '_blank')}>
@@ -144,30 +244,28 @@ function App() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="hero">
-        <div className="container">
-          <div className="hero__badge fade-in-up">
-            <span className="dot" />
-            Pix2Pix · Landsat-9 · Epoch 226
-          </div>
-          <h1 className="hero__title fade-in-up fade-in-up--delay-1">
-            Thermal to <span className="gradient">True Color</span>
-          </h1>
-          <p className="hero__subtitle fade-in-up fade-in-up--delay-2">
-            Upload a thermal infrared satellite image and watch our AI model 
-            generate a photorealistic RGB colorization in seconds.
-          </p>
-        </div>
-      </section>
+      {/* Main content */}
+      <main className="main-content">
+        {!file ? (
+          /* ---- UPLOAD STATE ---- */
+          <div className="upload-view">
+            <div className="hero fade-in-up">
+              <div className="hero__badge">
+                <span className="dot" />
+                Pix2Pix · Landsat-9 · Epoch 226
+              </div>
+              <h1 className="hero__title">
+                Thermal to <span className="gradient">True Color</span>
+              </h1>
+              <p className="hero__subtitle">
+                Upload a thermal infrared satellite image and watch our AI model
+                generate a photorealistic RGB colorization in seconds.
+              </p>
+            </div>
 
-      {/* Upload Section */}
-      <section className="upload-section">
-        <div className="container">
-          {!file ? (
             <div
               id="upload-zone"
-              className={`upload-zone fade-in-up fade-in-up--delay-3 ${dragOver ? 'dragover' : ''}`}
+              className={`upload-zone fade-in-up fade-in-up--delay-2 ${dragOver ? 'dragover' : ''}`}
               onClick={handleClickUpload}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
@@ -190,146 +288,130 @@ function App() {
                 id="file-input"
               />
             </div>
-          ) : (
-            <>
-              {/* File Info + Controls */}
-              <div className="controls fade-in-up">
-                <span className="meta-chip">
-                  📄 <span className="value">{file.name}</span>
-                </span>
-                <span className="meta-chip">
-                  📐 <span className="value">{(file.size / 1024).toFixed(1)} KB</span>
-                </span>
-                <label className="toggle">
+          </div>
+        ) : (
+          /* ---- WORKSPACE STATE ---- */
+          <div className="workspace fade-in-up">
+            {/* Top bar: file info + actions */}
+            <div className="workspace__toolbar">
+              <div className="toolbar__left">
+                <span className="meta-chip">📄 <span className="value">{file.name}</span></span>
+                <span className="meta-chip">📐 <span className="value">{(file.size / 1024).toFixed(1)} KB</span></span>
+                {inferenceTime && (
+                  <span className="meta-chip">⚡ <span className="value">{inferenceTime.toFixed(3)}s</span></span>
+                )}
+              </div>
+              <div className="toolbar__right">
+                <label className="toggle" title="Test-Time Augmentation: averages 4 geometric transforms for better quality">
                   <input
                     type="checkbox"
                     checked={useTTA}
                     onChange={(e) => setUseTTA(e.target.checked)}
                     id="tta-toggle"
                   />
-                  TTA
+                  <span className="toggle__label">TTA</span>
                 </label>
-                <button
-                  id="colorize-btn"
-                  className="btn btn--primary"
-                  onClick={runColorization}
-                  disabled={loading}
-                >
+                <button id="colorize-btn" className="btn btn--primary" onClick={runColorization} disabled={loading}>
                   ✨ Colorize
                 </button>
-                <button
-                  id="reset-btn"
-                  className="btn btn--secondary"
-                  onClick={resetAll}
-                >
-                  ↻ Reset
+                {displayImage && (
+                  <>
+                    {!claheApplied ? (
+                      <button id="clahe-btn" className="btn btn--accent" onClick={applyCLAHE} disabled={loading} title="CLAHE: Contrast Limited Adaptive Histogram Equalization">
+                        🔆 CLAHE
+                      </button>
+                    ) : (
+                      <button id="clahe-undo-btn" className="btn btn--accent btn--active" onClick={removeCLAHE} disabled={loading}>
+                        🔆 Undo CLAHE
+                      </button>
+                    )}
+                    <button id="download-btn" className="btn btn--secondary" onClick={downloadOutput}>
+                      ⬇ Download
+                    </button>
+                  </>
+                )}
+                <button id="reset-btn" className="btn btn--ghost" onClick={resetAll}>
+                  ✕
                 </button>
               </div>
-
-              {/* Error */}
-              {error && (
-                <div style={{
-                  marginTop: 'var(--space-md)',
-                  padding: '12px 16px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--error)',
-                  fontSize: '0.85rem',
-                  textAlign: 'center',
-                }}>
-                  {error}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Results Section */}
-      {(thermalPreview || outputImage) && (
-        <section className="results-section">
-          <div className="container">
-            <div className="results__header">
-              <h2 className="results__title">
-                {outputImage ? '🎨 Comparison' : '🌡️ Thermal Preview'}
-              </h2>
-              <div className="results__meta">
-                {inferenceTime && (
-                  <span className="meta-chip">
-                    ⚡ <span className="value">{inferenceTime.toFixed(3)}s</span>
-                  </span>
-                )}
-                {outputImage && (
-                  <button id="download-btn" className="btn btn--secondary" onClick={downloadOutput}>
-                    ⬇ Download
-                  </button>
-                )}
-              </div>
             </div>
 
-            <div className="comparison">
-              {/* Input Panel */}
-              <div className="comparison__panel fade-in-up">
-                <span className="comparison__label comparison__label--input">
-                  Thermal IR
-                </span>
-                <img
-                  className="comparison__image"
-                  src={thermalPreview || inputPreview}
-                  alt="Thermal input"
-                />
+            {/* Error toast */}
+            {error && (
+              <div className="error-toast fade-in-up">
+                <span className="error-toast__icon">⚠</span>
+                <span className="error-toast__msg">{error}</span>
+                <button className="error-toast__close" onClick={() => setError(null)}>✕</button>
               </div>
+            )}
 
-              {/* Output Panel */}
-              {outputImage && (
-                <div className="comparison__panel fade-in-up fade-in-up--delay-1">
-                  <span className="comparison__label comparison__label--output">
-                    RGB Output
+            {/* Image viewport */}
+            <div className="viewport">
+              {displayImage && thermalSrc ? (
+                /* Interactive comparison slider */
+                <div
+                  className="slider-container"
+                  ref={sliderContainerRef}
+                  onMouseDown={onSliderMouseDown}
+                  onTouchStart={(e) => { isDraggingSlider.current = true; updateSliderPos(e.touches[0].clientX) }}
+                >
+                  {/* Output (full) */}
+                  <img className="slider-img slider-img--output" src={displayImage} alt="Generated RGB" draggable={false} />
+
+                  {/* Thermal (clipped) */}
+                  <div className="slider-clip" style={{ width: `${sliderPos}%` }}>
+                    <img className="slider-img slider-img--input" src={thermalSrc} alt="Thermal input" draggable={false} />
+                  </div>
+
+                  {/* Divider line */}
+                  <div className="slider-divider" style={{ left: `${sliderPos}%` }}>
+                    <div className="slider-handle">
+                      <span className="slider-handle__arrow">◂</span>
+                      <span className="slider-handle__arrow">▸</span>
+                    </div>
+                  </div>
+
+                  {/* Labels */}
+                  <span className="slider-label slider-label--left">Thermal IR</span>
+                  <span className="slider-label slider-label--right">
+                    RGB Output{claheApplied ? ' + CLAHE' : ''}
                   </span>
-                  <img
-                    className="comparison__image"
-                    src={outputImage}
-                    alt="Colorized output"
-                  />
+                </div>
+              ) : thermalSrc ? (
+                /* Thermal-only preview */
+                <div className="single-preview">
+                  <img className="single-preview__img" src={thermalSrc} alt="Thermal preview" />
+                  <span className="single-preview__label">Thermal IR Preview</span>
+                  <p className="single-preview__hint">Click <strong>✨ Colorize</strong> to generate RGB output</p>
+                </div>
+              ) : (
+                /* Loading preview placeholder */
+                <div className="single-preview single-preview--loading">
+                  <div className="loader-ring loader-ring--small" />
+                  <p className="single-preview__hint">Loading thermal preview…</p>
                 </div>
               )}
             </div>
 
-            {/* Stats */}
-            {outputImage && (
-              <div className="stats fade-in-up fade-in-up--delay-2">
-                <div className="stat-card">
-                  <div className="stat-card__value">128×128</div>
-                  <div className="stat-card__label">Resolution</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-card__value">{inferenceTime ? `${inferenceTime.toFixed(2)}s` : '—'}</div>
-                  <div className="stat-card__label">Inference Time</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-card__value">Epoch 226</div>
-                  <div className="stat-card__label">Model Version</div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-card__value">{useTTA ? 'On' : 'Off'}</div>
-                  <div className="stat-card__label">TTA Mode</div>
-                </div>
+            {/* Stats bar */}
+            {displayImage && (
+              <div className="stats-bar fade-in-up">
+                <div className="stat-pill"><span className="stat-pill__label">Resolution</span><span className="stat-pill__value">128×128</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">Inference</span><span className="stat-pill__value">{inferenceTime ? `${inferenceTime.toFixed(2)}s` : '—'}</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">Model</span><span className="stat-pill__value">Epoch 226</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">TTA</span><span className="stat-pill__value">{useTTA ? 'On' : 'Off'}</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">CLAHE</span><span className="stat-pill__value">{claheApplied ? 'On' : 'Off'}</span></div>
               </div>
             )}
           </div>
-        </section>
-      )}
+        )}
+      </main>
 
       {/* Footer */}
       <footer className="footer">
-        <div className="container">
-          <p className="footer__text">
-            Powered by PyTorch & Pix2Pix GAN
-          </p>
-        </div>
+        <p className="footer__text">Powered by PyTorch & Pix2Pix GAN</p>
       </footer>
-    </>
+    </div>
   )
 }
 

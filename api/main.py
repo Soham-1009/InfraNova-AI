@@ -165,3 +165,39 @@ async def thermal_preview(file: UploadFile = File(...)):
         return StreamingResponse(buf, media_type="image/png")
     except Exception as exc:
         raise HTTPException(500, f"Preview failed: {exc}")
+
+
+@app.post("/postprocess/clahe")
+async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, grid_size: int = 8):
+    """
+    Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to an RGB image.
+
+    Works in LAB color space to enhance contrast without distorting color hue.
+
+    Args:
+        file: Input PNG/JPG image.
+        clip_limit: CLAHE clip limit (default 2.0).
+        grid_size: CLAHE tile grid size (default 8).
+
+    Returns: PNG image with CLAHE applied.
+    """
+    try:
+        import cv2
+
+        raw_bytes = await file.read()
+        arr = np.array(Image.open(io.BytesIO(raw_bytes)).convert("RGB"))
+
+        # Convert to LAB, apply CLAHE to L channel, convert back
+        lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB)
+        clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(grid_size, grid_size))
+        lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+        enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+
+        result = Image.fromarray(enhanced)
+        buf = io.BytesIO()
+        result.save(buf, format="PNG")
+        buf.seek(0)
+
+        return StreamingResponse(buf, media_type="image/png")
+    except Exception as exc:
+        raise HTTPException(500, f"CLAHE failed: {exc}")
