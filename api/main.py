@@ -6,7 +6,7 @@ Serves the Pix2Pix colorization model via a REST API.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import io
@@ -42,7 +42,7 @@ FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
 
 
 @asynccontextmanager
-async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
     """Mount static frontend assets on startup if a production build exists."""
     if FRONTEND_DIR.is_dir():
         application.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
