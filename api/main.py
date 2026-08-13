@@ -48,6 +48,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# Serve built React frontend (production Docker build)
+# ---------------------------------------------------------------------------
+FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
+if FRONTEND_DIR.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    from starlette.responses import FileResponse
+
+    @app.get("/", include_in_schema=False)
+    async def serve_index():
+        return FileResponse(FRONTEND_DIR / "index.html")
+
+    # Mount static assets AFTER the API routes are registered (see below)
+    # We use a startup event to ensure API routes take priority.
+    @app.on_event("startup")
+    async def _mount_static():
+        app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
+
 # Lazy-loaded inference engine (loaded on first request)
 engine: InferenceEngine | None = None
 

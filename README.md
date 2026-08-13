@@ -306,7 +306,9 @@ npm run dev
 
 ## Docker
 
-The repo uses a multi-container Docker Compose setup with two services:
+### Development (Docker Compose)
+
+For local development with hot-reloading, use Docker Compose which runs two separate containers:
 
 - **`api`**: FastAPI backend serving the PyTorch model on port `8000`
 - **`web`**: React frontend (Vite dev server) on port `5173`
@@ -315,13 +317,31 @@ The repo uses a multi-container Docker Compose setup with two services:
 docker compose up --build
 ```
 
-Both services mount the local source code for hot-reloading during development. Edit files locally and changes will be reflected automatically.
+Both services mount the local source code for hot-reloading. Edit files locally and changes will be reflected automatically.
+
+### Production (Multi-Stage Build)
+
+For production, the root `Dockerfile` uses a multi-stage build that compiles the React frontend and serves everything from a single FastAPI container on port `8000`:
+
+```powershell
+docker build -t infranova-ai .
+docker run -p 8000:8000 -v ./outputs:/app/outputs infranova-ai
+```
 
 The API container installs CPU PyTorch by default. To use a CUDA build, override the build arg:
 
 ```powershell
-TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 docker compose up --build
+docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 -t infranova-ai .
 ```
+
+## CI/CD
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs automatically on every push and pull request to `main`:
+
+1. **Lint**: Runs `ruff check` to catch code quality issues.
+2. **Test**: Runs `pytest tests/` against the full test suite.
+
+The pipeline uses Python 3.11 with CPU-only PyTorch to keep CI fast.
 
 ## Verification Commands
 
