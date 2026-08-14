@@ -166,6 +166,7 @@ def test_training_integration():
     try:
         # Test state dict saving
         chkpt_path = PROJECT_ROOT / "experiments/test_dynamic_chkpt.pth"
+        chkpt_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save({
             "generator": model.generator.state_dict(),
             "discriminator": model.discriminator.state_dict()
