@@ -634,18 +634,15 @@ img {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  container-type: size;
 }
 
 .slider-img {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  max-width: 100%;
-  max-height: 100%;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
   pointer-events: none;
@@ -665,94 +662,10 @@ img {
 }
 
 .slider-clip .slider-img--input {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
-  max-height: 100%;
-  object-fit: contain;
-  image-rendering: pixelated;
-  width: auto;
-  min-width: 100vw;
-}
-
-/* Make the thermal image match the output image size exactly */
-.slider-container .slider-img--output {
-  width: auto;
-  height: auto;
-}
-
-.slider-clip .slider-img--input {
-  /* The clipped image must be the same size and position as the output image */
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  width: 100cqw;
+  height: 100cqh;
   max-width: none;
-  width: 100vw; /* will be constrained by slider-container */
-}
-
-/* Recalculate: both images fill the container the same way */
-.slider-container .slider-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.slider-clip .slider-img {
-  width: calc(100vw); /* override to prevent clip shrink */
-}
-
-/* Simple approach: both images absolutely fill the container */
-.slider-container {
-  display: block;
-}
-
-.slider-img--output {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  z-index: 1;
-}
-
-.slider-clip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  z-index: 2;
-  overflow: hidden;
-}
-
-.slider-clip .slider-img--input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  /* The image must be sized relative to the full container, not the clip */
-}
-
-/* Fix: the input image width must match the full container width */
-.slider-clip .slider-img--input {
-  width: 100vw;
-  max-width: none;
-}
-
-/* Smarter fix using container query approach */
-.slider-container {
-  container-type: inline-size;
-}
-
-.slider-clip .slider-img--input {
-  width: 100cqi;
-  max-width: none;
-  height: 100%;
+  max-height: none;
 }
 
 .slider-divider {
