@@ -72,9 +72,9 @@ class LandsatColorizationInference:
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
         model = Pix2Pix(
-            device=self.device, 
-            in_channels=1, 
-            out_channels=3, 
+            device=self.device,
+            in_channels=1,
+            out_channels=3,
             generator_impl="dynamic"
         )
         checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)

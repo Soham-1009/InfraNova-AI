@@ -59,7 +59,7 @@ class InferenceEngine:
 
         # Create model on selected device
         model = Pix2Pix(
-            device=self.device, 
+            device=self.device,
             generator_impl="dynamic",
             image_size=self.image_size
         )

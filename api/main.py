@@ -6,12 +6,11 @@ Serves the Pix2Pix colorization model via a REST API.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
 import io
 import sys
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import numpy as np
@@ -140,7 +139,7 @@ async def colorize(file: UploadFile = File(...), tta: bool = False):
             },
         )
     except Exception as exc:
-        raise HTTPException(500, f"Inference failed: {exc}")
+        raise HTTPException(500, f"Inference failed: {exc}") from exc
 
 
 @app.post("/thermal-preview")
@@ -172,7 +171,7 @@ async def thermal_preview(file: UploadFile = File(...)):
 
         return StreamingResponse(buf, media_type="image/png")
     except Exception as exc:
-        raise HTTPException(500, f"Preview failed: {exc}")
+        raise HTTPException(500, f"Preview failed: {exc}") from exc
 
 
 @app.post("/postprocess/clahe")
@@ -208,4 +207,4 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
 
         return StreamingResponse(buf, media_type="image/png")
     except Exception as exc:
-        raise HTTPException(500, f"CLAHE failed: {exc}")
+        raise HTTPException(500, f"CLAHE failed: {exc}") from exc

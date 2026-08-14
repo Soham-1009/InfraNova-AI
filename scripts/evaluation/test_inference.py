@@ -69,7 +69,7 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
         generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "dynamic"),
     )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    
+
     # Strip ".module." from state dict keys (caused by Kaggle multi-GPU training)
     state_dict = checkpoint["model_state_dict"]
     clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
