@@ -302,6 +302,7 @@ class Trainer:
             else:
                 self.scaler.step(self.optimizer_d)
 
+            self.scaler.update()
             d_loss_last = d_loss.detach()
 
             # ---- Train Generator ----
@@ -348,10 +349,10 @@ class Trainer:
                     self.optimizer_g.zero_grad(set_to_none=True)
                 else:
                     self.scaler.step(self.optimizer_g)
+
+                self.scaler.update()
             finally:
                 self.model.discriminator.requires_grad_(True)
-
-            self.scaler.update()
 
             running["g_loss"] += float(g_loss.detach().item())
             running["d_loss"] += float(d_loss_last.item())
@@ -449,7 +450,7 @@ class Trainer:
             rgb = self._denorm(rgb).cpu()
             fake_rgb = self._denorm(fake_rgb).cpu()
 
-            _fig, axes = plt.subplots(
+            fig, axes = plt.subplots(
                 sample_count, 3, figsize=(10, 3 * sample_count), squeeze=False,
             )
 

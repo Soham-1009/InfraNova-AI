@@ -46,7 +46,7 @@ class LandsatColorizationInference:
         self,
         checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
         device: str | None = None,
-        image_size: int = 256,
+        image_size: int = 128,
         percentile_low: float = DEFAULT_PERCENTILE_LOW,
         percentile_high: float = DEFAULT_PERCENTILE_HIGH,
     ) -> None:

@@ -4,6 +4,7 @@ End-to-End Training Integration Test for Dynamic Generator
 
 import sys
 import traceback
+import tempfile
 from pathlib import Path
 
 import torch
@@ -19,7 +20,12 @@ from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
 
 
-def test_training_integration():
+def test_training_integration(tmp_path=None):
+    if tmp_path is None:
+        tmp_path = Path(tempfile.mkdtemp())
+    else:
+        tmp_path = Path(tmp_path)
+
     print("="*60)
     print("TRAINING INTEGRATION VERIFICATION")
     print("="*60)
@@ -165,7 +171,7 @@ def test_training_integration():
     print("\n[5] Checkpoint Save/Load Verification...")
     try:
         # Test state dict saving
-        chkpt_path = PROJECT_ROOT / "experiments/test_dynamic_chkpt.pth"
+        chkpt_path = tmp_path / "test_dynamic_chkpt.pth"
         chkpt_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save({
             "generator": model.generator.state_dict(),

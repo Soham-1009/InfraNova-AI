@@ -203,7 +203,34 @@ class InferenceEngine:
         Returns:
             List of PIL RGB images.
         """
+        if not images:
+            return []
+
+        model = self.load_model()
+        tensors = [preprocess_ir_image(img, image_size=self.image_size) for img in images]
+        batch_tensor = torch.cat(tensors, dim=0).to(self.device)
+
+        if not use_tta:
+            fake_rgb = model.generate(batch_tensor)
+        else:
+            preds: list[torch.Tensor] = []
+            preds.append(model.generate(batch_tensor))
+
+            batch_h = torch.flip(batch_tensor, dims=[3])
+            pred_h = model.generate(batch_h)
+            preds.append(torch.flip(pred_h, dims=[3]))
+
+            batch_v = torch.flip(batch_tensor, dims=[2])
+            pred_v = model.generate(batch_v)
+            preds.append(torch.flip(pred_v, dims=[2]))
+
+            batch_r = torch.flip(batch_tensor, dims=[2, 3])
+            pred_r = model.generate(batch_r)
+            preds.append(torch.flip(pred_r, dims=[2, 3]))
+
+            fake_rgb = torch.stack(preds, dim=0).mean(dim=0)
+
         outputs: list[Image.Image] = []
-        for img in images:
-            outputs.append(self.predict(img, use_tta=use_tta))
+        for i in range(fake_rgb.size(0)):
+            outputs.append(postprocess_output(fake_rgb[i]))
         return outputs

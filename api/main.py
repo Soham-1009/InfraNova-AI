@@ -9,8 +9,6 @@ from __future__ import annotations
 import io
 import sys
 import time
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 import numpy as np
@@ -40,12 +38,6 @@ IMAGE_SIZE = 128
 FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
 
 
-@asynccontextmanager
-async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
-    """Mount static frontend assets on startup if a production build exists."""
-    if FRONTEND_DIR.is_dir():
-        application.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
-    yield
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +47,6 @@ app = FastAPI(
     title="InfraNova AI",
     description="Thermal-to-RGB satellite image colorization powered by Pix2Pix.",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -208,3 +199,7 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
         return StreamingResponse(buf, media_type="image/png")
     except Exception as exc:
         raise HTTPException(500, f"CLAHE failed: {exc}") from exc
+
+# Mount static frontend assets as a catch-all route at the very end
+if FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
