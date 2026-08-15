@@ -23,10 +23,10 @@ model:
   multi_scale_disc: false
 
 training:
-  epochs: 250
+  epochs: 500
   batch_size: 128
-  decay_start_epoch: 230
-  patience: 40
+  decay_start_epoch: 450
+  patience: 100
   amp: true
   grad_clip: 1.0
   sample_every: 5
