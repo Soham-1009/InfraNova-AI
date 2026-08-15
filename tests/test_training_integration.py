@@ -3,8 +3,8 @@ End-to-End Training Integration Test for Dynamic Generator
 """
 
 import sys
-import traceback
 import tempfile
+import traceback
 from pathlib import Path
 
 import torch
