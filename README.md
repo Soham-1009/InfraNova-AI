@@ -48,7 +48,7 @@ RGB-like satellite output
 
 ```text
 configs/
-  config.yaml                 Production training configuration (250 epochs)
+  config.yaml                 Production training configuration (500 epochs)
 
 src/
   datasets/                   Landsat 9 dataset loader
@@ -228,7 +228,7 @@ The current setup uses:
 - Dynamic U-Net generator (depth computed from input size)
 - PatchGAN discriminator
 - L1, adversarial, perceptual, SSIM, and chroma losses
-- 250 epochs with linear LR decay from epoch 230
+- 500 epochs with linear LR decay from epoch 450
 - Automatic mixed precision (AMP) training
 - Checkpoint saving for best, latest, and final models
 - Deterministic resume from any checkpoint

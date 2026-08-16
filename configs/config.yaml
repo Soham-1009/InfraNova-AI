@@ -24,7 +24,7 @@ model:
 
 training:
   epochs: 500
-  batch_size: 128
+  batch_size: 256
   decay_start_epoch: 450
   patience: 100
   amp: true
