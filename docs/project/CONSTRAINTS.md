@@ -23,3 +23,8 @@ This document details hard boundaries and technical constraints that developers 
 - **DataParallel Prefixing**: Because the model is trained on multi-GPU Kaggle instances using `nn.DataParallel`, PyTorch automatically prepends `.module.` to all dictionary keys (e.g., `module.down1.conv.weight`). The `checkpoint.py` utility aggressively strips this prefix when loading the model on CPU or single-GPU instances. If you change how the model is wrapped during training, you must update the checkpoint loader.
 - **Safe Weights Loading**: PyTorch 2.4+ warns about unsafe deserialization. `checkpoint.py` attempts to load with `weights_only=True` first, but falls back to `weights_only=False` for older checkpoints.
 
+## 5. UI Constraints
+
+- **Stack**: The frontend is built with React 19, Vite 8, and vanilla CSS. CSS frameworks (Tailwind, Bootstrap, Material UI) may be introduced if the Frontend Developer deems it necessary, but must be discussed with the team first.
+- **API Communication**: The React app communicates with the FastAPI backend via REST. The backend URL is configured via environment variables. The frontend must handle cases where the backend is unreachable (show a clear offline indicator, not a blank page).
+- **Image Format**: The model operates on 128×128 images internally. The frontend must resize user-uploaded images before sending them to the API and clearly communicate that the output resolution is 128×128.
