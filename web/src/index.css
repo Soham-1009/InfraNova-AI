@@ -90,8 +90,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 /* Subtle animated background */
@@ -109,7 +108,7 @@ body::before {
 #root {
   position: relative;
   z-index: 1;
-  height: 100vh;
+  min-height: 100vh;
 }
 
 a {
@@ -123,20 +122,19 @@ img {
 }
 
 /* ================================================================
-   App Shell — 100vh layout
+   App Shell — flexible layout (scrollable)
    ================================================================ */
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* ================================================================
