@@ -138,15 +138,17 @@ On Kaggle, PyTorch is pre-installed. Skip the PyTorch install step and install o
 If you see this error while running `pip install -r requirements.txt`:
 `error: Microsoft Visual C++ 14.0 or greater is required. Failed building wheel for stringzilla`
 
-This happens because `pip` cannot find a pre-compiled Windows binary for `stringzilla` and tries to compile it from source, which requires a C++ compiler. 
+This happens because `pip` cannot find a pre-compiled Windows binary for `stringzilla` and tries to compile it from source, which requires a C++ compiler.
 
 **Recommended Fix (Permanent):**
+
 1. Download [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
 2. Run the installer and check **"Desktop development with C++"**.
 3. Install, restart your terminal, activate your `venv`, and run the `pip install` command again.
 
 **Quick Workaround (Bypass Compilation):**
 If you want to force pip to only use pre-compiled binaries (which will skip compilation but may fail if no binary exists at all), run this in your `venv` before installing requirements:
+
 ```powershell
 pip install --only-binary=:all: stringzilla
 ```
@@ -288,11 +290,11 @@ npm run dev
 
 ### API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check (returns model status) |
-| `/colorize` | POST | Upload a thermal image, returns colorized RGB PNG |
-| `/thermal-preview` | POST | Upload a thermal image, returns INFERNO heatmap preview |
+| Endpoint           | Method | Description                                             |
+| ------------------ | ------ | ------------------------------------------------------- |
+| `/health`          | GET    | Health check (returns model status)                     |
+| `/colorize`        | POST   | Upload a thermal image, returns colorized RGB PNG       |
+| `/thermal-preview` | POST   | Upload a thermal image, returns INFERNO heatmap preview |
 
 ### Features
 
