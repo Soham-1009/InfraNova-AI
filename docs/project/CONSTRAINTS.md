@@ -25,6 +25,6 @@ This document details hard boundaries and technical constraints that developers 
 
 ## 5. UI Constraints
 
-- **Stack**: The frontend is built with React 19, Vite 8, and vanilla CSS. CSS frameworks (Tailwind, Bootstrap, Material UI) may be introduced if the Frontend Developer deems it necessary, but must be discussed with the team first.
-- **API Communication**: The React app communicates with the FastAPI backend via REST. The backend URL is configured via environment variables. The frontend must handle cases where the backend is unreachable (show a clear offline indicator, not a blank page).
-- **Image Format**: The model operates on 128×128 images internally. The frontend must resize user-uploaded images before sending them to the API and clearly communicate that the output resolution is 128×128.
+- **Stack**: The frontend is built with React 19, Vite 8, and vanilla CSS. CSS frameworks (Tailwind, Bootstrap, etc.) may be introduced if the Frontend Developer deems it necessary, but should be discussed with the team first.
+- **API Communication**: The React app communicates with the FastAPI backend via REST. The frontend must handle cases where the backend is unreachable (show a clear offline indicator, not a blank page).
+- **Image Format**: The model operates on 128×128 images internally. The frontend must resize user-uploaded images before sending them to the API and clearly communicate the output resolution to the user.
