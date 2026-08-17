@@ -15,7 +15,7 @@ This document details hard boundaries and technical constraints that developers 
 
 ## 3. Mathematical Constraints
 
-- **Activation Ranges**: The Generator's final layer is a `Tanh` activation function. This mathematically restricts its output to the range `[-1.0, 1.0]`. Therefore, the `Landsat9Dataset` *must* normalize all target RGB images to `[-1, 1]`, and the `InferenceEngine` *must* denormalize the output back to `[0, 255]`.
+- **Activation Ranges**: The Generator's final layer is a `Tanh` activation function. This mathematically restricts its output to the range `[-1.0, 1.0]`. Therefore, the `Landsat9Dataset` _must_ normalize all target RGB images to `[-1, 1]`, and the `InferenceEngine` _must_ denormalize the output back to `[0, 255]`.
 - **Lipschitz Continuity**: The Discriminator uses `SpectralNorm`. Do not add `BatchNorm` or `InstanceNorm` to the Discriminator, as it violates the Lipschitz constraint and breaks the SNGAN mathematical proof for stability.
 
 ## 4. Checkpoint Constraints
