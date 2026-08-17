@@ -1,7 +1,5 @@
 # InfraNova AI
 
-**[📖 Read the Master Codebase Guide](docs/project/MASTER_CODEBASE_GUIDE.md)** for complete, truth-based technical documentation, architecture diagrams, and developer onboarding guides.
-
 InfraNova AI converts Landsat 9 thermal infrared imagery into RGB-like satellite imagery using a Pix2Pix conditional GAN.
 
 The project is designed around a simple idea: thermal images show heat patterns, while most humans and computer vision tools are easier to work with when imagery looks like normal RGB satellite data. The model learns from paired Landsat 9 thermal and RGB bands, then generates a plausible RGB view from a single thermal input.

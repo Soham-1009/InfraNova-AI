@@ -407,10 +407,8 @@ function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="footer">
-        <p className="footer__text">Powered by PyTorch & Pix2Pix GAN</p>
-      </footer>
+
+
     </div>
   )
 }
