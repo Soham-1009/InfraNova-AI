@@ -23,7 +23,3 @@ This document details hard boundaries and technical constraints that developers 
 - **DataParallel Prefixing**: Because the model is trained on multi-GPU Kaggle instances using `nn.DataParallel`, PyTorch automatically prepends `.module.` to all dictionary keys (e.g., `module.down1.conv.weight`). The `checkpoint.py` utility aggressively strips this prefix when loading the model on CPU or single-GPU instances. If you change how the model is wrapped during training, you must update the checkpoint loader.
 - **Safe Weights Loading**: PyTorch 2.4+ warns about unsafe deserialization. `checkpoint.py` attempts to load with `weights_only=True` first, but falls back to `weights_only=False` for older checkpoints.
 
-## 5. UI Constraints
-
-- **No Frameworks**: The frontend uses standard React and vanilla CSS variables. Do not install Tailwind CSS, Material UI, or Bootstrap. The UI constraints demand a "glassmorphism" aesthetic built with pure CSS.
-- **Vertical Viewport**: The layout is constrained to `100vh`. Do not add scrolling to the main body. If the footer overflows, reduce padding rather than allowing page scroll.
