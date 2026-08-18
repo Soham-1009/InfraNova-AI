@@ -372,8 +372,15 @@ img {
   margin-bottom: var(--space-md);
 }
 
-.hero__title .gradient {
-  background: var(--accent-gradient);
+.hero__title .gradient-thermal {
+  background: linear-gradient(90deg, #1a0533, #6b21a8, #dc2626, #f97316, #facc15);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero__title .gradient-rgb {
+  background: linear-gradient(90deg, #ef4444, #22c55e, #3b82f6);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

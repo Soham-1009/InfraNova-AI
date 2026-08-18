@@ -267,7 +267,7 @@ function App() {
                 Pix2Pix · Landsat-9 · Epoch 226
               </div>
               <h1 className="hero__title">
-                Thermal to <span className="gradient">True Color</span>
+                <span className="gradient-thermal">Thermal</span> to <span className="gradient-rgb">True Color</span>
               </h1>
               <p className="hero__subtitle">
                 Upload a thermal infrared satellite image and watch our AI model
