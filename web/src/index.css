@@ -69,6 +69,34 @@
 }
 
 /* ================================================================
+   Light Theme Override
+   ================================================================ */
+[data-theme="light"] {
+  --bg-primary: #f5f5fa;
+  --bg-secondary: #e8e8f0;
+  --bg-card: rgba(0, 0, 0, 0.03);
+  --bg-card-hover: rgba(0, 0, 0, 0.06);
+  --bg-glass: rgba(0, 0, 0, 0.02);
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-accent: rgba(99, 102, 241, 0.4);
+
+  --text-primary: #1a1a2e;
+  --text-secondary: #555570;
+  --text-muted: #8888a0;
+
+  --accent-primary: #4f46e5;
+  --accent-secondary: #0891b2;
+  --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #0891b2 100%);
+  --accent-glow: rgba(79, 70, 229, 0.1);
+  --accent-glow-cyan: rgba(8, 145, 178, 0.08);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 40px rgba(79, 70, 229, 0.08);
+}
+
+/* ================================================================
    Reset & Base
    ================================================================ */
 *,
@@ -91,6 +119,7 @@ body {
   color: var(--text-primary);
   line-height: 1.6;
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Subtle animated background */
@@ -99,8 +128,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(34, 211, 238, 0.05), transparent);
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-glow), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, var(--accent-glow-cyan), transparent);
   pointer-events: none;
   z-index: 0;
 }
@@ -156,7 +185,7 @@ img {
   z-index: 100;
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  background: rgba(10, 10, 15, 0.75);
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
@@ -820,7 +849,7 @@ img {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 10, 15, 0.85);
+  background: var(--bg-primary);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

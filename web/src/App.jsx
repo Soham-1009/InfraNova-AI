@@ -18,9 +18,18 @@ function App() {
   const [sliderPos, setSliderPos] = useState(50)
   const [claheApplied, setClaheApplied] = useState(false)
   const [apiStatus, setApiStatus] = useState('checking') // 'checking' | 'online' | 'offline'
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const fileInputRef = useRef(null)
   const sliderContainerRef = useRef(null)
   const isDraggingSlider = useRef(false)
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark')
 
   // Check API health on mount
   useEffect(() => {
@@ -237,6 +246,9 @@ function App() {
             <span className={`status-dot status-dot--${apiStatus}`} title={`API ${apiStatus}`} />
           </div>
           <ul className="navbar__links">
+            <li className="navbar__link" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </li>
             <li className="navbar__link" onClick={() => window.open('https://github.com/Soham-1009/InfraNova-AI', '_blank')}>
               GitHub
             </li>
