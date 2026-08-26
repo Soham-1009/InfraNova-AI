@@ -50,6 +50,7 @@ def generate_comparison(
 ) -> None:
     """Generate side-by-side comparison panels."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -198,9 +199,7 @@ def generate_comparison(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate visual comparison panels for InfraNova AI."
-    )
+    parser = argparse.ArgumentParser(description="Generate visual comparison panels for InfraNova AI.")
     parser.add_argument("--checkpoint", default="checkpoints/best/pix2pix_landsat_best.pth")
     parser.add_argument("--split", default="val", choices=["train", "val", "test"])
     parser.add_argument("--data-root", default=str(PROJECT_ROOT / "data/landsat9/splits"))
@@ -225,5 +224,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

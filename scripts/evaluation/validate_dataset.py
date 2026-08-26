@@ -37,9 +37,9 @@ EXPECTED_SHAPES = {
 
 # Reasonable value ranges for Landsat 9 data
 VALUE_RANGES = {
-    "tir_200m.npy": (-50.0, 100.0),     # Surface temperature in °C-ish
+    "tir_200m.npy": (-50.0, 100.0),  # Surface temperature in °C-ish
     "tir_100m.npy": (-50.0, 100.0),
-    "rgb_100m.npy": (0.0, 1.0),          # Normalized reflectance
+    "rgb_100m.npy": (0.0, 1.0),  # Normalized reflectance
 }
 
 
@@ -108,8 +108,7 @@ def validate_sample(sample_dir: Path, verbose: bool = False) -> tuple[list[str],
             if actual_min < vmin * 10 or actual_max > vmax * 10:
                 # Only warn for extreme outliers (10x beyond expected)
                 issues.append(
-                    f"{filename}: extreme values [{actual_min:.2f}, {actual_max:.2f}] "
-                    f"(expected ~[{vmin}, {vmax}])"
+                    f"{filename}: extreme values [{actual_min:.2f}, {actual_max:.2f}] (expected ~[{vmin}, {vmax}])"
                 )
 
         # Verbose histogram stats
@@ -197,7 +196,7 @@ def find_duplicate_hashes(
         if len(samples) > 1:
             duplicates.append(
                 f"Identical content: {', '.join(samples[:5])}"
-                f"{f' (+{len(samples)-5} more)' if len(samples) > 5 else ''}"
+                f"{f' (+{len(samples) - 5} more)' if len(samples) > 5 else ''}"
             )
 
     return duplicates
@@ -223,9 +222,7 @@ def check_data_leakage(data_dir: Path) -> list[str]:
     for region, splits in region_to_splits.items():
         unique_splits = set(splits)
         if len(unique_splits) > 1:
-            duplicates.append(
-                f"Region '{region}' appears in multiple splits: {sorted(unique_splits)}"
-            )
+            duplicates.append(f"Region '{region}' appears in multiple splits: {sorted(unique_splits)}")
 
     return duplicates
 
@@ -248,12 +245,14 @@ def print_summary_stats(hashes_by_sample: dict[str, dict[str, str]], data_dir: P
                 try:
                     arr = np.load(npy_path)
                     if np.isfinite(arr).all():
-                        all_values.append({
-                            "min": float(np.min(arr)),
-                            "max": float(np.max(arr)),
-                            "mean": float(np.mean(arr)),
-                            "std": float(np.std(arr)),
-                        })
+                        all_values.append(
+                            {
+                                "min": float(np.min(arr)),
+                                "max": float(np.max(arr)),
+                                "mean": float(np.mean(arr)),
+                                "std": float(np.std(arr)),
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -270,9 +269,7 @@ def print_summary_stats(hashes_by_sample: dict[str, dict[str, str]], data_dir: P
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Validate Landsat 9 dataset patches for training readiness."
-    )
+    parser = argparse.ArgumentParser(description="Validate Landsat 9 dataset patches for training readiness.")
     parser.add_argument(
         "--dir",
         default="data/landsat9/patches",
@@ -358,4 +355,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

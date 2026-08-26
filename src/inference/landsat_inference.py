@@ -313,9 +313,7 @@ class LandsatColorizationInference:
             # Preserve band order as a 3-band TIFF when rasterio is unavailable.
             tifffile.imwrite(path, np.moveaxis(bgr_array, -1, 0))
         else:
-            raise RuntimeError(
-                "Saving a 3-band TIFF requires rasterio or tifffile to be installed."
-            )
+            raise RuntimeError("Saving a 3-band TIFF requires rasterio or tifffile to be installed.")
 
         return str(path)
 
@@ -331,4 +329,3 @@ class LandsatColorizationInference:
         result = self.predict(image=image, use_tta=use_tta)
         self.save_tiff(result["tiff_bgr"], output_path)
         return result
-

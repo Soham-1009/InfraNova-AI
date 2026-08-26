@@ -166,10 +166,8 @@ class MultiScaleDiscriminator(nn.Module):
         self.discriminators = nn.ModuleList()
 
         for _ in range(num_scales):
-            self.discriminators.append(
-                PatchDiscriminator(in_channels=in_channels, features=features)
-            )
-            
+            self.discriminators.append(PatchDiscriminator(in_channels=in_channels, features=features))
+
         self.downsample = nn.AvgPool2d(kernel_size=3, stride=2, padding=1, count_include_pad=False)
 
     def forward(

@@ -148,11 +148,7 @@ def _set_optimizer_lr(optimizer: torch.optim.Optimizer, lr: float) -> None:
 
 
 def _save_experiment_json(
-    cfg: dict[str, Any],
-    dataset_info: dict[str, Any],
-    best_ssim: float,
-    best_psnr: float,
-    checkpoint_dir: Path
+    cfg: dict[str, Any], dataset_info: dict[str, Any], best_ssim: float, best_psnr: float, checkpoint_dir: Path
 ) -> None:
     """Save an experiment.json and config.yaml alongside the checkpoint."""
     import hashlib
@@ -191,12 +187,13 @@ def _save_experiment_json(
         "subset_ratio": cfg.get("dataset", {}).get("subset_ratio", None),
         "subset_seed": cfg.get("dataset", {}).get("subset_seed", 42),
         "best_ssim": float(best_ssim),
-        "best_psnr": float(best_psnr)
+        "best_psnr": float(best_psnr),
     }
 
     exp_path = checkpoint_dir / f"{experiment_id}_experiment.json"
     with open(exp_path, "w", encoding="utf-8") as f:
         json.dump(exp_data, f, indent=2)
+
 
 def _save_experiment_comparison(cfg: dict[str, Any], history: dict[str, list]) -> None:
     """Append a row to logs/experiment_comparison.csv with config and best metrics."""
@@ -424,13 +421,7 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                 "discriminator": scheduler_d,
             },
         )
-        _save_experiment_json(
-            cfg,
-            dataset_info,
-            best_val_ssim,
-            val_metrics["val_psnr"],
-            Path(latest_path).parent
-        )
+        _save_experiment_json(cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], Path(latest_path).parent)
 
         # Stage checkpoint (every 10 epochs)
         if (epoch + 1) % 10 == 0:
@@ -452,13 +443,7 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                     "discriminator": scheduler_d,
                 },
             )
-            _save_experiment_json(
-                cfg,
-                dataset_info,
-                best_val_ssim,
-                val_metrics["val_psnr"],
-                stage_dir
-            )
+            _save_experiment_json(cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], stage_dir)
 
         # Best checkpoint based on validation SSIM
         if val_metrics["val_ssim"] > best_val_ssim:
@@ -481,13 +466,7 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                     "discriminator": scheduler_d,
                 },
             )
-            _save_experiment_json(
-                cfg,
-                dataset_info,
-                best_val_ssim,
-                val_metrics["val_psnr"],
-                Path(best_path).parent
-            )
+            _save_experiment_json(cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], Path(best_path).parent)
             logger.info("Epoch %d: new best val_ssim=%.4f", epoch + 1, best_val_ssim)
         else:
             no_improve += 1
@@ -546,6 +525,7 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
 
 def main() -> None:
     import sys
+
     config_path = sys.argv[1] if len(sys.argv) > 1 else "configs/config.yaml"
     cfg = load_config(config_path)
     run_training(cfg)
@@ -553,4 +533,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

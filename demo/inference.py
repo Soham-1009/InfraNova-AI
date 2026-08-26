@@ -39,9 +39,7 @@ class InferenceEngine:
         self.image_size = int(image_size)
         if self.image_size < 128 or self.image_size % 128 != 0:
             raise ValueError("image_size must be a multiple of 128 for this generator")
-        self.device = torch.device(
-            device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
         self.model: Pix2Pix | None = None
 
     def load_model(self) -> Pix2Pix:
@@ -75,7 +73,12 @@ class InferenceEngine:
             if "global_gen" in k or "local_enhancer" in k or "global_generator" in k:
                 gen_impl = "hd"
                 num_scales = 2
-            if "global_gen.downs.0.block.0.weight" in k or "global_generator.model.0.weight" in k or "down1.model.0.weight" in k or "generator.down1.model.0.weight" in k:
+            if (
+                "global_gen.downs.0.block.0.weight" in k
+                or "global_generator.model.0.weight" in k
+                or "down1.model.0.weight" in k
+                or "generator.down1.model.0.weight" in k
+            ):
                 in_channels = v.shape[1]
 
         if isinstance(checkpoint, dict) and "arch_info" in checkpoint:

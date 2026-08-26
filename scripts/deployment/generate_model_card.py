@@ -110,8 +110,8 @@ from Landsat 9 Band 10 + Band 11 dual-band thermal infrared (TIR) data. The mode
 | Property | Value |
 |----------|-------|
 | Architecture | Pix2PixHD (GlobalGenerator + LocalEnhancer + MultiScaleDiscriminator) |
-| Generator | {ckpt_info.get('generator', 'Pix2PixHDGenerator')} |
-| Discriminator | {ckpt_info.get('discriminator', 'MultiScaleDiscriminator')} |
+| Generator | {ckpt_info.get("generator", "Pix2PixHDGenerator")} |
+| Discriminator | {ckpt_info.get("discriminator", "MultiScaleDiscriminator")} |
 | Input | {in_channels} x {image_size} x {image_size} (Band 10 + Band 11 thermal) |
 | Output | {out_channels} x {image_size} x {image_size} (RGB) |
 | Total Parameters | {total_params:,} |
@@ -122,26 +122,26 @@ from Landsat 9 Band 10 + Band 11 dual-band thermal infrared (TIR) data. The mode
 
 | Hyperparameter | Value |
 |---------------|-------|
-| Epochs | {training_hp.get('epochs', 'N/A')} |
-| Batch Size | {training_hp.get('batch_size', 'N/A')} |
-| Learning Rate | {optim_hp.get('lr', 'N/A')} |
-| Optimizer | Adam (β₁={optim_hp.get('beta1', 'N/A')}, β₂={optim_hp.get('beta2', 'N/A')}) |
-| λ_adv | {loss_hp.get('lambda_adv', 'N/A')} |
-| λ_L1 | {loss_hp.get('lambda_l1', 'N/A')} |
-| λ_perceptual | {loss_hp.get('lambda_perc', 'N/A')} |
-| λ_SSIM | {loss_hp.get('lambda_ssim', 'N/A')} |
-| AMP | {training_hp.get('amp', 'N/A')} |
-| Gradient Clip | {training_hp.get('grad_clip', 'N/A')} |
+| Epochs | {training_hp.get("epochs", "N/A")} |
+| Batch Size | {training_hp.get("batch_size", "N/A")} |
+| Learning Rate | {optim_hp.get("lr", "N/A")} |
+| Optimizer | Adam (β₁={optim_hp.get("beta1", "N/A")}, β₂={optim_hp.get("beta2", "N/A")}) |
+| λ_adv | {loss_hp.get("lambda_adv", "N/A")} |
+| λ_L1 | {loss_hp.get("lambda_l1", "N/A")} |
+| λ_perceptual | {loss_hp.get("lambda_perc", "N/A")} |
+| λ_SSIM | {loss_hp.get("lambda_ssim", "N/A")} |
+| AMP | {training_hp.get("amp", "N/A")} |
+| Gradient Clip | {training_hp.get("grad_clip", "N/A")} |
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| Best SSIM | {f'{best_ssim:.4f}' if isinstance(best_ssim, float) else best_ssim} |
-| Best PSNR | {f'{best_psnr:.2f} dB' if isinstance(best_psnr, float) else best_psnr} |
-| Best SSIM Epoch | {exp_info.get('best_ssim_epoch', 'N/A')} |
-| Best PSNR Epoch | {exp_info.get('best_psnr_epoch', 'N/A')} |
-| Total Epochs Trained | {exp_info.get('total_epochs_trained', 'N/A')} |
+| Best SSIM | {f"{best_ssim:.4f}" if isinstance(best_ssim, float) else best_ssim} |
+| Best PSNR | {f"{best_psnr:.2f} dB" if isinstance(best_psnr, float) else best_psnr} |
+| Best SSIM Epoch | {exp_info.get("best_ssim_epoch", "N/A")} |
+| Best PSNR Epoch | {exp_info.get("best_psnr_epoch", "N/A")} |
+| Total Epochs Trained | {exp_info.get("total_epochs_trained", "N/A")} |
 
 ## Dataset
 
@@ -171,10 +171,10 @@ This model is intended for:
 
 | Property | Value |
 |----------|-------|
-| Python | {exp_info.get('python_version', 'N/A').split()[0] if exp_info.get('python_version') else 'N/A'} |
-| PyTorch | {exp_info.get('pytorch_version', 'N/A')} |
-| CUDA | {exp_info.get('cuda_device', 'N/A')} |
-| Git Commit | {exp_info.get('git_commit', 'N/A')} |
+| Python | {exp_info.get("python_version", "N/A").split()[0] if exp_info.get("python_version") else "N/A"} |
+| PyTorch | {exp_info.get("pytorch_version", "N/A")} |
+| CUDA | {exp_info.get("cuda_device", "N/A")} |
+| Git Commit | {exp_info.get("git_commit", "N/A")} |
 
 ## Citation
 
@@ -186,7 +186,7 @@ This model is intended for:
 ```
 
 ---
-*Generated on {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}*
+*Generated on {datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")}*
 """
 
     out = Path(output_path)
@@ -197,9 +197,7 @@ This model is intended for:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Auto-generate MODEL_CARD.md for InfraNova AI."
-    )
+    parser = argparse.ArgumentParser(description="Auto-generate MODEL_CARD.md for InfraNova AI.")
     parser.add_argument(
         "--checkpoint",
         default="checkpoints/best/pix2pix_landsat_best.pth",
@@ -226,5 +224,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

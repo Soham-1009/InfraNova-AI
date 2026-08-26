@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import pandas as pd
 import torch
 from kaggle_kernel.train_pix2pixhd import MultiScaleDiscriminator, Pix2PixHDGenerator
+
 CKPT_PATH = PROJECT_ROOT / "outputs/kaggle_batch64_100epochs/outputs/pix2pixhd_batch256_kaggle/best/checkpoint.pth"
 CSV_PATH = PROJECT_ROOT / "outputs/kaggle_batch64_100epochs/training.csv"
 OUT_JSON = PROJECT_ROOT / "docs/experiments/final_checkpoint_verification.json"
@@ -33,7 +34,7 @@ ckpt_metrics = ckpt.get("metrics", {})
 gen = Pix2PixHDGenerator(in_channels=1, out_channels=3)
 disc = MultiScaleDiscriminator(in_channels=4, num_scales=2)
 
-gen_keys = [k for k in ckpt["model_state_dict"].keys() if "global_gen" in k or "local_enhancer" in k]
+gen_keys = [k for k in ckpt["model_state_dict"] if "global_gen" in k or "local_enhancer" in k]
 gen_state = {k: v for k, v in ckpt["model_state_dict"].items() if k in gen.state_dict()}
 
 load_res = gen.load_state_dict(ckpt["model_state_dict"], strict=False)
@@ -90,4 +91,4 @@ print(f"  Val PSNR: {ckpt_metrics.get('val_psnr'):.2f} dB")
 print(f"  Val Lab Error: {ckpt_metrics.get('val_lab_error'):.2f}")
 print(f"  SHA-256: {sha256}")
 print(f"  All tensors finite: {all_finite}")
-print(f"  Gen params: {gen_params/1e6:.2f}M | Disc params: {disc_params/1e6:.2f}M")
+print(f"  Gen params: {gen_params / 1e6:.2f}M | Disc params: {disc_params / 1e6:.2f}M")

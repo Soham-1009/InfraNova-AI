@@ -124,16 +124,16 @@ class FeatureMatchingLoss(nn.Module):
         # Exclude the final logit (the last element)
         fake_inter = fake_feats[:-1]
         real_inter = real_feats[:-1]
-        
+
         loss = fake_inter[0].new_tensor(0.0)
         n = min(len(fake_inter), len(real_inter))
         if n == 0:
             return loss
-            
+
         for i in range(n):
             # F.l1_loss(..., reduction="mean") handles the division by N_elements automatically
             loss = loss + F.l1_loss(fake_inter[i], real_inter[i].detach(), reduction="mean")
-            
+
         return loss / max(n, 1)
 
 
@@ -177,10 +177,10 @@ class VGGPerceptualLoss(nn.Module):
 
         self.blocks = nn.ModuleList(
             [
-                vgg[:4],    # relu1_2
-                vgg[4:9],   # relu2_2
+                vgg[:4],  # relu1_2
+                vgg[4:9],  # relu2_2
                 vgg[9:18],  # relu3_4
-                vgg[18:27], # relu4_4
+                vgg[18:27],  # relu4_4
             ]
         )
 
@@ -251,7 +251,7 @@ class SSIMLoss(nn.Module):
     @staticmethod
     def _gaussian(window_size: int, sigma: float) -> torch.Tensor:
         coords = torch.arange(window_size).float() - window_size // 2
-        gauss = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
+        gauss = torch.exp(-(coords**2) / (2 * sigma**2))
         return gauss / gauss.sum()
 
     def _create_window(self, window_size: int, sigma: float, channel: int) -> torch.Tensor:
@@ -261,8 +261,8 @@ class SSIMLoss(nn.Module):
         return window.expand(channel, 1, window_size, window_size).contiguous()
 
     def _ssim(self, img1: torch.Tensor, img2: torch.Tensor) -> torch.Tensor:
-        c1 = (0.01 ** 2)
-        c2 = (0.03 ** 2)
+        c1 = 0.01**2
+        c2 = 0.03**2
 
         channel = img1.size(1)
         # This is the fix: we make sure the 'dtype' matches so it doesn't crash
@@ -283,9 +283,7 @@ class SSIMLoss(nn.Module):
         sigma2_sq = F.conv2d(img2 * img2, window, padding=self.window_size // 2, groups=channel) - mu2_sq
         sigma12 = F.conv2d(img1 * img2, window, padding=self.window_size // 2, groups=channel) - mu1_mu2
 
-        ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / (
-            (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
-        )
+        ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / ((mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2))
 
         return ssim_map.mean()
 
@@ -362,13 +360,13 @@ class CombinedLoss(nn.Module):
         """
         if isinstance(disc_fake_pred, dict):
             # Multi-scale GAN loss for G
-            adv = disc_fake_pred[list(disc_fake_pred.keys())[0]].new_tensor(0.0)
+            adv = disc_fake_pred[next(iter(disc_fake_pred.keys()))].new_tensor(0.0)
             for scale_pred in disc_fake_pred.values():
                 adv = adv + self.gan_loss(scale_pred, True)
             adv = adv / max(len(disc_fake_pred), 1)
         else:
             adv = self.gan_loss(disc_fake_pred, True)
-            
+
         l1 = self.l1_loss(fake_rgb, real_rgb)
         if self.perc_loss is not None and fake_rgb.size(1) == 3 and real_rgb.size(1) == 3:
             perc = self.perc_loss(fake_rgb, real_rgb)
@@ -381,11 +379,7 @@ class CombinedLoss(nn.Module):
         else:
             chroma = fake_rgb.new_tensor(0.0)
 
-        if (
-            self.feat_loss is not None
-            and fake_features is not None
-            and real_features is not None
-        ):
+        if self.feat_loss is not None and fake_features is not None and real_features is not None:
             feat = self.feat_loss(fake_features, real_features)
         else:
             feat = fake_rgb.new_tensor(0.0)
@@ -414,8 +408,10 @@ class CombinedLoss(nn.Module):
 # Standalone color-quality metrics (used by evaluate.py and trainer)
 # ---------------------------------------------------------------------------
 
+
 def compute_mean_saturation_ratio(
-    pred: torch.Tensor, target: torch.Tensor,
+    pred: torch.Tensor,
+    target: torch.Tensor,
 ) -> float:
     """
     Compute ratio of mean saturation (channel std) between prediction and target.
@@ -431,7 +427,9 @@ def compute_mean_saturation_ratio(
 
 
 def compute_color_histogram_distance(
-    pred: torch.Tensor, target: torch.Tensor, bins: int = 64,
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    bins: int = 64,
 ) -> float:
     """
     Compute chi-squared distance between RGB histograms.
@@ -456,7 +454,8 @@ def compute_color_histogram_distance(
 
 
 def compute_lab_color_error(
-    pred: torch.Tensor, target: torch.Tensor,
+    pred: torch.Tensor,
+    target: torch.Tensor,
 ) -> float:
     """
     Compute mean CIE Lab color error (Delta E approximation).
@@ -464,6 +463,7 @@ def compute_lab_color_error(
     Uses a simplified sRGB->Lab conversion. Inputs: [B, 3, H, W] in [0, 1].
     Returns mean Delta E (lower is better).
     """
+
     def _srgb_to_lab_approx(rgb: torch.Tensor) -> torch.Tensor:
         """Simplified sRGB -> Lab via linearization + XYZ -> Lab."""
         # Linearize sRGB

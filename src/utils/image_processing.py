@@ -24,10 +24,7 @@ def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
         return np.ascontiguousarray(np.moveaxis(array, 0, -1))
     if array.ndim == 4:
         return np.ascontiguousarray(np.moveaxis(array, 1, -1))
-    raise ValueError(
-        "Expected a 2D, 3D, or 4D tensor, "
-        f"received shape {tuple(tensor.shape)}."
-    )
+    raise ValueError(f"Expected a 2D, 3D, or 4D tensor, received shape {tuple(tensor.shape)}.")
 
 
 def numpy_to_tensor(array: np.ndarray) -> torch.Tensor:
@@ -60,10 +57,7 @@ def numpy_to_tensor(array: np.ndarray) -> torch.Tensor:
         elif second_is_channel:
             channels_first = array
         else:
-            raise ValueError(
-                "Expected a BCHW or BHWC batch with 1, 3, or 4 channels; "
-                f"received shape {array.shape}."
-            )
+            raise ValueError(f"Expected a BCHW or BHWC batch with 1, 3, or 4 channels; received shape {array.shape}.")
     else:
         raise ValueError(f"Expected a 2D, 3D, or 4D array, received shape {array.shape}.")
 
@@ -99,8 +93,7 @@ def to_single_band_array(image: ImageInput) -> np.ndarray:
             channels = arr
         else:
             raise ValueError(
-                "Expected a grayscale image or an image with 1, 2, 3, or 4 channels; "
-                f"received shape {arr.shape}."
+                f"Expected a grayscale image or an image with 1, 2, 3, or 4 channels; received shape {arr.shape}."
             )
 
         if channels.shape[-1] == 1:
@@ -110,11 +103,7 @@ def to_single_band_array(image: ImageInput) -> np.ndarray:
             single_band = channels[..., 0]
         else:
             rgb = channels[..., :3].astype(np.float32, copy=False)
-            single_band = (
-                0.299 * rgb[..., 0]
-                + 0.587 * rgb[..., 1]
-                + 0.114 * rgb[..., 2]
-            )
+            single_band = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     else:
         raise ValueError(f"Expected a 2D or 3D image array, received shape {arr.shape}.")
 

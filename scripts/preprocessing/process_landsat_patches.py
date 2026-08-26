@@ -35,9 +35,9 @@ if str(PROJECT_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-PATCH_SIZE_200M = 64    # Input patch size at 200 m resolution
-PATCH_SIZE_100M = 128   # Output patch size at 100 m resolution (2x)
-STRIDE = 16             # Stride in 200 m pixels (75 % overlap)
+PATCH_SIZE_200M = 64  # Input patch size at 200 m resolution
+PATCH_SIZE_100M = 128  # Output patch size at 100 m resolution (2x)
+STRIDE = 16  # Stride in 200 m pixels (75 % overlap)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # I/O helpers
 # ===================================================================
 
+
 def load_rgb(path: Path) -> np.ndarray:
     """Load an RGB GeoTIFF and return a (3, H, W) float32 array."""
     img = tifffile.imread(path).astype(np.float32)
@@ -69,10 +70,7 @@ def load_rgb(path: Path) -> np.ndarray:
         elif img.shape[0] in (3, 4):
             img = img[:3]
         else:
-            raise ValueError(
-                f"Ambiguous RGB shape {img.shape} in {path}. "
-                "Expected (H, W, 3) or (3, H, W)."
-            )
+            raise ValueError(f"Ambiguous RGB shape {img.shape} in {path}. Expected (H, W, 3) or (3, H, W).")
 
     if img.shape[0] != 3:
         raise ValueError(f"RGB must have 3 bands, got {img.shape[0]}: {path}")
@@ -94,9 +92,7 @@ def load_tir(path: Path) -> np.ndarray:
         elif img.shape[2] == 1:
             img = img[:, :, 0]
         else:
-            raise ValueError(
-                f"Expected single-band TIR, got shape {img.shape}: {path}"
-            )
+            raise ValueError(f"Expected single-band TIR, got shape {img.shape}: {path}")
 
     if img.ndim != 2:
         raise ValueError(f"TIR must be 2-D, got ndim={img.ndim}: {path}")
@@ -112,6 +108,7 @@ def load_tir(path: Path) -> np.ndarray:
 # Resampling
 # ===================================================================
 
+
 def resize_2d(image: np.ndarray, height: int, width: int) -> np.ndarray:
     """Resize a 2-D array using INTER_AREA (anti-aliased downsampling)."""
     return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
@@ -126,6 +123,7 @@ def resize_bands(image: np.ndarray, height: int, width: int) -> np.ndarray:
 # ===================================================================
 # Core processing
 # ===================================================================
+
 
 def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None = None) -> int:
     """
@@ -168,19 +166,23 @@ def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None 
         return 0
 
     # ------ dimension compatibility ------
-    rgb_hw = rgb.shape[1:]          # (H, W) from (3, H, W)
-    tir_hw = tir.shape              # (H, W)
+    rgb_hw = rgb.shape[1:]  # (H, W) from (3, H, W)
+    tir_hw = tir.shape  # (H, W)
 
     if rgb_hw != tir_hw:
         logger.warning(
             "Skipping %s: RGB spatial %s != TIR spatial %s",
-            region_id, rgb_hw, tir_hw,
+            region_id,
+            rgb_hw,
+            tir_hw,
         )
         return 0
     if tir_b11 is not None and tir_b11.shape != tir_hw:
         logger.warning(
             "Skipping %s: TIR B11 spatial %s != TIR B10 spatial %s",
-            region_id, tir_b11.shape, tir_hw,
+            region_id,
+            tir_b11.shape,
+            tir_hw,
         )
         return 0
 
@@ -201,14 +203,25 @@ def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None 
 
     logger.info(
         "Processing %s  |  source %dx%d  ->  200 m %dx%d  /  100 m %dx%d (B11=%s)",
-        region_id, source_w, source_h, w200, h200, w100, h100, tir_b11 is not None,
+        region_id,
+        source_w,
+        source_h,
+        w200,
+        h200,
+        w100,
+        h100,
+        tir_b11 is not None,
     )
 
     # ------ patch feasibility ------
     if h200 < PATCH_SIZE_200M or w200 < PATCH_SIZE_200M:
         logger.warning(
             "Skipping %s: 200 m grid %dx%d too small for %dx%d patches",
-            region_id, w200, h200, PATCH_SIZE_200M, PATCH_SIZE_200M,
+            region_id,
+            w200,
+            h200,
+            PATCH_SIZE_200M,
+            PATCH_SIZE_200M,
         )
         return 0
 
@@ -226,15 +239,12 @@ def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None 
     for y in range(0, h200 - PATCH_SIZE_200M + 1, STRIDE):
         for x in range(0, w200 - PATCH_SIZE_200M + 1, STRIDE):
             # 200 m patch
-            p_tir200 = tir_200m[y:y + PATCH_SIZE_200M,
-                                x:x + PATCH_SIZE_200M]
+            p_tir200 = tir_200m[y : y + PATCH_SIZE_200M, x : x + PATCH_SIZE_200M]
 
             # Corresponding 100 m patch (exact 2x alignment)
             y1, x1 = y * 2, x * 2
-            p_tir100 = tir_100m[y1:y1 + PATCH_SIZE_100M,
-                                x1:x1 + PATCH_SIZE_100M]
-            p_rgb100 = rgb_100m[:, y1:y1 + PATCH_SIZE_100M,
-                                   x1:x1 + PATCH_SIZE_100M]
+            p_tir100 = tir_100m[y1 : y1 + PATCH_SIZE_100M, x1 : x1 + PATCH_SIZE_100M]
+            p_rgb100 = rgb_100m[:, y1 : y1 + PATCH_SIZE_100M, x1 : x1 + PATCH_SIZE_100M]
 
             # Guard against rounding-induced border slivers
             if p_tir100.shape != (PATCH_SIZE_100M, PATCH_SIZE_100M):
@@ -248,8 +258,8 @@ def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None 
             p_tir_b11_200 = None
             p_tir_b11_100 = None
             if tir_b11_200m is not None and tir_b11_100m is not None:
-                p_tir_b11_200 = tir_b11_200m[y:y + PATCH_SIZE_200M, x:x + PATCH_SIZE_200M]
-                p_tir_b11_100 = tir_b11_100m[y1:y1 + PATCH_SIZE_100M, x1:x1 + PATCH_SIZE_100M]
+                p_tir_b11_200 = tir_b11_200m[y : y + PATCH_SIZE_200M, x : x + PATCH_SIZE_200M]
+                p_tir_b11_100 = tir_b11_100m[y1 : y1 + PATCH_SIZE_100M, x1 : x1 + PATCH_SIZE_100M]
                 if p_tir_b11_100.shape != (PATCH_SIZE_100M, PATCH_SIZE_100M):
                     skipped_border += 1
                     continue
@@ -295,6 +305,7 @@ def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None 
 # ===================================================================
 # CLI entry point
 # ===================================================================
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -351,8 +362,10 @@ def main() -> None:
     logger.info("Output -> %s", output_dir)
     logger.info(
         "Patch config: 200 m = %dx%d, 100 m = %dx%d, stride = %d",
-        PATCH_SIZE_200M, PATCH_SIZE_200M,
-        PATCH_SIZE_100M, PATCH_SIZE_100M,
+        PATCH_SIZE_200M,
+        PATCH_SIZE_200M,
+        PATCH_SIZE_100M,
+        PATCH_SIZE_100M,
         STRIDE,
     )
 

@@ -107,14 +107,15 @@ def visualize(
         col_labels = ["Thermal Input", "RGB Ground Truth"]
 
     _fig, axes = plt.subplots(
-        num_samples, ncols,
+        num_samples,
+        ncols,
         figsize=(ncols * 4, num_samples * 4),
         squeeze=False,
     )
 
     for row, idx in enumerate(indices):
         sample = dataset[int(idx)]
-        ir = sample["ir"]    # (1, H, W) or (C, H, W)
+        ir = sample["ir"]  # (1, H, W) or (C, H, W)
         rgb = sample["rgb"]  # (3, H, W)
 
         # Thermal image (squeeze to 2D for display)
@@ -196,16 +197,16 @@ def visualize(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Visualize dataset samples and model predictions."
-    )
+    parser = argparse.ArgumentParser(description="Visualize dataset samples and model predictions.")
     parser.add_argument(
-        "--split", default="test",
+        "--split",
+        default="test",
         choices=["train", "val", "test"],
         help="Dataset split (default: test).",
     )
     parser.add_argument(
-        "--data-root", default=str(PROJECT_ROOT / "data/landsat9/splits"),
+        "--data-root",
+        default=str(PROJECT_ROOT / "data/landsat9/splits"),
         help="Dataset root directory.",
     )
     parser.add_argument(
@@ -214,19 +215,25 @@ def main() -> None:
         help="Model checkpoint path.",
     )
     parser.add_argument(
-        "--num-samples", type=int, default=6,
+        "--num-samples",
+        type=int,
+        default=6,
         help="Number of samples to visualize (default: 6).",
     )
     parser.add_argument(
-        "--output-dir", default="outputs/visualizations",
+        "--output-dir",
+        default="outputs/visualizations",
         help="Output directory for visualizations.",
     )
     parser.add_argument(
-        "--no-model", action="store_true",
+        "--no-model",
+        action="store_true",
         help="Skip model predictions (dataset-only visualization).",
     )
     parser.add_argument(
-        "--image-size", type=int, default=256,
+        "--image-size",
+        type=int,
+        default=256,
         help="Image size (default: 256).",
     )
     args = parser.parse_args()
@@ -244,5 +251,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

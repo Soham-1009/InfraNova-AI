@@ -34,6 +34,7 @@ def get_peak_ram_mb() -> float:
     """Get peak RAM usage in MB (cross-platform)."""
     try:
         import resource
+
         # Unix
         peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         # macOS reports bytes, Linux reports KB
@@ -44,6 +45,7 @@ def get_peak_ram_mb() -> float:
         pass
     try:
         import psutil
+
         process = psutil.Process(os.getpid())
         return process.memory_info().peak_wset / (1024 * 1024)
     except (ImportError, AttributeError):
@@ -107,9 +109,7 @@ def benchmark_device(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Benchmark InfraNova AI inference performance."
-    )
+    parser = argparse.ArgumentParser(description="Benchmark InfraNova AI inference performance.")
     parser.add_argument(
         "--checkpoint",
         default="checkpoints/best/pix2pix_landsat_best.pth",
@@ -173,8 +173,12 @@ def main() -> None:
     # CPU benchmark
     print("Benchmarking CPU...")
     cpu_results = benchmark_device(
-        generator, "cpu", args.input_size, args.in_channels,
-        args.warmup, args.iterations,
+        generator,
+        "cpu",
+        args.input_size,
+        args.in_channels,
+        args.warmup,
+        args.iterations,
     )
 
     # GPU benchmark
@@ -184,8 +188,12 @@ def main() -> None:
         torch.cuda.empty_cache()
         print("Benchmarking GPU...")
         gpu_results = benchmark_device(
-            generator, "cuda", args.input_size, args.in_channels,
-            args.warmup, args.iterations,
+            generator,
+            "cuda",
+            args.input_size,
+            args.in_channels,
+            args.warmup,
+            args.iterations,
         )
 
     # Results table
@@ -230,5 +238,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

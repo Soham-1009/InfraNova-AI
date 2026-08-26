@@ -43,15 +43,15 @@ def _psnr_np(pred: np.ndarray, target: np.ndarray) -> float:
 
 
 def _ssim_np(pred: np.ndarray, target: np.ndarray) -> float:
-    C1 = 0.01 ** 2
-    C2 = 0.03 ** 2
+    C1 = 0.01**2
+    C2 = 0.03**2
     mu_p = np.mean(pred)
     mu_t = np.mean(target)
     sp = np.std(pred)
     st = np.std(target)
     sc = np.mean((pred - mu_p) * (target - mu_t))
     num = (2 * mu_p * mu_t + C1) * (2 * sc + C2)
-    den = (mu_p ** 2 + mu_t ** 2 + C1) * (sp ** 2 + st ** 2 + C2)
+    den = (mu_p**2 + mu_t**2 + C1) * (sp**2 + st**2 + C2)
     return float(num / den)
 
 
@@ -81,6 +81,7 @@ def compare_models(
 ) -> None:
     """Run inference with both models and compare."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -181,8 +182,10 @@ def compare_models(
     for metric in ["psnr", "ssim", "time_ms"]:
         vals_a = [r[f"{name_a}_{metric}"] for r in results]
         vals_b = [r[f"{name_b}_{metric}"] for r in results]
-        print(f"  {metric.upper():>8s} | {name_a}: {np.mean(vals_a):.4f} ± {np.std(vals_a):.4f} | "
-              f"{name_b}: {np.mean(vals_b):.4f} ± {np.std(vals_b):.4f}")
+        print(
+            f"  {metric.upper():>8s} | {name_a}: {np.mean(vals_a):.4f} ± {np.std(vals_a):.4f} | "
+            f"{name_b}: {np.mean(vals_b):.4f} ± {np.std(vals_b):.4f}"
+        )
 
     # Save CSV
     csv_path = out_path / "comparison_results.csv"
@@ -194,9 +197,7 @@ def compare_models(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare two InfraNova AI model checkpoints."
-    )
+    parser = argparse.ArgumentParser(description="Compare two InfraNova AI model checkpoints.")
     parser.add_argument("--ckpt-a", required=True, help="Path to first checkpoint.")
     parser.add_argument("--ckpt-b", required=True, help="Path to second checkpoint.")
     parser.add_argument("--name-a", default="Model A", help="Name for first model.")
@@ -228,5 +229,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

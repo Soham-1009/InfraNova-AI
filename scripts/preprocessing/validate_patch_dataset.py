@@ -19,6 +19,7 @@ PROJECT_ROOT = Path("c:/Users/soham/Desktop/Soham/InfraNova-AI")
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
 def validate_dataset():
     patches_dir = PROJECT_ROOT / "data/landsat9/patches"
 
@@ -91,6 +92,7 @@ def validate_dataset():
         print("Dataset Integrity: PASSED")
     else:
         print("Dataset Integrity: FAILED")
+
 
 if __name__ == "__main__":
     validate_dataset()

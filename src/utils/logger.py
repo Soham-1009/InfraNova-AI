@@ -119,7 +119,9 @@ class TrainingLogger:
             try:
                 result = subprocess.run(
                     ["git", "rev-parse", "HEAD"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0:
                     info["git_commit"] = result.stdout.strip()
@@ -133,14 +135,8 @@ class TrainingLogger:
             info["timestamp_end"] = datetime.now(UTC).isoformat()
 
             if self.rows:
-                val_ssim_values = [
-                    (r.get("epoch", 0), r.get("val_ssim", 0.0))
-                    for r in self.rows if "val_ssim" in r
-                ]
-                val_psnr_values = [
-                    (r.get("epoch", 0), r.get("val_psnr", 0.0))
-                    for r in self.rows if "val_psnr" in r
-                ]
+                val_ssim_values = [(r.get("epoch", 0), r.get("val_ssim", 0.0)) for r in self.rows if "val_ssim" in r]
+                val_psnr_values = [(r.get("epoch", 0), r.get("val_psnr", 0.0)) for r in self.rows if "val_psnr" in r]
 
                 if val_ssim_values:
                     best_ssim_epoch, best_ssim = max(val_ssim_values, key=lambda x: x[1])
@@ -214,8 +210,19 @@ class TrainingLogger:
 
         # Combined plot
         combined_keys = [
-            "g_loss", "d_loss", "l1", "adv", "perc", "ssim", "chroma", "feat",
-            "val_psnr", "val_ssim", "grad_norm_g", "grad_norm_d", "lr",
+            "g_loss",
+            "d_loss",
+            "l1",
+            "adv",
+            "perc",
+            "ssim",
+            "chroma",
+            "feat",
+            "val_psnr",
+            "val_ssim",
+            "grad_norm_g",
+            "grad_norm_d",
+            "lr",
         ]
 
         plt.figure(figsize=(12, 8))

@@ -7,9 +7,8 @@ Enables seamless colorization of large, arbitrary-dimension satellite scenes
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import cv2
 import numpy as np
@@ -27,7 +26,6 @@ except ImportError:
     tifffile = None
 
 from demo.inference import InferenceEngine
-from demo.utils import postprocess_output, preprocess_ir_image
 from src.utils.image_processing import (
     DEFAULT_PERCENTILE_HIGH,
     DEFAULT_PERCENTILE_LOW,
@@ -292,13 +290,15 @@ class TiledRasterInference:
         if out_path.suffix.lower() in (".tif", ".tiff") and rasterio is not None and meta.get("crs"):
             # Preserve GeoTIFF georeferencing
             out_meta = meta.copy()
-            out_meta.update({
-                "count": 3,
-                "dtype": "uint8",
-                "nodata": None,
-                "height": rgb_uint8.shape[0],
-                "width": rgb_uint8.shape[1],
-            })
+            out_meta.update(
+                {
+                    "count": 3,
+                    "dtype": "uint8",
+                    "nodata": None,
+                    "height": rgb_uint8.shape[0],
+                    "width": rgb_uint8.shape[1],
+                }
+            )
             with rasterio.open(out_path, "w", **out_meta) as dst:
                 for c in range(3):
                     dst.write(rgb_uint8[:, :, c], c + 1)

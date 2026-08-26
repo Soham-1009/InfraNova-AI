@@ -38,8 +38,6 @@ IMAGE_SIZE = 128
 FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
 
 
-
-
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
@@ -63,6 +61,7 @@ if FRONTEND_DIR.is_dir():
     @app.get("/", include_in_schema=False)
     async def serve_index():
         return FileResponse(FRONTEND_DIR / "index.html")
+
 
 # Lazy-loaded inference engine (loaded on first request)
 engine: InferenceEngine | None = None
@@ -118,8 +117,16 @@ async def colorize(
         if band10 is not None and band11 is not None:
             raw_b10 = await band10.read()
             raw_b11 = await band11.read()
-            b10_arr = np.load(io.BytesIO(raw_b10)) if (band10.filename or "").endswith(".npy") else np.array(Image.open(io.BytesIO(raw_b10)))
-            b11_arr = np.load(io.BytesIO(raw_b11)) if (band11.filename or "").endswith(".npy") else np.array(Image.open(io.BytesIO(raw_b11)))
+            b10_arr = (
+                np.load(io.BytesIO(raw_b10))
+                if (band10.filename or "").endswith(".npy")
+                else np.array(Image.open(io.BytesIO(raw_b10)))
+            )
+            b11_arr = (
+                np.load(io.BytesIO(raw_b11))
+                if (band11.filename or "").endswith(".npy")
+                else np.array(Image.open(io.BytesIO(raw_b11)))
+            )
             image_input = (b10_arr, b11_arr)
         else:
             assert file is not None
@@ -222,6 +229,7 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
         return StreamingResponse(buf, media_type="image/png")
     except Exception as exc:
         raise HTTPException(500, f"CLAHE failed: {exc}") from exc
+
 
 # Mount static frontend assets as a catch-all route at the very end
 if FRONTEND_DIR.is_dir():

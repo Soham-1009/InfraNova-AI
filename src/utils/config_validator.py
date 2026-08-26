@@ -37,9 +37,7 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
 
     if errors:
         # Can't validate further without required sections
-        raise ValueError(
-            "Configuration validation failed:\n  - " + "\n  - ".join(errors)
-        )
+        raise ValueError("Configuration validation failed:\n  - " + "\n  - ".join(errors))
 
     # --- Project ---
     project = cfg.get("project", {})
@@ -57,9 +55,7 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
     if not isinstance(image_size, int) or image_size <= 0:
         errors.append(f"dataset.image_size must be a positive integer, got {image_size}")
     elif image_size < 32 or (image_size & (image_size - 1)) != 0:
-        errors.append(
-            f"dataset.image_size must be a power of 2 >= 32 for the generator, got {image_size}"
-        )
+        errors.append(f"dataset.image_size must be a power of 2 >= 32 for the generator, got {image_size}")
 
     input_channels = dataset.get("input_channels", 1)
     if not isinstance(input_channels, int) or input_channels <= 0:
@@ -96,9 +92,7 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
     if not isinstance(decay_start, int) or decay_start < 0:
         errors.append(f"training.decay_start_epoch must be a non-negative integer, got {decay_start}")
     elif isinstance(epochs, int) and decay_start > epochs:
-        errors.append(
-            f"training.decay_start_epoch ({decay_start}) exceeds training.epochs ({epochs})"
-        )
+        errors.append(f"training.decay_start_epoch ({decay_start}) exceeds training.epochs ({epochs})")
 
     patience = training.get("patience", 20)
     if not isinstance(patience, int) or patience <= 0:
@@ -153,9 +147,7 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
 
     # --- Report ---
     if errors:
-        raise ValueError(
-            "Configuration validation failed:\n  - " + "\n  - ".join(errors)
-        )
+        raise ValueError("Configuration validation failed:\n  - " + "\n  - ".join(errors))
 
     logger.info("Configuration validation passed.")
     return errors

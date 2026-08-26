@@ -2,9 +2,9 @@
 Rigorous Validation-Only Checkpoint Selection, Single Unbiased Test Evaluation,
 and Downstream YOLO Precision/Recall/F1/mAP Benchmark.
 """
+
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import shutil
@@ -13,8 +13,8 @@ import time
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -46,16 +46,14 @@ def compute_batch_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str,
     rmse = mse.sqrt()
 
     # 2. SSIM
-    C1 = 0.01 ** 2
-    C2 = 0.03 ** 2
+    C1 = 0.01**2
+    C2 = 0.03**2
     mu_p = p.mean(dim=[2, 3], keepdim=True)
     mu_t = t.mean(dim=[2, 3], keepdim=True)
     sigma_p = p.std(dim=[2, 3], keepdim=True)
     sigma_t = t.std(dim=[2, 3], keepdim=True)
     sigma_pt = ((p - mu_p) * (t - mu_t)).mean(dim=[2, 3], keepdim=True)
-    ssim = ((2 * mu_p * mu_t + C1) * (2 * sigma_pt + C2)) / (
-        (mu_p**2 + mu_t**2 + C1) * (sigma_p**2 + sigma_t**2 + C2)
-    )
+    ssim = ((2 * mu_p * mu_t + C1) * (2 * sigma_pt + C2)) / ((mu_p**2 + mu_t**2 + C1) * (sigma_p**2 + sigma_t**2 + C2))
     ssim = ssim.mean(dim=[1, 2, 3])
 
     # 3. Spectral Angle Mapper (SAM)
@@ -239,7 +237,9 @@ def main():
     val_rgb_tensor = torch.stack(val_rgb_list, dim=0)
 
     # Candidates directory
-    candidates_dir = PROJECT_ROOT / "kaggle_kernel" / "run_output" / "outputs" / "pix2pixhd_band10_band11" / "checkpoints"
+    candidates_dir = (
+        PROJECT_ROOT / "kaggle_kernel" / "run_output" / "outputs" / "pix2pixhd_band10_band11" / "checkpoints"
+    )
     final_dir = PROJECT_ROOT / "outputs" / "final"
 
     candidate_paths = {
@@ -266,8 +266,14 @@ def main():
             continue
         model = load_candidate_model(path, device)
         all_metrics = {
-            "psnr": [], "ssim": [], "mae": [], "rmse": [],
-            "sam": [], "sat_ratio": [], "lab_error": [], "hist_dist": []
+            "psnr": [],
+            "ssim": [],
+            "mae": [],
+            "rmse": [],
+            "sam": [],
+            "sat_ratio": [],
+            "lab_error": [],
+            "hist_dist": [],
         }
 
         with torch.inference_mode():
@@ -276,7 +282,7 @@ def main():
                 target = val_rgb_tensor[i : i + batch_size].to(device)
                 pred = model.generate(ir)
                 batch_res = compute_batch_metrics(pred, target)
-                for k in all_metrics.keys():
+                for k in all_metrics:
                     all_metrics[k].extend(batch_res[k])
 
         summary = {
@@ -292,10 +298,14 @@ def main():
 
     # Print Validation Scorecard
     print("\n" + "=" * 105)
-    print(f"{'Candidate':<16} | {'Val PSNR (dB)':<14} | {'Val SSIM':<10} | {'Val MAE':<10} | {'Val SAM (rad)':<14} | {'Val CIE Lab':<12} | {'Val Sat Error':<14}")
+    print(
+        f"{'Candidate':<16} | {'Val PSNR (dB)':<14} | {'Val SSIM':<10} | {'Val MAE':<10} | {'Val SAM (rad)':<14} | {'Val CIE Lab':<12} | {'Val Sat Error':<14}"
+    )
     print("=" * 105)
     for name, s in val_results.items():
-        print(f"{name:<16} | {s['psnr_mean']:<6.3f} ± {s['psnr_std']:<5.3f} | {s['ssim_mean']:<10.4f} | {s['mae_mean']:<10.4f} | {s['sam_mean']:<6.4f} ({np.degrees(s['sam_mean']):<4.1f}°) | {s['lab_error_mean']:<12.3f} | {s['sat_ratio_error']:<14.4f} (Ratio: {s['sat_ratio_mean']:.3f})")
+        print(
+            f"{name:<16} | {s['psnr_mean']:<6.3f} ± {s['psnr_std']:<5.3f} | {s['ssim_mean']:<10.4f} | {s['mae_mean']:<10.4f} | {s['sam_mean']:<6.4f} ({np.degrees(s['sam_mean']):<4.1f}°) | {s['lab_error_mean']:<12.3f} | {s['sat_ratio_error']:<14.4f} (Ratio: {s['sat_ratio_mean']:.3f})"
+        )
     print("=" * 105)
 
     # =========================================================================
@@ -328,8 +338,12 @@ def main():
     print(f"  Validation PSNR: {selected_winner_summary['psnr_mean']:.3f} dB")
     print(f"  Validation SSIM: {selected_winner_summary['ssim_mean']:.4f}")
     print(f"  Validation CIE Lab: {selected_winner_summary['lab_error_mean']:.3f}")
-    print(f"  Validation SAM: {selected_winner_summary['sam_mean']:.4f} rad ({np.degrees(selected_winner_summary['sam_mean']):.2f}°)")
-    print(f"  Validation Sat Ratio: {selected_winner_summary['sat_ratio_mean']:.4f} (Error: {selected_winner_summary['sat_ratio_error']:.4f})")
+    print(
+        f"  Validation SAM: {selected_winner_summary['sam_mean']:.4f} rad ({np.degrees(selected_winner_summary['sam_mean']):.2f}°)"
+    )
+    print(
+        f"  Validation Sat Ratio: {selected_winner_summary['sat_ratio_mean']:.4f} (Error: {selected_winner_summary['sat_ratio_error']:.4f})"
+    )
     print("*" * 80)
 
     # =========================================================================
@@ -383,8 +397,14 @@ def main():
 
     frozen_model = load_candidate_model(target_best, device)
     test_metrics = {
-        "psnr": [], "ssim": [], "mae": [], "rmse": [],
-        "sam": [], "sat_ratio": [], "lab_error": [], "hist_dist": []
+        "psnr": [],
+        "ssim": [],
+        "mae": [],
+        "rmse": [],
+        "sam": [],
+        "sat_ratio": [],
+        "lab_error": [],
+        "hist_dist": [],
     }
 
     t0 = time.perf_counter()
@@ -394,7 +414,7 @@ def main():
             target = test_rgb_tensor[i : i + batch_size].to(device)
             pred = frozen_model.generate(ir)
             batch_res = compute_batch_metrics(pred, target)
-            for k in test_metrics.keys():
+            for k in test_metrics:
                 test_metrics[k].extend(batch_res[k])
 
     eval_duration = time.perf_counter() - t0
@@ -413,13 +433,19 @@ def main():
 
     print("\n" + "=" * 80)
     print(f"OFFICIAL UNBIASED TEST-SET SCORECARD FOR FROZEN MODEL [{selected_winner_name}]:")
-    print(f"  Test PSNR (dB):      {unbiased_test_summary['psnr_mean']:.3f} ± {unbiased_test_summary['psnr_std']:.3f} dB")
+    print(
+        f"  Test PSNR (dB):      {unbiased_test_summary['psnr_mean']:.3f} ± {unbiased_test_summary['psnr_std']:.3f} dB"
+    )
     print(f"  Test SSIM:           {unbiased_test_summary['ssim_mean']:.4f} ± {unbiased_test_summary['ssim_std']:.4f}")
     print(f"  Test MAE:            {unbiased_test_summary['mae_mean']:.4f}")
     print(f"  Test RMSE:           {unbiased_test_summary['rmse_mean']:.4f}")
-    print(f"  Test SAM (rad):      {unbiased_test_summary['sam_mean']:.4f} ({np.degrees(unbiased_test_summary['sam_mean']):.2f}°)")
+    print(
+        f"  Test SAM (rad):      {unbiased_test_summary['sam_mean']:.4f} ({np.degrees(unbiased_test_summary['sam_mean']):.2f}°)"
+    )
     print(f"  Test CIE Lab Error:  {unbiased_test_summary['lab_error_mean']:.3f}")
-    print(f"  Test Saturation:     {unbiased_test_summary['sat_ratio_mean']:.4f} (Error vs 1.0: {unbiased_test_summary['sat_ratio_error']:.4f})")
+    print(
+        f"  Test Saturation:     {unbiased_test_summary['sat_ratio_mean']:.4f} (Error vs 1.0: {unbiased_test_summary['sat_ratio_error']:.4f})"
+    )
     print(f"  Test Histogram Dist: {unbiased_test_summary['hist_dist_mean']:.4f}")
     print("=" * 80)
 
@@ -435,10 +461,13 @@ def main():
 
     try:
         from ultralytics import YOLO
+
         yolo_model = YOLO("yolov8n.pt")
 
         eval_subset_size = min(200, num_test_samples)
-        logger.info(f"Evaluating paired detection fidelity against Ground-Truth Optical RGB on {eval_subset_size} test patches...")
+        logger.info(
+            f"Evaluating paired detection fidelity against Ground-Truth Optical RGB on {eval_subset_size} test patches..."
+        )
 
         modalities = {
             "thermal_input": {"tp": 0, "fp": 0, "fn": 0, "total_det": 0, "ious": []},
@@ -455,7 +484,9 @@ def main():
             target = sample["rgb"].unsqueeze(0).to(device)
 
             # Ground Truth RGB
-            target_img = (((target.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
+            target_img = (
+                ((target.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0
+            ).astype(np.uint8)
             res_gt = yolo_model(target_img, verbose=False, conf=0.15)[0]
             gt_boxes = [box.xyxy.cpu().numpy()[0] for box in res_gt.boxes]
 
@@ -477,7 +508,9 @@ def main():
             # 2. Frozen Model Synthesized RGB
             with torch.inference_mode():
                 pred_frozen = frozen_model.generate(ir)
-            pred_frozen_img = (((pred_frozen.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
+            pred_frozen_img = (
+                ((pred_frozen.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0
+            ).astype(np.uint8)
             res_fr = yolo_model(pred_frozen_img, verbose=False, conf=0.15)[0]
             fr_boxes = [box.xyxy.cpu().numpy()[0] for box in res_fr.boxes]
 
@@ -492,7 +525,9 @@ def main():
             # 3. Epoch 250 Synthesized RGB
             with torch.inference_mode():
                 pred_ep250 = epoch250_model.generate(ir)
-            pred_ep250_img = (((pred_ep250.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
+            pred_ep250_img = (
+                ((pred_ep250.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0
+            ).astype(np.uint8)
             res_ep = yolo_model(pred_ep250_img, verbose=False, conf=0.15)[0]
             ep_boxes = [box.xyxy.cpu().numpy()[0] for box in res_ep.boxes]
 
@@ -507,7 +542,9 @@ def main():
         # Compute Precision, Recall, F1, mean IoU
         yolo_report = {"eval_subset_size": eval_subset_size, "iou_threshold": 0.25}
         print("\n" + "=" * 90)
-        print(f"{'Input Source':<18} | {'Total Dets':<10} | {'TP':<6} | {'FP':<6} | {'Precision':<10} | {'Recall':<8} | {'F1-Score':<8} | {'Mean IoU':<8}")
+        print(
+            f"{'Input Source':<18} | {'Total Dets':<10} | {'TP':<6} | {'FP':<6} | {'Precision':<10} | {'Recall':<8} | {'F1-Score':<8} | {'Mean IoU':<8}"
+        )
         print("=" * 90)
         for mod, counts in modalities.items():
             tp, fp, fn = counts["tp"], counts["fp"], counts["fn"]
@@ -526,7 +563,9 @@ def main():
                 "f1_score": float(f1),
                 "mean_matched_iou": mean_iou,
             }
-            print(f"{mod:<18} | {counts['total_det']:<10} | {tp:<6} | {fp:<6} | {precision:<10.3f} | {recall:<8.3f} | {f1:<8.3f} | {mean_iou:<8.3f}")
+            print(
+                f"{mod:<18} | {counts['total_det']:<10} | {tp:<6} | {fp:<6} | {precision:<10.3f} | {recall:<8.3f} | {f1:<8.3f} | {mean_iou:<8.3f}"
+            )
         print("=" * 90)
 
         with open(PROJECT_ROOT / "outputs" / "evaluation" / "downstream_yolo_precision_recall.json", "w") as f:

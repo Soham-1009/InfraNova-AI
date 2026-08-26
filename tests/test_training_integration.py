@@ -26,9 +26,9 @@ def test_training_integration(tmp_path=None):
     else:
         tmp_path = Path(tmp_path)
 
-    print("="*60)
+    print("=" * 60)
     print("TRAINING INTEGRATION VERIFICATION")
-    print("="*60)
+    print("=" * 60)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[1] Using device: {device}")
@@ -38,10 +38,12 @@ def test_training_integration(tmp_path=None):
     try:
         # Load one dataset sample. We assume splits exist from Phase 1.
         dataset = Landsat9Dataset(
-            root_dir=str(PROJECT_ROOT / "data/landsat9/patches"), # using patches directly for the test if splits aren't ready
-            split=".", # mock split
+            root_dir=str(
+                PROJECT_ROOT / "data/landsat9/patches"
+            ),  # using patches directly for the test if splits aren't ready
+            split=".",  # mock split
             image_size=128,
-            normalization="local"
+            normalization="local",
         )
         # Override samples if patches structure is used instead of splits
         # Just grab the first available patch directory
@@ -55,10 +57,7 @@ def test_training_integration(tmp_path=None):
                             samples.append(patch)
         if not samples:
             print("    [WARNING] No patches found. Creating a synthetic batch for the test.")
-            batch = {
-                "ir": torch.randn(2, 1, 128, 128),
-                "rgb": torch.randn(2, 3, 128, 128)
-            }
+            batch = {"ir": torch.randn(2, 1, 128, 128), "rgb": torch.randn(2, 3, 128, 128)}
         else:
             dataset.samples = samples
             dataset.split_dir = patches_dir
@@ -74,10 +73,7 @@ def test_training_integration(tmp_path=None):
     except Exception as e:
         print(f"    [WARNING] Dataset init failed (Phase 1 might not be run): {e}")
         print("    Using synthetic batch.")
-        batch = {
-            "ir": torch.randn(2, 1, 128, 128),
-            "rgb": torch.randn(2, 3, 128, 128)
-        }
+        batch = {"ir": torch.randn(2, 1, 128, 128), "rgb": torch.randn(2, 3, 128, 128)}
 
     ir = batch["ir"].to(device)
     rgb = batch["rgb"].to(device)
@@ -183,10 +179,9 @@ def test_training_integration(tmp_path=None):
         # Test state dict saving
         chkpt_path = tmp_path / "test_dynamic_chkpt.pth"
         chkpt_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save({
-            "generator": model.generator.state_dict(),
-            "discriminator": model.discriminator.state_dict()
-        }, chkpt_path)
+        torch.save(
+            {"generator": model.generator.state_dict(), "discriminator": model.discriminator.state_dict()}, chkpt_path
+        )
 
         # Test loading
         loaded = torch.load(chkpt_path, map_location=device, weights_only=True)
@@ -200,9 +195,10 @@ def test_training_integration(tmp_path=None):
         traceback.print_exc()
         sys.exit(1)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("INTEGRATION TEST PASSED SUCCESSFULLY")
-    print("="*60)
+    print("=" * 60)
+
 
 if __name__ == "__main__":
     test_training_integration()

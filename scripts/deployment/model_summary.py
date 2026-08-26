@@ -43,20 +43,20 @@ def layer_summary(model: torch.nn.Module, prefix: str = "") -> list:
             params = sum(p.numel() for p in module.parameters(recurse=False))
             if params > 0:
                 dtype = next(module.parameters()).dtype if list(module.parameters()) else "N/A"
-                rows.append({
-                    "name": name,
-                    "type": type(module).__name__,
-                    "params": params,
-                    "dtype": str(dtype),
-                })
+                rows.append(
+                    {
+                        "name": name,
+                        "type": type(module).__name__,
+                        "params": params,
+                        "dtype": str(dtype),
+                    }
+                )
     return rows
 
 
 def estimate_memory_mb(model: torch.nn.Module) -> float:
     """Estimate model memory in MB (parameters only, float32)."""
-    total_bytes = sum(
-        p.numel() * p.element_size() for p in model.parameters()
-    )
+    total_bytes = sum(p.numel() * p.element_size() for p in model.parameters())
     return total_bytes / (1024 * 1024)
 
 
@@ -64,6 +64,7 @@ def estimate_flops(model: torch.nn.Module, input_size: tuple) -> str:
     """Estimate FLOPs using thop if available."""
     try:
         from thop import profile
+
         dummy = torch.randn(*input_size)
         flops, _params = profile(model, inputs=(dummy,), verbose=False)
         if flops >= 1e9:
@@ -121,9 +122,7 @@ def generate_summary(
     # FLOPs
     p("Estimated FLOPs")
     p("-" * 50)
-    gen_flops = estimate_flops(
-        model.generator, (1, in_channels, input_size, input_size)
-    )
+    gen_flops = estimate_flops(model.generator, (1, in_channels, input_size, input_size))
     p(f"  Generator:     {gen_flops}")
     p()
 
@@ -167,9 +166,7 @@ def generate_summary(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate InfraNova AI model summary."
-    )
+    parser = argparse.ArgumentParser(description="Generate InfraNova AI model summary.")
     parser.add_argument(
         "--output",
         default="model_summary.txt",
@@ -198,5 +195,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

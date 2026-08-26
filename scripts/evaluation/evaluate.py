@@ -143,6 +143,7 @@ def compute_lab_error_np(pred: np.ndarray, target: np.ndarray) -> float:
 
     Uses simplified sRGB->Lab. Inputs: numpy (H, W, C) in [0, 1].
     """
+
     def _srgb_to_lab(rgb: np.ndarray) -> np.ndarray:
         linear = np.where(rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
         r, g, b = linear[..., 0], linear[..., 1], linear[..., 2]
@@ -235,6 +236,7 @@ def evaluate(
     if use_lpips:
         try:
             import lpips
+
             lpips_fn = lpips.LPIPS(net="alex").to(device)
             lpips_fn.eval()
             print("LPIPS: enabled (AlexNet)")
@@ -247,6 +249,7 @@ def evaluate(
     tm_ssim_fn = None
     try:
         from torchmetrics.image import StructuralSimilarityIndexMeasure
+
         tm_ssim_fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
         print("Windowed SSIM: enabled (torchmetrics)")
     except ImportError:
@@ -260,6 +263,7 @@ def evaluate(
 
     try:
         from tqdm import tqdm
+
         iterator = tqdm(range(len(dataset)), desc="Evaluating", unit="sample")
     except ImportError:
         iterator = range(len(dataset))
@@ -309,8 +313,15 @@ def evaluate(
 
     # Aggregate
     metric_keys = [
-        "psnr", "ssim", "mae", "rmse", "sam", "correlation",
-        "sat_ratio", "hist_dist", "lab_error",
+        "psnr",
+        "ssim",
+        "mae",
+        "rmse",
+        "sam",
+        "correlation",
+        "sat_ratio",
+        "hist_dist",
+        "lab_error",
     ]
     if lpips_fn is not None:
         metric_keys.append("lpips")
@@ -349,9 +360,7 @@ def evaluate(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Evaluate InfraNova AI on the test set."
-    )
+    parser = argparse.ArgumentParser(description="Evaluate InfraNova AI on the test set.")
     parser.add_argument(
         "--split",
         default="test",
@@ -409,5 +418,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

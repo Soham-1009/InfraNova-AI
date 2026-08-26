@@ -127,7 +127,9 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> dict[str, Any]:
         tir_sub = np.array(tir_subsample)
         stats["tir_100m"] = {
             "global_mean": float(np.mean(tir_means)),
-            "global_std": float(np.sqrt(np.mean(np.array(tir_stds) ** 2 + np.array(tir_means) ** 2) - np.mean(tir_means) ** 2)),
+            "global_std": float(
+                np.sqrt(np.mean(np.array(tir_stds) ** 2 + np.array(tir_means) ** 2) - np.mean(tir_means) ** 2)
+            ),
             "p2": float(np.percentile(tir_sub, 2)) if len(tir_sub) > 0 else 0.0,
             "p98": float(np.percentile(tir_sub, 98)) if len(tir_sub) > 0 else 1.0,
             "p1": float(np.percentile(tir_sub, 1)) if len(tir_sub) > 0 else 0.0,
@@ -144,9 +146,7 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> dict[str, Any]:
             means_arr = np.array(rgb_means[band_idx])
             stds_arr = np.array(rgb_stds[band_idx])
             # Combined std using parallel algorithm
-            combined_std = float(np.sqrt(
-                np.mean(stds_arr ** 2 + means_arr ** 2) - np.mean(means_arr) ** 2
-            ))
+            combined_std = float(np.sqrt(np.mean(stds_arr**2 + means_arr**2) - np.mean(means_arr) ** 2))
             rgb_stats[name] = {
                 "global_mean": float(np.mean(means_arr)),
                 "global_std": combined_std,
@@ -162,9 +162,7 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compute global normalization statistics for the dataset."
-    )
+    parser = argparse.ArgumentParser(description="Compute global normalization statistics for the dataset.")
     parser.add_argument(
         "--dir",
         default="data/landsat9/patches",
@@ -200,7 +198,9 @@ def main() -> None:
         print(f"\nRGB 100m ({r['count']} samples):")
         for name in ["red", "green", "blue"]:
             b = r[name]
-            print(f"  {name}: mean={b['global_mean']:.4f}, std={b['global_std']:.4f}, p2={b['p2']:.4f}, p98={b['p98']:.4f}")
+            print(
+                f"  {name}: mean={b['global_mean']:.4f}, std={b['global_std']:.4f}, p2={b['p2']:.4f}, p98={b['p98']:.4f}"
+            )
 
     print(f"\nSaved to: {args.output}")
     print("\nNext: set 'normalization.stats_file' in config.yaml to use these stats during training.")
@@ -208,4 +208,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

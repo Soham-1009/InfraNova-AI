@@ -1,9 +1,9 @@
 import sys
 import time
 from pathlib import Path
-import numpy as np
+
 import cv2
-import torch
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -43,17 +43,15 @@ def calc_ssim(img1: np.ndarray, img2: np.ndarray, max_val: float = 255.0) -> flo
         mu1 = cv2.GaussianBlur(i1, (11, 11), 1.5)
         mu2 = cv2.GaussianBlur(i2, (11, 11), 1.5)
 
-        mu1_sq = mu1 ** 2
-        mu2_sq = mu2 ** 2
+        mu1_sq = mu1**2
+        mu2_sq = mu2**2
         mu1_mu2 = mu1 * mu2
 
-        sigma1_sq = cv2.GaussianBlur(i1 ** 2, (11, 11), 1.5) - mu1_sq
-        sigma2_sq = cv2.GaussianBlur(i2 ** 2, (11, 11), 1.5) - mu2_sq
+        sigma1_sq = cv2.GaussianBlur(i1**2, (11, 11), 1.5) - mu1_sq
+        sigma2_sq = cv2.GaussianBlur(i2**2, (11, 11), 1.5) - mu2_sq
         sigma12 = cv2.GaussianBlur(i1 * i2, (11, 11), 1.5) - mu1_mu2
 
-        ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / (
-            (mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2)
-        )
+        ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
         ssim_channels.append(np.mean(ssim_map))
 
     return float(np.mean(ssim_channels))
@@ -67,7 +65,7 @@ def validate_whole_raster_scenes():
     tiler = TiledRasterInference(
         checkpoint_path="outputs/best/pix2pix_landsat_best.pth",
         tile_size=128,
-        overlap=32,       # 25% overlap for blending
+        overlap=32,  # 25% overlap for blending
         batch_size=16,
         window_type="cosine",
     )
@@ -109,7 +107,7 @@ def validate_whole_raster_scenes():
         tiler.save_output(res, out_tif)
 
         print(f"  Raster Dimensions: {H} x {W}")
-        print(f"  Tiles Processed:   {num_tiles} (Elapsed: {elapsed:.2f}s, {num_tiles/elapsed:.1f} tiles/s)")
+        print(f"  Tiles Processed:   {num_tiles} (Elapsed: {elapsed:.2f}s, {num_tiles / elapsed:.1f} tiles/s)")
         print(f"  Weight Buffer:     min={min_weight:.2f}, max={max_weight:.2f} (Full Coverage: {coverage_complete})")
         print(f"  Output Saved:      {out_png.name}")
 
@@ -137,20 +135,24 @@ def validate_whole_raster_scenes():
             print(f"  Scene SSIM:        {ssim_val:.4f}")
             metrics_str = f"PSNR: {psnr_val:.2f} dB, SSIM: {ssim_val:.4f}"
 
-        results.append({
-            "scene": scene,
-            "dimensions": f"{H}x{W}",
-            "tiles": num_tiles,
-            "time_sec": round(elapsed, 2),
-            "coverage": coverage_complete,
-            "metrics": metrics_str,
-        })
+        results.append(
+            {
+                "scene": scene,
+                "dimensions": f"{H}x{W}",
+                "tiles": num_tiles,
+                "time_sec": round(elapsed, 2),
+                "coverage": coverage_complete,
+                "metrics": metrics_str,
+            }
+        )
 
     print("\n" + "=" * 80)
     print("SUMMARY OF WHOLE-RASTER SCENE VALIDATION")
     print("=" * 80)
     for r in results:
-        print(f"• {r['scene'].ljust(12)}: {r['dimensions'].ljust(10)} | {r['tiles']} tiles | {r['time_sec']}s | Coverage: {r['coverage']} | {r['metrics']}")
+        print(
+            f"• {r['scene'].ljust(12)}: {r['dimensions'].ljust(10)} | {r['tiles']} tiles | {r['time_sec']}s | Coverage: {r['coverage']} | {r['metrics']}"
+        )
 
     print("\n[PASS] WHOLE-RASTER SCENE VALIDATION COMPLETE")
 

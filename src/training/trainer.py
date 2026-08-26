@@ -40,9 +40,7 @@ class Trainer:
         self.val_loader = val_loader
         self.config = config
 
-        self.device = torch.device(
-            config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
-        )
+        self.device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
         self.model.to(self.device)
 
         training_cfg = config.get("training", {})
@@ -61,12 +59,8 @@ class Trainer:
         loss_cfg = config.get("loss", training_cfg.get("loss", {}))
         self.use_feature_matching = float(loss_cfg.get("lambda_feat", 0.0)) > 0
 
-        self.checkpoint_dir = Path(
-            config.get("paths", {}).get("checkpoints", "checkpoints")
-        )
-        self.visual_dir = (
-            Path(config.get("paths", {}).get("outputs", "outputs")) / "visualizations"
-        )
+        self.checkpoint_dir = Path(config.get("paths", {}).get("checkpoints", "checkpoints"))
+        self.visual_dir = Path(config.get("paths", {}).get("outputs", "outputs")) / "visualizations"
         self.log_dir = Path(config.get("paths", {}).get("logs", "logs"))
 
         self.visual_dir.mkdir(parents=True, exist_ok=True)
@@ -109,9 +103,7 @@ class Trainer:
         self.logger = TrainingLogger(
             log_dir=str(self.log_dir),
             use_wandb=bool(config.get("logging", {}).get("use_wandb", False)),
-            project_name=config.get("logging", {}).get(
-                "project_name", "InfraNova-AI"
-            ),
+            project_name=config.get("logging", {}).get("project_name", "InfraNova-AI"),
         )
 
         self.checkpoint = ModelCheckpoint(
@@ -152,22 +144,15 @@ class Trainer:
         }
 
     @staticmethod
-    def _to_device(
-        batch: dict[str, torch.Tensor], device: torch.device
-    ) -> dict[str, torch.Tensor]:
-        return {
-            k: v.to(device, non_blocking=True) if torch.is_tensor(v) else v
-            for k, v in batch.items()
-        }
+    def _to_device(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch.Tensor]:
+        return {k: v.to(device, non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
 
     @staticmethod
     def _denorm(x: torch.Tensor) -> torch.Tensor:
         return (x.clamp(-1, 1) + 1.0) / 2.0
 
     @staticmethod
-    def _psnr(
-        fake: torch.Tensor, real: torch.Tensor, eps: float = 1e-8
-    ) -> torch.Tensor:
+    def _psnr(fake: torch.Tensor, real: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
         mse = F.mse_loss(fake, real, reduction="none")
         mse = mse.mean(dim=(1, 2, 3)).clamp_min(eps)
         psnr = 10.0 * torch.log10(1.0 / mse)
@@ -175,8 +160,8 @@ class Trainer:
 
     @staticmethod
     def _ssim_simple(fake: torch.Tensor, real: torch.Tensor) -> torch.Tensor:
-        c1 = 0.01 ** 2
-        c2 = 0.03 ** 2
+        c1 = 0.01**2
+        c2 = 0.03**2
 
         mu_x = fake.mean(dim=(2, 3), keepdim=True)
         mu_y = real.mean(dim=(2, 3), keepdim=True)
@@ -195,7 +180,10 @@ class Trainer:
     # ------------------------------------------------------------------
 
     def _disc_forward(
-        self, ir: torch.Tensor, rgb: torch.Tensor, return_features: bool = False,
+        self,
+        ir: torch.Tensor,
+        rgb: torch.Tensor,
+        return_features: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]] | dict | tuple[dict, dict]:
         """
         Run discriminator and return final predictions (+ optional features).
@@ -216,7 +204,10 @@ class Trainer:
             return result
 
     def _disc_loss_multi_scale(
-        self, ir: torch.Tensor, rgb_real: torch.Tensor, rgb_fake: torch.Tensor,
+        self,
+        ir: torch.Tensor,
+        rgb_real: torch.Tensor,
+        rgb_fake: torch.Tensor,
         noise_std: float,
     ) -> torch.Tensor:
         """Compute discriminator loss for multi-scale discriminator."""
@@ -233,10 +224,7 @@ class Trainer:
             for key in scales:
                 rp = real_result[key]
                 fp = fake_result[key]
-                d_loss = d_loss + 0.5 * (
-                    self.criterion.gan_loss(rp, True)
-                    + self.criterion.gan_loss(fp, False)
-                )
+                d_loss = d_loss + 0.5 * (self.criterion.gan_loss(rp, True) + self.criterion.gan_loss(fp, False))
             return d_loss / max(len(scales), 1)  # average over scales
         else:
             real_loss = self.criterion.gan_loss(real_result, True)
@@ -266,9 +254,7 @@ class Trainer:
 
         num_batches = len(self.train_loader)
         if num_batches == 0:
-            raise ValueError(
-                "Training loader produced zero batches. Check the dataset split and batch size."
-            )
+            raise ValueError("Training loader produced zero batches. Check the dataset split and batch size.")
         d_loss_last = torch.tensor(0.0, device=self.device)
 
         for batch_idx, batch in enumerate(self.train_loader):
@@ -290,9 +276,7 @@ class Trainer:
 
             self.scaler.scale(d_loss).backward()
             self.scaler.unscale_(self.optimizer_d)
-            d_grad_norm = torch.nn.utils.clip_grad_norm_(
-                self.model.discriminator.parameters(), self.grad_clip
-            )
+            d_grad_norm = torch.nn.utils.clip_grad_norm_(self.model.discriminator.parameters(), self.grad_clip)
 
             # NaN/inf protection for discriminator
             if not torch.isfinite(d_loss) or not torch.isfinite(torch.as_tensor(d_grad_norm)):
@@ -338,9 +322,7 @@ class Trainer:
 
                 self.scaler.scale(g_loss).backward()
                 self.scaler.unscale_(self.optimizer_g)
-                g_grad_norm = torch.nn.utils.clip_grad_norm_(
-                    self.model.generator.parameters(), self.grad_clip
-                )
+                g_grad_norm = torch.nn.utils.clip_grad_norm_(self.model.generator.parameters(), self.grad_clip)
 
                 # NaN/inf protection for generator
                 if not torch.isfinite(g_loss) or not torch.isfinite(torch.as_tensor(g_grad_norm)):
@@ -454,7 +436,10 @@ class Trainer:
             fake_rgb = self._denorm(fake_rgb).cpu()
 
             fig, axes = plt.subplots(
-                sample_count, 3, figsize=(10, 3 * sample_count), squeeze=False,
+                sample_count,
+                3,
+                figsize=(10, 3 * sample_count),
+                squeeze=False,
             )
 
             for i in range(sample_count):
@@ -473,11 +458,7 @@ class Trainer:
                 axes[i, 1].axis("off")
 
                 target = rgb[i].numpy()
-                target = (
-                    np.transpose(target, (1, 2, 0)).clip(0, 1)
-                    if target.shape[0] == 3
-                    else target[0].clip(0, 1)
-                )
+                target = np.transpose(target, (1, 2, 0)).clip(0, 1) if target.shape[0] == 3 else target[0].clip(0, 1)
                 axes[i, 2].imshow(target)
                 axes[i, 2].set_title("Real RGB")
                 axes[i, 2].axis("off")

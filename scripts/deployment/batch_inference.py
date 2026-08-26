@@ -89,7 +89,8 @@ def process_single_image(
                     with rasterio.open(str(image_path)) as src:
                         profile = src.profile.copy()
                         profile.update(
-                            count=3, dtype="uint8",
+                            count=3,
+                            dtype="uint8",
                             driver="GTiff",
                             width=arr.shape[1],
                             height=arr.shape[0],
@@ -103,12 +104,14 @@ def process_single_image(
                     # Fallback: plain TIFF
                     try:
                         import tifffile
+
                         tifffile.imwrite(str(output_dir / f"{stem}_rgb.tif"), arr)
                     except ImportError:
                         result.save(output_dir / f"{stem}_rgb.tiff")
             except ImportError:
                 try:
                     import tifffile
+
                     tifffile.imwrite(str(output_dir / f"{stem}_rgb.tif"), arr)
                 except ImportError:
                     result.save(output_dir / f"{stem}_rgb.tiff")
@@ -120,9 +123,7 @@ def process_single_image(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Batch inference: convert thermal images to RGB."
-    )
+    parser = argparse.ArgumentParser(description="Batch inference: convert thermal images to RGB.")
     parser.add_argument(
         "--input-dir",
         required=True,
@@ -204,14 +205,13 @@ def main() -> None:
         # Sequential mode
         try:
             from tqdm import tqdm
+
             iterator = tqdm(image_paths, desc="Processing", unit="img")
         except ImportError:
             iterator = image_paths
 
         for image_path in iterator:
-            ok, msg, elapsed = process_single_image(
-                engine, image_path, output_dir, args.tta, args.format
-            )
+            ok, msg, elapsed = process_single_image(engine, image_path, output_dir, args.tta, args.format)
             if ok:
                 success += 1
                 total_time += elapsed
@@ -222,10 +222,7 @@ def main() -> None:
         # Parallel mode
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futures = {
-                pool.submit(
-                    process_single_image, engine, p, output_dir, args.tta, args.format
-                ): p
-                for p in image_paths
+                pool.submit(process_single_image, engine, p, output_dir, args.tta, args.format): p for p in image_paths
             }
             for future in as_completed(futures):
                 ok, msg, elapsed = future.result()
@@ -251,4 +248,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

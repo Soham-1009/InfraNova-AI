@@ -97,9 +97,7 @@ def export_to_onnx(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Export InfraNova AI generator to ONNX format."
-    )
+    parser = argparse.ArgumentParser(description="Export InfraNova AI generator to ONNX format.")
     parser.add_argument(
         "--checkpoint",
         default="checkpoints/best/pix2pix_landsat_best.pth",
@@ -145,5 +143,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

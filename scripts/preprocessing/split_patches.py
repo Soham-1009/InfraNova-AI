@@ -96,9 +96,7 @@ def prepare_output_dir(output_dir: Path, overwrite: bool) -> None:
             print(f"Overwriting existing splits in {output_dir}")
             shutil.rmtree(output_dir)
         else:
-            raise FileExistsError(
-                f"Output directory {output_dir} already exists. Use --overwrite to replace it."
-            )
+            raise FileExistsError(f"Output directory {output_dir} already exists. Use --overwrite to replace it.")
 
     for split in SPLITS:
         (output_dir / split).mkdir(parents=True, exist_ok=True)

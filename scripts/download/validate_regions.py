@@ -29,7 +29,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-
 EXPECTED_BANDS = {"SR_B2", "SR_B3", "SR_B4", "ST_B10"}
 EXPECTED_PATCH_FILES = {"tir_200m.npy", "tir_100m.npy", "rgb_100m.npy"}
 
@@ -77,9 +76,7 @@ def validate_raw_regions(data_dir: str) -> dict[str, Any]:
     name_counts = Counter(names)
     duplicates = {name: count for name, count in name_counts.items() if count > 1}
     if duplicates:
-        report["duplicate_names"] = [
-            {"name": name, "count": count} for name, count in duplicates.items()
-        ]
+        report["duplicate_names"] = [{"name": name, "count": count} for name, count in duplicates.items()]
         report["issues_count"] += len(duplicates)
 
     # Check each region
@@ -96,10 +93,12 @@ def validate_raw_regions(data_dir: str) -> dict[str, Any]:
 
         missing = EXPECTED_BANDS - found_bands
         if missing:
-            report["missing_bands"].append({
-                "region": region_dir.name,
-                "missing": sorted(missing),
-            })
+            report["missing_bands"].append(
+                {
+                    "region": region_dir.name,
+                    "missing": sorted(missing),
+                }
+            )
             report["issues_count"] += 1
 
     return report
@@ -127,10 +126,9 @@ def validate_patches(patches_dir: str) -> dict[str, Any]:
     if not data_path.exists():
         return {"error": f"Directory not found: {patches_dir}", "patches": 0}
 
-    sample_dirs = sorted([
-        d for d in data_path.rglob("*")
-        if d.is_dir() and any((d / f).exists() for f in EXPECTED_PATCH_FILES)
-    ])
+    sample_dirs = sorted(
+        [d for d in data_path.rglob("*") if d.is_dir() and any((d / f).exists() for f in EXPECTED_PATCH_FILES)]
+    )
 
     report: dict[str, Any] = {
         "total_patches": len(sample_dirs),
@@ -171,19 +169,13 @@ def validate_patches(patches_dir: str) -> dict[str, Any]:
 
             # Shape validation
             if expected_file == "tir_200m.npy" and arr.shape != (64, 64):
-                report["shape_issues"].append(
-                    {"file": str(fpath), "expected": "(64, 64)", "got": str(arr.shape)}
-                )
+                report["shape_issues"].append({"file": str(fpath), "expected": "(64, 64)", "got": str(arr.shape)})
                 report["issues_count"] += 1
             elif expected_file == "tir_100m.npy" and arr.shape != (128, 128):
-                report["shape_issues"].append(
-                    {"file": str(fpath), "expected": "(128, 128)", "got": str(arr.shape)}
-                )
+                report["shape_issues"].append({"file": str(fpath), "expected": "(128, 128)", "got": str(arr.shape)})
                 report["issues_count"] += 1
             elif expected_file == "rgb_100m.npy" and arr.shape != (3, 128, 128):
-                report["shape_issues"].append(
-                    {"file": str(fpath), "expected": "(3, 128, 128)", "got": str(arr.shape)}
-                )
+                report["shape_issues"].append({"file": str(fpath), "expected": "(3, 128, 128)", "got": str(arr.shape)})
                 report["issues_count"] += 1
 
             # Hash for duplicate detection
@@ -232,9 +224,7 @@ def print_report(report: dict[str, Any], title: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Validate InfraNova AI dataset regions and patches."
-    )
+    parser = argparse.ArgumentParser(description="Validate InfraNova AI dataset regions and patches.")
     parser.add_argument(
         "--dir",
         default="data/landsat9/input",
@@ -284,4 +274,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

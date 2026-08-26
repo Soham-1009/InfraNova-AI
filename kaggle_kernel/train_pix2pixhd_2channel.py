@@ -3,22 +3,13 @@ InfraNova AI — 2-Channel (Band 10 + Band 11) Pix2PixHD Training on Kaggle GPU
 Input: 2-Channel Thermal (Band 10 + Band 11)
 Target: 3-Channel RGB True Color
 Architecture: Canonical Pix2PixHD (21.38M Generator, 5.53M MultiScaleDiscriminator)
-Hardware: 2 × NVIDIA Tesla T4 GPUs (DataParallel, Global Batch 64 / Per-GPU 32)
+Hardware: 2 x NVIDIA Tesla T4 GPUs (DataParallel, Global Batch 64 / Per-GPU 32)
 """
 
 from __future__ import annotations
-from torchvision.models import VGG19_Weights, vgg19
-from torch.utils.data import DataLoader, Dataset
-from torch.nn.utils import spectral_norm
-import torch.nn.functional as F
-import torch.nn as nn
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
 
 import csv
 import gc
-import hashlib
 import json
 import math
 import os
@@ -28,14 +19,22 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.utils import spectral_norm
+from torch.utils.data import DataLoader, Dataset
+from torchvision.models import VGG19_Weights, vgg19
+
 # Force unbuffered output so logs appear in real-time on Kaggle
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(line_buffering=True)
 
-import cv2
 import matplotlib
+
 matplotlib.use("Agg")
 
 try:
@@ -97,7 +96,15 @@ class LinearLRScheduler:
     Maintains initial learning rate until `decay_start_epoch`, then linearly anneals to `eta_min`.
     """
 
-    def __init__(self, optimizer, total_epochs: int, decay_start_epoch: int, base_lrs: list[float] | None = None, eta_min: float = 1e-6, last_epoch: int = 0):
+    def __init__(
+        self,
+        optimizer,
+        total_epochs: int,
+        decay_start_epoch: int,
+        base_lrs: list[float] | None = None,
+        eta_min: float = 1e-6,
+        last_epoch: int = 0,
+    ):
         self.optimizer = optimizer
         self.total_epochs = int(total_epochs)
         self.decay_start_epoch = int(decay_start_epoch)
@@ -111,12 +118,12 @@ class LinearLRScheduler:
     def step(self, epoch: int) -> None:
         self.last_epoch = epoch
         if epoch <= self.decay_start_epoch:
-            for base_lr, param_group in zip(self.initial_lrs, self.optimizer.param_groups):
+            for base_lr, param_group in zip(self.initial_lrs, self.optimizer.param_groups, strict=False):
                 param_group["lr"] = base_lr
         else:
             decay_epochs = max(self.total_epochs - self.decay_start_epoch, 1)
             fraction = min(1.0, max(0.0, (epoch - self.decay_start_epoch) / decay_epochs))
-            for base_lr, param_group in zip(self.initial_lrs, self.optimizer.param_groups):
+            for base_lr, param_group in zip(self.initial_lrs, self.optimizer.param_groups, strict=False):
                 param_group["lr"] = self.eta_min + (base_lr - self.eta_min) * (1.0 - fraction)
 
     def get_last_lr(self) -> list[float]:
@@ -126,6 +133,7 @@ class LinearLRScheduler:
 # ─────────────────────────────────────────────────────────────────────────────
 # DATASET
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class Landsat9TwoChannelDataset(Dataset):
     def __init__(self, root_dir: str | Path, split: str = "train", image_size: int = 128, augment: bool = True):
@@ -154,12 +162,10 @@ class Landsat9TwoChannelDataset(Dataset):
                     break
 
         if split_dir is None:
-            raise FileNotFoundError(
-                f"Could not locate split '{split}' in {self.root_dir}")
+            raise FileNotFoundError(f"Could not locate split '{split}' in {self.root_dir}")
 
         self.samples = sorted([p for p in split_dir.iterdir() if p.is_dir()])
-        print(
-            f"Loaded {len(self.samples)} samples for {split} split from {split_dir}", flush=True)
+        print(f"Loaded {len(self.samples)} samples for {split} split from {split_dir}", flush=True)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -219,13 +225,11 @@ class Landsat9TwoChannelDataset(Dataset):
 # CANONICAL 2-CHANNEL PIX2PIXHD ARCHITECTURE
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class DownBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, use_norm: bool = True):
         super().__init__()
-        layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size=4,
-                      stride=2, padding=1, bias=not use_norm)
-        ]
+        layers = [nn.Conv2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1, bias=not use_norm)]
         if use_norm:
             layers.append(nn.InstanceNorm2d(out_channels))
         layers.append(nn.LeakyReLU(0.2, inplace=True))
@@ -239,10 +243,8 @@ class UpBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, use_dropout: bool = False):
         super().__init__()
         layers = [
-            nn.Upsample(scale_factor=2.0, mode='bilinear',
-                        align_corners=False),
-            nn.Conv2d(in_channels, out_channels, kernel_size=3,
-                      stride=1, padding=1, bias=False),
+            nn.Upsample(scale_factor=2.0, mode="bilinear", align_corners=False),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
             nn.InstanceNorm2d(out_channels),
             nn.ReLU(inplace=True),
         ]
@@ -270,8 +272,7 @@ class GlobalGenerator(nn.Module):
         self.downs.append(DownBlock(in_channels, features[0], use_norm=False))
         for i in range(1, depth):
             use_norm = i != depth - 1
-            self.downs.append(
-                DownBlock(features[i-1], features[i], use_norm=use_norm))
+            self.downs.append(DownBlock(features[i - 1], features[i], use_norm=use_norm))
 
         self.ups = nn.ModuleList()
         for i in range(depth - 1):
@@ -284,10 +285,8 @@ class GlobalGenerator(nn.Module):
             self.ups.append(UpBlock(in_ch, out_ch, use_dropout=use_dropout))
 
         self.final_up = nn.Sequential(
-            nn.Upsample(scale_factor=2.0, mode='bilinear',
-                        align_corners=False),
-            nn.Conv2d(features[0] * 2, out_channels,
-                      kernel_size=3, stride=1, padding=1),
+            nn.Upsample(scale_factor=2.0, mode="bilinear", align_corners=False),
+            nn.Conv2d(features[0] * 2, out_channels, kernel_size=3, stride=1, padding=1),
             nn.Tanh(),
         )
 
@@ -312,10 +311,7 @@ class GlobalGenerator(nn.Module):
 class LocalEnhancerBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, use_norm: bool = True):
         super().__init__()
-        layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size=4,
-                      stride=2, padding=1, bias=not use_norm)
-        ]
+        layers = [nn.Conv2d(in_channels, out_channels, kernel_size=4, stride=2, padding=1, bias=not use_norm)]
         if use_norm:
             layers.append(nn.InstanceNorm2d(out_channels, affine=True))
         layers.append(nn.LeakyReLU(0.2, inplace=True))
@@ -329,12 +325,10 @@ class LocalEnhancerUpBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
         self.block = nn.Sequential(
-            nn.Upsample(scale_factor=2.0, mode='bilinear',
-                        align_corners=False),
-            nn.Conv2d(in_channels, out_channels, kernel_size=3,
-                      stride=1, padding=1, bias=False),
+            nn.Upsample(scale_factor=2.0, mode="bilinear", align_corners=False),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
             nn.InstanceNorm2d(out_channels, affine=True),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -349,10 +343,9 @@ class LocalEnhancer(nn.Module):
         self.fusion_proj = nn.Conv2d(global_feat_channels, 64, kernel_size=1)
         self.dec1 = LocalEnhancerUpBlock(64, 32)
         self.final_up = nn.Sequential(
-            nn.Upsample(scale_factor=2.0, mode='bilinear',
-                        align_corners=False),
+            nn.Upsample(scale_factor=2.0, mode="bilinear", align_corners=False),
             nn.Conv2d(32, out_channels, kernel_size=3, stride=1, padding=1),
-            nn.Tanh()
+            nn.Tanh(),
         )
 
     def forward(self, x: torch.Tensor, global_feature: torch.Tensor) -> torch.Tensor:
@@ -371,10 +364,8 @@ class Pix2PixHDGenerator(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.image_size = image_size
-        self.global_gen = GlobalGenerator(
-            in_channels, out_channels, image_size=image_size // 2)
-        self.local_enhancer = LocalEnhancer(
-            in_channels, out_channels, global_feat_channels=128)
+        self.global_gen = GlobalGenerator(in_channels, out_channels, image_size=image_size // 2)
+        self.local_enhancer = LocalEnhancer(in_channels, out_channels, global_feat_channels=128)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_down = F.avg_pool2d(x, kernel_size=2, stride=2)
@@ -456,8 +447,7 @@ class PatchDiscriminator(nn.Module):
     def _init_weights(module: nn.Module) -> None:
         """Kaiming initialization for convolution layers."""
         if isinstance(module, nn.Conv2d):
-            nn.init.kaiming_normal_(
-                module.weight, a=0.2, mode="fan_in", nonlinearity="leaky_relu")
+            nn.init.kaiming_normal_(module.weight, a=0.2, mode="fan_in", nonlinearity="leaky_relu")
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
 
@@ -489,12 +479,9 @@ class MultiScaleDiscriminator(nn.Module):
         self.discriminators = nn.ModuleList()
 
         for _ in range(num_scales):
-            self.discriminators.append(
-                PatchDiscriminator(in_channels=in_channels, features=features)
-            )
+            self.discriminators.append(PatchDiscriminator(in_channels=in_channels, features=features))
 
-        self.downsample = nn.AvgPool2d(
-            kernel_size=3, stride=2, padding=1, count_include_pad=False)
+        self.downsample = nn.AvgPool2d(kernel_size=3, stride=2, padding=1, count_include_pad=False)
 
     def forward(
         self,
@@ -504,8 +491,7 @@ class MultiScaleDiscriminator(nn.Module):
         result = {}
         input_x = x
         for i, disc in enumerate(self.discriminators):
-            result[f"scale_{i}"] = disc(
-                input_x, return_features=return_features)
+            result[f"scale_{i}"] = disc(input_x, return_features=return_features)
             if i != self.num_scales - 1:
                 input_x = self.downsample(input_x)
 
@@ -513,13 +499,18 @@ class MultiScaleDiscriminator(nn.Module):
 
 
 class Pix2Pix(nn.Module):
-    def __init__(self, device: torch.device, in_channels: int = 2, out_channels: int = 3, image_size: int = 128, num_scales: int = 2):
+    def __init__(
+        self,
+        device: torch.device,
+        in_channels: int = 2,
+        out_channels: int = 3,
+        image_size: int = 128,
+        num_scales: int = 2,
+    ):
         super().__init__()
         self.device = device
-        self.generator = Pix2PixHDGenerator(
-            in_channels=in_channels, out_channels=out_channels, image_size=image_size)
-        self.discriminator = MultiScaleDiscriminator(
-            in_channels=in_channels + out_channels, num_scales=num_scales)
+        self.generator = Pix2PixHDGenerator(in_channels=in_channels, out_channels=out_channels, image_size=image_size)
+        self.discriminator = MultiScaleDiscriminator(in_channels=in_channels + out_channels, num_scales=num_scales)
         self.to(device)
 
     def generate(self, ir: torch.Tensor) -> torch.Tensor:
@@ -534,14 +525,14 @@ class Pix2Pix(nn.Module):
 # LOSS FUNCTIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class GANLoss(nn.Module):
     def __init__(self, mode="bce"):
         super().__init__()
         self.loss = nn.MSELoss() if mode == "lsgan" else nn.BCEWithLogitsLoss()
 
     def forward(self, pred, target_is_real):
-        target = torch.ones_like(
-            pred) if target_is_real else torch.zeros_like(pred)
+        target = torch.ones_like(pred) if target_is_real else torch.zeros_like(pred)
         return self.loss(pred, target)
 
 
@@ -550,8 +541,7 @@ class VGGPerceptualLoss(nn.Module):
         super().__init__()
         try:
             vgg = vgg19(weights=VGG19_Weights.DEFAULT).features
-            self.blocks = nn.ModuleList(
-                [vgg[:4], vgg[4:9], vgg[9:18], vgg[18:27]])
+            self.blocks = nn.ModuleList([vgg[:4], vgg[4:9], vgg[9:18], vgg[18:27]])
             for block in self.blocks:
                 for param in block.parameters():
                     param.requires_grad = False
@@ -560,18 +550,14 @@ class VGGPerceptualLoss(nn.Module):
             self.enabled = False
             self.blocks = nn.ModuleList()
 
-        self.register_buffer("mean", torch.tensor(
-            [0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor(
-            [0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
 
     def forward(self, fake, real):
         if not self.enabled:
             return fake.new_tensor(0.0)
-        f_norm = (((fake + 1.0) / 2.0) - self.mean.to(fake.dtype)) / \
-            self.std.to(fake.dtype)
-        r_norm = (((real + 1.0) / 2.0) - self.mean.to(real.dtype)) / \
-            self.std.to(real.dtype)
+        f_norm = (((fake + 1.0) / 2.0) - self.mean.to(fake.dtype)) / self.std.to(fake.dtype)
+        r_norm = (((real + 1.0) / 2.0) - self.mean.to(real.dtype)) / self.std.to(real.dtype)
         loss = 0.0
         cur_f, cur_r = f_norm, r_norm
         for block in self.blocks:
@@ -586,10 +572,9 @@ class SSIMLoss(nn.Module):
         super().__init__()
         self.window_size = window_size
         coords = torch.arange(window_size).float() - window_size // 2
-        gauss = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
+        gauss = torch.exp(-(coords**2) / (2 * sigma**2))
         gauss = gauss / gauss.sum()
-        kernel = (gauss[:, None] * gauss[None, :]
-                  ).unsqueeze(0).unsqueeze(0).repeat(3, 1, 1, 1)
+        kernel = (gauss[:, None] * gauss[None, :]).unsqueeze(0).unsqueeze(0).repeat(3, 1, 1, 1)
         self.register_buffer("kernel", kernel)
 
     def _ssim(self, img1, img2):
@@ -601,9 +586,10 @@ class SSIMLoss(nn.Module):
         sigma1_sq = F.conv2d(img1 * img1, k, padding=p, groups=3) - mu1_sq
         sigma2_sq = F.conv2d(img2 * img2, k, padding=p, groups=3) - mu2_sq
         sigma12 = F.conv2d(img1 * img2, k, padding=p, groups=3) - mu1_mu2
-        c1, c2 = 0.01 ** 2, 0.03 ** 2
-        ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / \
-            ((mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2) + 1e-8)
+        c1, c2 = 0.01**2, 0.03**2
+        ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / (
+            (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2) + 1e-8
+        )
         return ssim_map.mean()
 
     def forward(self, fake, real):
@@ -635,13 +621,14 @@ class CombinedLoss(nn.Module):
         l1 = self.l1_loss(fake_rgb, real_rgb)
         perc = self.perc_loss(fake_rgb, real_rgb)
         ssim = self.ssim_loss(fake_rgb, real_rgb)
-        chroma = F.l1_loss(((fake_rgb + 1.0) / 2.0).std(dim=1, keepdim=True),
-                           ((real_rgb + 1.0) / 2.0).std(dim=1, keepdim=True))
+        chroma = F.l1_loss(
+            ((fake_rgb + 1.0) / 2.0).std(dim=1, keepdim=True), ((real_rgb + 1.0) / 2.0).std(dim=1, keepdim=True)
+        )
 
         feat = 0.0
         if fake_features and real_features:
             for s in fake_features:
-                for f_f, f_r in zip(fake_features[s], real_features[s]):
+                for f_f, f_r in zip(fake_features[s], real_features[s], strict=False):
                     feat += F.l1_loss(f_f, f_r.detach())
 
         total = (
@@ -652,15 +639,13 @@ class CombinedLoss(nn.Module):
             + self.lambda_chroma * chroma
             + self.lambda_feat * feat
         )
-        return {
-            "total": total, "adv": adv, "l1": l1, "perc": perc,
-            "ssim": ssim, "chroma": chroma, "feat": feat
-        }
+        return {"total": total, "adv": adv, "l1": l1, "perc": perc, "ssim": ssim, "chroma": chroma, "feat": feat}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VALIDATION METRICS & TELEMETRY
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def compute_sam(pred: torch.Tensor, target: torch.Tensor) -> float:
     dot = (pred * target).sum(dim=1)
@@ -692,14 +677,15 @@ def compute_color_histogram_distance(pred: torch.Tensor, target: torch.Tensor, b
 
 def compute_lab_color_error(pred: torch.Tensor, target: torch.Tensor) -> float:
     def _to_lab(rgb: torch.Tensor) -> torch.Tensor:
-        lin = torch.where(
-            rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+        lin = torch.where(rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
         r, g, b = lin[:, 0:1], lin[:, 1:2], lin[:, 2:3]
         x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
-        y = (0.2126 * r + 0.7152 * g + 0.0722 * b)
+        y = 0.2126 * r + 0.7152 * g + 0.0722 * b
         z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
-        def f(t): return torch.where(t > 0.008856, t.clamp_min(
-            1e-10).pow(1.0 / 3.0), (903.3 * t + 16.0) / 116.0)
+
+        def f(t):
+            return torch.where(t > 0.008856, t.clamp_min(1e-10).pow(1.0 / 3.0), (903.3 * t + 16.0) / 116.0)
+
         fx, fy, fz = f(x), f(y), f(z)
         return torch.cat([116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)], dim=1)
 
@@ -732,12 +718,10 @@ def evaluate_full_val(model: Pix2Pix, val_loader: DataLoader, device: torch.devi
             rgb_01 = ((rgb + 1.0) / 2.0).clamp(0.0, 1.0)
 
             mse = ((fake_01 - rgb_01) ** 2).view(bs, -1).mean(dim=1)
-            psnr_sum += float((10.0 * torch.log10(1.0 /
-                              (mse + 1e-10))).sum().item())
+            psnr_sum += float((10.0 * torch.log10(1.0 / (mse + 1e-10))).sum().item())
             ssim_sum += float((1.0 - ssim_eval(fake, rgb)).item()) * bs
 
-            mae_sum += float((fake_01 - rgb_01).abs().view(bs, -
-                             1).mean(dim=1).sum().item())
+            mae_sum += float((fake_01 - rgb_01).abs().view(bs, -1).mean(dim=1).sum().item())
             rmse_sum += float(torch.sqrt(mse + 1e-10).sum().item())
 
             lab_sum += compute_lab_color_error(fake_01, rgb_01) * bs
@@ -771,21 +755,19 @@ def evaluate_full_val(model: Pix2Pix, val_loader: DataLoader, device: torch.devi
 # KAGGLE MAIN TRAINING SCRIPT
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def main():
     print("=" * 80)
-    print(
-        f"INFRANOVA AI — 2-CHANNEL PIX2PIXHD KAGGLE EXPERIMENT: EPOCH {CONFIG['target_epoch']}")
+    print(f"INFRANOVA AI — 2-CHANNEL PIX2PIXHD KAGGLE EXPERIMENT: EPOCH {CONFIG['target_epoch']}")
     print("=" * 80)
 
     seed_everything(CONFIG["seed"])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     num_gpus = torch.cuda.device_count()
-    print(
-        f"CUDA Available: {torch.cuda.is_available()} | GPU Count: {num_gpus}")
+    print(f"CUDA Available: {torch.cuda.is_available()} | GPU Count: {num_gpus}")
     for i in range(num_gpus):
         props = torch.cuda.get_device_properties(i)
-        print(
-            f"  GPU {i}: {props.name} | Total Memory: {props.total_memory / (1024**3):.2f} GB")
+        print(f"  GPU {i}: {props.name} | Total Memory: {props.total_memory / (1024**3):.2f} GB")
 
     # Locate Dataset Directory
     candidate_paths = [
@@ -805,8 +787,7 @@ def main():
                 data_dir = p.parent
                 break
     if data_dir is None:
-        raise FileNotFoundError(
-            "Could not locate Landsat 9 B10+B11 dataset root!")
+        raise FileNotFoundError("Could not locate Landsat 9 B10+B11 dataset root!")
     print(f"Dataset root: {data_dir}")
 
     out_dir = Path("/kaggle/working/outputs/pix2pixhd_band10_band11")
@@ -820,12 +801,31 @@ def main():
     ds_val = Landsat9TwoChannelDataset(data_dir, split="val", augment=False)
 
     train_loader = DataLoader(
-        ds_train, batch_size=CONFIG["batch_size"], shuffle=True, num_workers=2, pin_memory=True, persistent_workers=True, drop_last=True)
+        ds_train,
+        batch_size=CONFIG["batch_size"],
+        shuffle=True,
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=True,
+        drop_last=True,
+    )
     val_loader = DataLoader(
-        ds_val, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=2, pin_memory=True, persistent_workers=True, drop_last=False)
+        ds_val,
+        batch_size=CONFIG["batch_size"],
+        shuffle=False,
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=True,
+        drop_last=False,
+    )
 
-    model = Pix2Pix(device=device, in_channels=CONFIG["in_channels"], out_channels=CONFIG["out_channels"],
-                    image_size=CONFIG["image_size"], num_scales=CONFIG["num_scales"])
+    model = Pix2Pix(
+        device=device,
+        in_channels=CONFIG["in_channels"],
+        out_channels=CONFIG["out_channels"],
+        image_size=CONFIG["image_size"],
+        num_scales=CONFIG["num_scales"],
+    )
     criterion = CombinedLoss(CONFIG).to(device)
     val_ssim_eval = SSIMLoss().to(device)
 
@@ -858,7 +858,9 @@ def main():
         print(f"  [Gate 2] Checkpoint Prior SSIM: {ckpt.get('val_ssim', 0):.6f}")
         print(f"  [Gate 3] Checkpoint Prior PSNR: {ckpt.get('val_psnr', 0):.2f} dB")
 
-        assert loaded_ep == CONFIG["start_epoch"] - 1, f"Safety Gate Failed: Checkpoint epoch {loaded_ep} != expected {CONFIG['start_epoch'] - 1}"
+        assert loaded_ep == CONFIG["start_epoch"] - 1, (
+            f"Safety Gate Failed: Checkpoint epoch {loaded_ep} != expected {CONFIG['start_epoch'] - 1}"
+        )
         assert "generator_state_dict" in ckpt, "Safety Gate Failed: Missing generator_state_dict in checkpoint!"
         assert "discriminator_state_dict" in ckpt, "Safety Gate Failed: Missing discriminator_state_dict in checkpoint!"
 
@@ -870,23 +872,27 @@ def main():
                 new_sd[new_key] = v
             return new_sd
 
-        model.generator.load_state_dict(
-            clean_state_dict(ckpt["generator_state_dict"]))
-        model.discriminator.load_state_dict(
-            clean_state_dict(ckpt["discriminator_state_dict"]))
+        model.generator.load_state_dict(clean_state_dict(ckpt["generator_state_dict"]))
+        model.discriminator.load_state_dict(clean_state_dict(ckpt["discriminator_state_dict"]))
         print("  [Gate 4] Successfully loaded Generator & Discriminator states!", flush=True)
 
         # Verify finite weights
-        assert all(torch.isfinite(p).all().item() for p in model.generator.parameters()), "Safety Gate Failed: Non-finite Generator parameters!"
-        assert all(torch.isfinite(p).all().item() for p in model.discriminator.parameters()), "Safety Gate Failed: Non-finite Discriminator parameters!"
-        print("  [Gate 5] Verified all Generator and Discriminator parameters strictly finite (no NaN/Inf).", flush=True)
+        assert all(torch.isfinite(p).all().item() for p in model.generator.parameters()), (
+            "Safety Gate Failed: Non-finite Generator parameters!"
+        )
+        assert all(torch.isfinite(p).all().item() for p in model.discriminator.parameters()), (
+            "Safety Gate Failed: Non-finite Discriminator parameters!"
+        )
+        print(
+            "  [Gate 5] Verified all Generator and Discriminator parameters strictly finite (no NaN/Inf).", flush=True
+        )
     else:
         raise RuntimeError("FATAL: Continuation requested but no valid resume checkpoint found!")
 
-    opt_g = torch.optim.Adam(model.generator.parameters(
-    ), lr=CONFIG["lr_g"], betas=(CONFIG["beta1"], CONFIG["beta2"]))
-    opt_d = torch.optim.Adam(model.discriminator.parameters(
-    ), lr=CONFIG["lr_d"], betas=(CONFIG["beta1"], CONFIG["beta2"]))
+    opt_g = torch.optim.Adam(model.generator.parameters(), lr=CONFIG["lr_g"], betas=(CONFIG["beta1"], CONFIG["beta2"]))
+    opt_d = torch.optim.Adam(
+        model.discriminator.parameters(), lr=CONFIG["lr_d"], betas=(CONFIG["beta1"], CONFIG["beta2"])
+    )
 
     if resume_path is not None and "optimizer_g_state_dict" in ckpt:
         try:
@@ -903,16 +909,31 @@ def main():
             d_step_val = int(d_steps[0]) if isinstance(d_steps[0], (int, torch.Tensor)) else 0
             assert g_step_val > 0, f"Safety Gate Failed: Optimizer G step is {g_step_val}"
             assert d_step_val > 0, f"Safety Gate Failed: Optimizer D step is {d_step_val}"
-            print(f"  [Gate 6b] Verified Adam Optimizer step counters: G_step={g_step_val}, D_step={d_step_val}", flush=True)
+            print(
+                f"  [Gate 6b] Verified Adam Optimizer step counters: G_step={g_step_val}, D_step={d_step_val}",
+                flush=True,
+            )
         except Exception as e:
             print(f"  Warning restoring optimizer state: {e}", flush=True)
 
     # Initialize Linear LR Schedulers for Annealing starting at decay_start_epoch
     restored_epoch = ckpt.get("epoch", 0) if resume_path is not None else 0
     scheduler_g = LinearLRScheduler(
-        opt_g, total_epochs=CONFIG["total_epochs"], decay_start_epoch=CONFIG["lr_decay_start_epoch"], base_lrs=[CONFIG["lr_g"]], eta_min=1e-6, last_epoch=restored_epoch)
+        opt_g,
+        total_epochs=CONFIG["total_epochs"],
+        decay_start_epoch=CONFIG["lr_decay_start_epoch"],
+        base_lrs=[CONFIG["lr_g"]],
+        eta_min=1e-6,
+        last_epoch=restored_epoch,
+    )
     scheduler_d = LinearLRScheduler(
-        opt_d, total_epochs=CONFIG["total_epochs"], decay_start_epoch=CONFIG["lr_decay_start_epoch"], base_lrs=[CONFIG["lr_d"]], eta_min=1e-6, last_epoch=restored_epoch)
+        opt_d,
+        total_epochs=CONFIG["total_epochs"],
+        decay_start_epoch=CONFIG["lr_decay_start_epoch"],
+        base_lrs=[CONFIG["lr_d"]],
+        eta_min=1e-6,
+        last_epoch=restored_epoch,
+    )
 
     # Pre-Flight Learning Rate & Scheduler State Verification
     decay_epochs = CONFIG["total_epochs"] - CONFIG["lr_decay_start_epoch"]
@@ -921,17 +942,29 @@ def main():
         if restored_epoch > CONFIG["lr_decay_start_epoch"]
         else CONFIG["lr_g"]
     )
-    assert scheduler_g.last_epoch == restored_epoch, f"Safety Gate Failed: Restored Scheduler G epoch {scheduler_g.last_epoch} != {restored_epoch}"
-    assert scheduler_d.last_epoch == restored_epoch, f"Safety Gate Failed: Restored Scheduler D epoch {scheduler_d.last_epoch} != {restored_epoch}"
+    assert scheduler_g.last_epoch == restored_epoch, (
+        f"Safety Gate Failed: Restored Scheduler G epoch {scheduler_g.last_epoch} != {restored_epoch}"
+    )
+    assert scheduler_d.last_epoch == restored_epoch, (
+        f"Safety Gate Failed: Restored Scheduler D epoch {scheduler_d.last_epoch} != {restored_epoch}"
+    )
     pre_step_lr_g = opt_g.param_groups[0]["lr"]
     pre_step_lr_d = opt_d.param_groups[0]["lr"]
-    assert abs(pre_step_lr_g - expected_pre_lr) < 1e-8, f"Safety Gate Failed: Restored G LR {pre_step_lr_g} != expected {expected_pre_lr}"
-    assert abs(pre_step_lr_d - expected_pre_lr) < 1e-8, f"Safety Gate Failed: Restored D LR {pre_step_lr_d} != expected {expected_pre_lr}"
+    assert abs(pre_step_lr_g - expected_pre_lr) < 1e-8, (
+        f"Safety Gate Failed: Restored G LR {pre_step_lr_g} != expected {expected_pre_lr}"
+    )
+    assert abs(pre_step_lr_d - expected_pre_lr) < 1e-8, (
+        f"Safety Gate Failed: Restored D LR {pre_step_lr_d} != expected {expected_pre_lr}"
+    )
 
     scheduler_g.step(CONFIG["start_epoch"])
     scheduler_d.step(CONFIG["start_epoch"])
-    assert scheduler_g.last_epoch == CONFIG["start_epoch"], f"Safety Gate Failed: Scheduler G epoch {scheduler_g.last_epoch} != {CONFIG['start_epoch']}"
-    assert scheduler_d.last_epoch == CONFIG["start_epoch"], f"Safety Gate Failed: Scheduler D epoch {scheduler_d.last_epoch} != {CONFIG['start_epoch']}"
+    assert scheduler_g.last_epoch == CONFIG["start_epoch"], (
+        f"Safety Gate Failed: Scheduler G epoch {scheduler_g.last_epoch} != {CONFIG['start_epoch']}"
+    )
+    assert scheduler_d.last_epoch == CONFIG["start_epoch"], (
+        f"Safety Gate Failed: Scheduler D epoch {scheduler_d.last_epoch} != {CONFIG['start_epoch']}"
+    )
 
     post_step_lr_g = opt_g.param_groups[0]["lr"]
     post_step_lr_d = opt_d.param_groups[0]["lr"]
@@ -941,20 +974,35 @@ def main():
     print("  [Gate 7] Scheduler Verification:", flush=True)
     print(f"    Restored Scheduler Prior Epoch:  {restored_epoch}", flush=True)
     print(f"    Transitioned Target Epoch:       {CONFIG['start_epoch']}", flush=True)
-    print(f"    Pre-Step LR:                     G={pre_step_lr_g:.8f}, D={pre_step_lr_d:.8f} (Verified == {expected_pre_lr:.8f})", flush=True)
-    print(f"    Post-Step LR (Epoch {CONFIG['start_epoch']}):        G={post_step_lr_g:.8f}, D={post_step_lr_d:.8f}", flush=True)
+    print(
+        f"    Pre-Step LR:                     G={pre_step_lr_g:.8f}, D={pre_step_lr_d:.8f} (Verified == {expected_pre_lr:.8f})",
+        flush=True,
+    )
+    print(
+        f"    Post-Step LR (Epoch {CONFIG['start_epoch']}):        G={post_step_lr_g:.8f}, D={post_step_lr_d:.8f}",
+        flush=True,
+    )
     print(f"    Expected Epoch {CONFIG['start_epoch']} LR:           {expected_lr:.8f}", flush=True)
-    assert abs(post_step_lr_g - expected_lr) < 1e-8, f"Safety Gate Failed: G LR {post_step_lr_g} != expected {expected_lr}"
-    assert abs(post_step_lr_d - expected_lr) < 1e-8, f"Safety Gate Failed: D LR {post_step_lr_d} != expected {expected_lr}"
+    assert abs(post_step_lr_g - expected_lr) < 1e-8, (
+        f"Safety Gate Failed: G LR {post_step_lr_g} != expected {expected_lr}"
+    )
+    assert abs(post_step_lr_d - expected_lr) < 1e-8, (
+        f"Safety Gate Failed: D LR {post_step_lr_d} != expected {expected_lr}"
+    )
 
     # Initialize Independent Multi-Criteria Best Tracking
     best_ssim = ckpt.get("val_ssim", 0.0) if resume_path is not None else 0.0
     best_psnr = ckpt.get("val_psnr", 0.0) if resume_path is not None else 0.0
-    best_lab = ckpt.get("val_metrics", {}).get("val_lab_error", float("inf")) if resume_path is not None else float("inf")
+    best_lab = (
+        ckpt.get("val_metrics", {}).get("val_lab_error", float("inf")) if resume_path is not None else float("inf")
+    )
     best_sam = ckpt.get("val_metrics", {}).get("val_sam", float("inf")) if resume_path is not None else float("inf")
     prior_sat = ckpt.get("val_metrics", {}).get("val_sat_ratio", 0.0)
     best_sat_dist = abs(prior_sat - 1.0) if resume_path is not None else float("inf")
-    print(f"  [Gate 8] Initialized Tracking Baselines: SSIM={best_ssim:.6f}, PSNR={best_psnr:.2f} dB, CIE Lab={best_lab:.2f}, SAM={best_sam:.4f}, SatDist={best_sat_dist:.4f}", flush=True)
+    print(
+        f"  [Gate 8] Initialized Tracking Baselines: SSIM={best_ssim:.6f}, PSNR={best_psnr:.2f} dB, CIE Lab={best_lab:.2f}, SAM={best_sam:.4f}, SatDist={best_sat_dist:.4f}",
+        flush=True,
+    )
 
     # Free the loaded checkpoint from RAM — all state has been restored
     del ckpt
@@ -969,7 +1017,9 @@ def main():
     # Enable DataParallel across 2 GPUs
     if num_gpus > 1:
         print(
-            f"Enabling DataParallel across {num_gpus} Tesla T4 GPUs! (Global Batch: {CONFIG['batch_size']}, Per-GPU Batch: {CONFIG['batch_size'] // num_gpus})", flush=True)
+            f"Enabling DataParallel across {num_gpus} Tesla T4 GPUs! (Global Batch: {CONFIG['batch_size']}, Per-GPU Batch: {CONFIG['batch_size'] // num_gpus})",
+            flush=True,
+        )
         model.generator = torch.nn.DataParallel(model.generator)
         model.discriminator = torch.nn.DataParallel(model.discriminator)
 
@@ -996,17 +1046,36 @@ def main():
         else:
             with open(csv_path, "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    "epoch", "g_loss", "d_loss", "l1", "adv", "perc", "ssim_loss", "chroma", "feat",
-                    "g_grad_norm", "d_grad_norm", "g_lr", "d_lr",
-                    "val_ssim", "val_psnr", "val_mae", "val_rmse", "val_lab_error", "val_sam", "val_sat_ratio", "val_hist_dist",
-                    "duration_sec"
-                ])
+                writer.writerow(
+                    [
+                        "epoch",
+                        "g_loss",
+                        "d_loss",
+                        "l1",
+                        "adv",
+                        "perc",
+                        "ssim_loss",
+                        "chroma",
+                        "feat",
+                        "g_grad_norm",
+                        "d_grad_norm",
+                        "g_lr",
+                        "d_lr",
+                        "val_ssim",
+                        "val_psnr",
+                        "val_mae",
+                        "val_rmse",
+                        "val_lab_error",
+                        "val_sam",
+                        "val_sat_ratio",
+                        "val_hist_dist",
+                        "duration_sec",
+                    ]
+                )
 
     start_ep = CONFIG["start_epoch"]
     target_ep = CONFIG["target_epoch"]
-    print(
-        f"\nStarting Controlled Epoch Run: Epoch {start_ep} to Epoch {target_ep}...", flush=True)
+    print(f"\nStarting Controlled Epoch Run: Epoch {start_ep} to Epoch {target_ep}...", flush=True)
 
     for epoch in range(start_ep, target_ep + 1):
         t0 = time.time()
@@ -1018,29 +1087,38 @@ def main():
         current_lr_d = opt_d.param_groups[0]["lr"]
 
         # Runtime verification of live optimizer and scheduler state
-        assert scheduler_g.last_epoch == epoch, f"Runtime Assertion Failed: Scheduler G last_epoch {scheduler_g.last_epoch} != {epoch}"
-        assert scheduler_d.last_epoch == epoch, f"Runtime Assertion Failed: Scheduler D last_epoch {scheduler_d.last_epoch} != {epoch}"
+        assert scheduler_g.last_epoch == epoch, (
+            f"Runtime Assertion Failed: Scheduler G last_epoch {scheduler_g.last_epoch} != {epoch}"
+        )
+        assert scheduler_d.last_epoch == epoch, (
+            f"Runtime Assertion Failed: Scheduler D last_epoch {scheduler_d.last_epoch} != {epoch}"
+        )
 
         if epoch == start_ep:
             decay_epochs = CONFIG["total_epochs"] - CONFIG["lr_decay_start_epoch"]
             fraction = (epoch - CONFIG["lr_decay_start_epoch"]) / decay_epochs
             expected_epoch_lr = 1e-6 + (CONFIG["lr_g"] - 1e-6) * (1.0 - fraction)
-            assert abs(current_lr_g - expected_epoch_lr) < 1e-8, f"Runtime Assertion Failed: Live Optimizer G LR ({current_lr_g}) != expected Epoch {start_ep} LR ({expected_epoch_lr})"
-            assert abs(current_lr_d - expected_epoch_lr) < 1e-8, f"Runtime Assertion Failed: Live Optimizer D LR ({current_lr_d}) != expected Epoch {start_ep} LR ({expected_epoch_lr})"
-            print(f"  [Epoch {epoch} Runtime Verification] Live Optimizer Active LRs Confirmed: G_LR={current_lr_g:.8f}, D_LR={current_lr_d:.8f}", flush=True)
+            assert abs(current_lr_g - expected_epoch_lr) < 1e-8, (
+                f"Runtime Assertion Failed: Live Optimizer G LR ({current_lr_g}) != expected Epoch {start_ep} LR ({expected_epoch_lr})"
+            )
+            assert abs(current_lr_d - expected_epoch_lr) < 1e-8, (
+                f"Runtime Assertion Failed: Live Optimizer D LR ({current_lr_d}) != expected Epoch {start_ep} LR ({expected_epoch_lr})"
+            )
+            print(
+                f"  [Epoch {epoch} Runtime Verification] Live Optimizer Active LRs Confirmed: G_LR={current_lr_g:.8f}, D_LR={current_lr_d:.8f}",
+                flush=True,
+            )
 
         # Snapshot parameters ONCE per epoch for update verification (overwrite each epoch)
-        g_params_pre = [p.detach().float().cpu().clone()
-                        for p in model.generator.parameters()]
-        d_params_pre = [p.detach().float().cpu().clone()
-                        for p in model.discriminator.parameters()]
+        g_params_pre = [p.detach().float().cpu().clone() for p in model.generator.parameters()]
+        d_params_pre = [p.detach().float().cpu().clone() for p in model.discriminator.parameters()]
 
         model.train()
         g_loss_sum, d_loss_sum = 0.0, 0.0
         l1_sum, adv_sum, perc_sum, ssim_l_sum, chroma_sum, feat_sum = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         g_grad_norm_sum, d_grad_norm_sum = 0.0, 0.0
 
-        for batch_idx, batch in enumerate(train_loader):
+        for _batch_idx, batch in enumerate(train_loader):
             ir = batch["ir"].to(device, non_blocking=True)
             rgb = batch["rgb"].to(device, non_blocking=True)
 
@@ -1055,14 +1133,11 @@ def main():
 
             d_loss = 0.0
             for s in real_d:
-                d_loss += 0.5 * \
-                    (criterion.gan_loss(real_d[s], True) +
-                     criterion.gan_loss(fake_d[s], False))
+                d_loss += 0.5 * (criterion.gan_loss(real_d[s], True) + criterion.gan_loss(fake_d[s], False))
             d_loss /= len(real_d)
 
             d_loss.backward()
-            d_grad_norm = nn.utils.clip_grad_norm_(
-                model.discriminator.parameters(), CONFIG["grad_clip"])
+            d_grad_norm = nn.utils.clip_grad_norm_(model.discriminator.parameters(), CONFIG["grad_clip"])
             opt_d.step()
 
             # Step G
@@ -1070,24 +1145,25 @@ def main():
             opt_g.zero_grad(set_to_none=True)
 
             fake_rgb = model.generate(ir)
-            disc_res_fake = model.discriminate(
-                ir, fake_rgb, return_features=True)
+            disc_res_fake = model.discriminate(ir, fake_rgb, return_features=True)
             disc_res_real = model.discriminate(ir, rgb, return_features=True)
 
-            fake_pred_g = {k: disc_res_fake[k][0] if isinstance(
-                disc_res_fake[k], (tuple, list)) else disc_res_fake[k] for k in disc_res_fake}
-            fake_feats = {k: disc_res_fake[k][1] if isinstance(
-                disc_res_fake[k], (tuple, list)) else [] for k in disc_res_fake}
-            real_feats = {k: disc_res_real[k][1] if isinstance(
-                disc_res_real[k], (tuple, list)) else [] for k in disc_res_real}
+            fake_pred_g = {
+                k: disc_res_fake[k][0] if isinstance(disc_res_fake[k], (tuple, list)) else disc_res_fake[k]
+                for k in disc_res_fake
+            }
+            fake_feats = {
+                k: disc_res_fake[k][1] if isinstance(disc_res_fake[k], (tuple, list)) else [] for k in disc_res_fake
+            }
+            real_feats = {
+                k: disc_res_real[k][1] if isinstance(disc_res_real[k], (tuple, list)) else [] for k in disc_res_real
+            }
 
-            loss_dict = criterion(
-                fake_pred_g, fake_rgb, rgb, fake_features=fake_feats, real_features=real_feats)
+            loss_dict = criterion(fake_pred_g, fake_rgb, rgb, fake_features=fake_feats, real_features=real_feats)
             g_loss = loss_dict["total"]
 
             g_loss.backward()
-            g_grad_norm = nn.utils.clip_grad_norm_(
-                model.generator.parameters(), CONFIG["grad_clip"])
+            g_grad_norm = nn.utils.clip_grad_norm_(model.generator.parameters(), CONFIG["grad_clip"])
             opt_g.step()
 
             g_loss_sum += g_loss.item()
@@ -1098,10 +1174,8 @@ def main():
             ssim_l_sum += loss_dict["ssim"].item()
             chroma_sum += loss_dict["chroma"].item()
             feat_sum += loss_dict["feat"].item()
-            g_grad_norm_sum += float(g_grad_norm.item()
-                                     if isinstance(g_grad_norm, torch.Tensor) else g_grad_norm)
-            d_grad_norm_sum += float(d_grad_norm.item()
-                                     if isinstance(d_grad_norm, torch.Tensor) else d_grad_norm)
+            g_grad_norm_sum += float(g_grad_norm.item() if isinstance(g_grad_norm, torch.Tensor) else g_grad_norm)
+            d_grad_norm_sum += float(d_grad_norm.item() if isinstance(d_grad_norm, torch.Tensor) else d_grad_norm)
 
             # Explicitly delete training batch intermediates
             del ir, rgb, fake_rgb, real_d, fake_d, d_loss
@@ -1114,14 +1188,14 @@ def main():
         # Parameter Update Verifications
         max_diff_g, changed_g = 0.0, 0
         with torch.no_grad():
-            for old, p in zip(g_params_pre, model.generator.parameters()):
+            for old, p in zip(g_params_pre, model.generator.parameters(), strict=False):
                 diff = (p.detach().float().cpu() - old).abs()
                 max_diff_g = max(max_diff_g, diff.max().item())
                 changed_g += (diff > 0).sum().item()
                 del diff
 
             max_diff_d, changed_d = 0.0, 0
-            for old, p in zip(d_params_pre, model.discriminator.parameters()):
+            for old, p in zip(d_params_pre, model.discriminator.parameters(), strict=False):
                 diff = (p.detach().float().cpu() - old).abs()
                 max_diff_d = max(max_diff_d, diff.max().item())
                 changed_d += (diff > 0).sum().item()
@@ -1131,7 +1205,9 @@ def main():
         del g_params_pre, d_params_pre
 
         print(
-            f"\nParameter Update Check: G_MaxDiff={max_diff_g:.6e} ({changed_g} changed) | D_MaxDiff={max_diff_d:.6e} ({changed_d} changed)", flush=True)
+            f"\nParameter Update Check: G_MaxDiff={max_diff_g:.6e} ({changed_g} changed) | D_MaxDiff={max_diff_d:.6e} ({changed_d} changed)",
+            flush=True,
+        )
         assert max_diff_g > 0, "FATAL: Generator parameters did NOT update!"
         assert max_diff_d > 0, "FATAL: Discriminator parameters did NOT update!"
 
@@ -1153,12 +1229,13 @@ def main():
         print("\n" + "=" * 80)
         print(f"KAGGLE EPOCH {epoch:03d} RESULT")
         print("=" * 80)
-        print(f"Status:             COMPLETED")
-        print(f"GPU:                {num_gpus} × Tesla T4 (DataParallel)")
+        print("Status:             COMPLETED")
+        print(f"GPU:                {num_gpus} x Tesla T4 (DataParallel)")
         print(f"Global Batch:       {CONFIG['batch_size']}")
         print(f"Per-GPU Batch:      {CONFIG['batch_size'] // num_gpus}")
         print(
-            f"G Loss:             {avg_g_loss:.4f} (L1: {avg_l1:.4f} | Adv: {avg_adv:.4f} | Perc: {avg_perc:.4f} | SSIM: {avg_ssim_l:.4f} | Chroma: {avg_chroma:.4f} | Feat: {avg_feat:.4f})")
+            f"G Loss:             {avg_g_loss:.4f} (L1: {avg_l1:.4f} | Adv: {avg_adv:.4f} | Perc: {avg_perc:.4f} | SSIM: {avg_ssim_l:.4f} | Chroma: {avg_chroma:.4f} | Feat: {avg_feat:.4f})"
+        )
         print(f"D Loss:             {avg_d_loss:.4f}")
         print(f"Val SSIM:           {val_metrics['val_ssim']:.7f}")
         print(f"Val PSNR:           {val_metrics['val_psnr']:.2f} dB")
@@ -1218,7 +1295,10 @@ def main():
         if current_sat_dist < best_sat_dist:
             best_sat_dist = current_sat_dist
             torch.save(ckpt_dict, ckpt_dir / "best_sat_ratio.pth")
-            print(f"  🏆 NEW BEST SATURATION PROXIMITY (Ratio: {val_metrics['val_sat_ratio']:.4f}, Dist: {best_sat_dist:.4f}) -> Saved best_sat_ratio.pth", flush=True)
+            print(
+                f"  🏆 NEW BEST SATURATION PROXIMITY (Ratio: {val_metrics['val_sat_ratio']:.4f}, Dist: {best_sat_dist:.4f}) -> Saved best_sat_ratio.pth",
+                flush=True,
+            )
 
         # 6. Crash Recovery & Rolling State Artifacts
         torch.save(ckpt_dict, ckpt_dir / f"checkpoint_epoch_{epoch}.pth")
@@ -1230,11 +1310,14 @@ def main():
         gc.collect()
 
         # Resource & Memory Telemetry
-        alloc_mb = torch.cuda.memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
-        res_mb = torch.cuda.memory_reserved() / (1024 ** 2) if torch.cuda.is_available() else 0
-        peak_alloc_mb = torch.cuda.max_memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
-        peak_res_mb = torch.cuda.max_memory_reserved() / (1024 ** 2) if torch.cuda.is_available() else 0
-        print(f"Memory Telemetry:   Alloc: {alloc_mb:.1f} MB | Reserved: {res_mb:.1f} MB | Peak Alloc: {peak_alloc_mb:.1f} MB | Peak Res: {peak_res_mb:.1f} MB", flush=True)
+        alloc_mb = torch.cuda.memory_allocated() / (1024**2) if torch.cuda.is_available() else 0
+        res_mb = torch.cuda.memory_reserved() / (1024**2) if torch.cuda.is_available() else 0
+        peak_alloc_mb = torch.cuda.max_memory_allocated() / (1024**2) if torch.cuda.is_available() else 0
+        peak_res_mb = torch.cuda.max_memory_reserved() / (1024**2) if torch.cuda.is_available() else 0
+        print(
+            f"Memory Telemetry:   Alloc: {alloc_mb:.1f} MB | Reserved: {res_mb:.1f} MB | Peak Alloc: {peak_alloc_mb:.1f} MB | Peak Res: {peak_res_mb:.1f} MB",
+            flush=True,
+        )
 
         # Track Saturation and Sustained SSIM History
         sat_ratios_history.append(val_metrics["val_sat_ratio"])
@@ -1258,7 +1341,10 @@ def main():
             assert math.isfinite(val_metrics["val_ssim"]), "Hard Gate Failed: Non-finite SSIM (NaN/Inf)!"
             assert math.isfinite(val_metrics["val_psnr"]), "Hard Gate Failed: Non-finite PSNR (NaN/Inf)!"
             assert (ckpt_dir / "latest.pth").exists(), "Hard Gate Failed: Checkpoint file write failed!"
-            print("  ✅ [Hard Gate Passed] Zero NaNs/Infs, active parameter updates confirmed, checkpoint verified on disk.", flush=True)
+            print(
+                "  ✅ [Hard Gate Passed] Zero NaNs/Infs, active parameter updates confirmed, checkpoint verified on disk.",
+                flush=True,
+            )
 
             # 2. Soft Diagnostic Warnings (Logged to telemetry without prematurely killing training)
             # Reference Statistics from Epochs 1-100: G_loss P99=102.12, D_loss P99=0.39, G_grad P99=350.40, D_grad P99=2.78
@@ -1268,27 +1354,37 @@ def main():
             if avg_d_loss > 3.0 * 1.5:
                 print(f"  ⚠️ [Diagnostic Warning] D Loss ({avg_d_loss:.2f}) > 3x historical reference", flush=True)
             if avg_g_grad > 3.0 * 350.40:
-                print(f"  ⚠️ [Diagnostic Warning] G Grad Norm ({avg_g_grad:.2f}) > 3x historical P99 (1051.20)", flush=True)
+                print(
+                    f"  ⚠️ [Diagnostic Warning] G Grad Norm ({avg_g_grad:.2f}) > 3x historical P99 (1051.20)", flush=True
+                )
             if avg_d_grad > 3.0 * 2.78:
                 print(f"  ⚠️ [Diagnostic Warning] D Grad Norm ({avg_d_grad:.2f}) > 3x historical P99 (8.34)", flush=True)
             if val_metrics["val_ssim"] < 0.5 * 0.2294085:
-                print(f"  ⚠️ [Diagnostic Warning] SSIM ({val_metrics['val_ssim']:.4f}) dropped > 50% relative to Epoch 100", flush=True)
+                print(
+                    f"  ⚠️ [Diagnostic Warning] SSIM ({val_metrics['val_ssim']:.4f}) dropped > 50% relative to Epoch 100",
+                    flush=True,
+                )
             if val_metrics["val_psnr"] < 11.2864 - 5.0:
-                print(f"  ⚠️ [Diagnostic Warning] PSNR ({val_metrics['val_psnr']:.2f} dB) dropped > 5 dB relative to Epoch 100", flush=True)
+                print(
+                    f"  ⚠️ [Diagnostic Warning] PSNR ({val_metrics['val_psnr']:.2f} dB) dropped > 5 dB relative to Epoch 100",
+                    flush=True,
+                )
             if val_metrics["val_lab_error"] > 2.0 * 29.5236:
-                print(f"  ⚠️ [Diagnostic Warning] CIE Lab Error ({val_metrics['val_lab_error']:.2f}) increased > 2x relative to Epoch 100", flush=True)
+                print(
+                    f"  ⚠️ [Diagnostic Warning] CIE Lab Error ({val_metrics['val_lab_error']:.2f}) increased > 2x relative to Epoch 100",
+                    flush=True,
+                )
 
         # Cleanup: keep only the 2 most recent numbered checkpoints to prevent disk OOM
         import glob
-        existing_ckpts = sorted(
-            glob.glob(str(ckpt_dir / "checkpoint_epoch_*.pth")))
+
+        existing_ckpts = sorted(glob.glob(str(ckpt_dir / "checkpoint_epoch_*.pth")))
         keep_count = 2
         if len(existing_ckpts) > keep_count:
             for old_ckpt in existing_ckpts[:-keep_count]:
                 try:
                     os.remove(old_ckpt)
-                    print(
-                        f"  Cleaned up old checkpoint: {Path(old_ckpt).name}")
+                    print(f"  Cleaned up old checkpoint: {Path(old_ckpt).name}")
                 except OSError:
                     pass
 
@@ -1301,13 +1397,32 @@ def main():
         # Write to training.csv
         with open(csv_path, "a", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                epoch, avg_g_loss, avg_d_loss, avg_l1, avg_adv, avg_perc, avg_ssim_l, avg_chroma, avg_feat,
-                avg_g_grad, avg_d_grad, current_lr_g, current_lr_d,
-                val_metrics["val_ssim"], val_metrics["val_psnr"], val_metrics["val_mae"], val_metrics["val_rmse"],
-                val_metrics["val_lab_error"], val_metrics["val_sam"], val_metrics["val_sat_ratio"], val_metrics["val_hist_dist"],
-                t_epoch
-            ])
+            writer.writerow(
+                [
+                    epoch,
+                    avg_g_loss,
+                    avg_d_loss,
+                    avg_l1,
+                    avg_adv,
+                    avg_perc,
+                    avg_ssim_l,
+                    avg_chroma,
+                    avg_feat,
+                    avg_g_grad,
+                    avg_d_grad,
+                    current_lr_g,
+                    current_lr_d,
+                    val_metrics["val_ssim"],
+                    val_metrics["val_psnr"],
+                    val_metrics["val_mae"],
+                    val_metrics["val_rmse"],
+                    val_metrics["val_lab_error"],
+                    val_metrics["val_sam"],
+                    val_metrics["val_sat_ratio"],
+                    val_metrics["val_hist_dist"],
+                    t_epoch,
+                ]
+            )
 
     print(f"\nEpoch {CONFIG['target_epoch']} execution completed successfully!", flush=True)
 
@@ -1335,7 +1450,13 @@ def main():
     print(f"Saved config snapshot: {out_dir / 'config_snapshot.json'}", flush=True)
 
     # Calculate final saturation stability std
-    final_10_sat_std = float(np.std(sat_ratios_history[-10:])) if len(sat_ratios_history) >= 10 else float(np.std(sat_ratios_history)) if sat_ratios_history else 0.0
+    final_10_sat_std = (
+        float(np.std(sat_ratios_history[-10:]))
+        if len(sat_ratios_history) >= 10
+        else float(np.std(sat_ratios_history))
+        if sat_ratios_history
+        else 0.0
+    )
 
     # Decoupled 4-Tier Independent Benchmark Evaluations
     benchmarks_report = {
@@ -1343,56 +1464,56 @@ def main():
             "ssim_peak_benchmark": {
                 "benchmark_epoch96": 0.2514266,
                 "achieved_best": best_ssim,
-                "status": "PASS" if best_ssim > 0.2514266 else "FAIL"
+                "status": "PASS" if best_ssim > 0.2514266 else "FAIL",
             },
             "sustained_ssim_benchmark": {
                 "criterion": ">= 3 consecutive validation epochs exceeding 0.2514266",
                 "max_consecutive_epochs": max_consecutive_ssim_passes,
-                "status": "PASS" if max_consecutive_ssim_passes >= 3 else "FAIL"
+                "status": "PASS" if max_consecutive_ssim_passes >= 3 else "FAIL",
             },
             "psnr_benchmark": {
                 "benchmark_epoch96": 11.5715,
                 "achieved_best": best_psnr,
-                "status": "PASS" if best_psnr > 11.5715 else "FAIL"
+                "status": "PASS" if best_psnr > 11.5715 else "FAIL",
             },
             "cie_lab_benchmark": {
                 "benchmark_epoch96": 28.7341,
                 "achieved_best": best_lab,
-                "status": "PASS" if best_lab < 28.7341 else "FAIL"
+                "status": "PASS" if best_lab < 28.7341 else "FAIL",
             },
             "sam_benchmark": {
                 "benchmark_epoch96": 0.20913,
                 "achieved_best": best_sam,
-                "status": "PASS" if best_sam < 0.20913 else "FAIL"
-            }
+                "status": "PASS" if best_sam < 0.20913 else "FAIL",
+            },
         },
         "2_color_and_radiometric": {
             "saturation_ratio_proximity": {
                 "description": "Checkpoint with saturation ratio closest to target ratio of 1.0",
                 "baseline_epoch100_error": 0.39769,
                 "achieved_best_error": best_sat_dist,
-                "status": "PASS" if best_sat_dist < 0.39769 else "FAIL"
+                "status": "PASS" if best_sat_dist < 0.39769 else "FAIL",
             },
             "saturation_window_stability": {
                 "description": "10-epoch rolling saturation std vs baseline window (0.36321)",
                 "baseline_window_std": 0.36321,
                 "achieved_final_10_std": final_10_sat_std,
-                "status": "PASS" if final_10_sat_std < 0.36321 else "FAIL"
-            }
+                "status": "PASS" if final_10_sat_std < 0.36321 else "FAIL",
+            },
         },
         "3_engineering_stability": {
             "no_nan_or_inf": "PASS",
             "no_memory_exhaustion": "PASS",
             "resumed_state_integrity": "PASS",
-            "status": "PASS"
+            "status": "PASS",
         },
         "4_architecture_comparison": {
             "generator_type": "Pix2PixHD Residual Generator (21.38M parameters)",
             "discriminator_type": "MultiScale Discriminator (5.53M parameters, 2 scales)",
             "input_modality": "Landsat 9 Band 10 + Band 11 Thermal Radiance (2 Channels)",
             "output_modality": "Optical True Color RGB (3 Channels)",
-            "exceeded_baseline_pix2pix": "PASS"
-        }
+            "exceeded_baseline_pix2pix": "PASS",
+        },
     }
 
     # Save experiment summary metadata

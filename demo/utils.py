@@ -107,9 +107,7 @@ def postprocess_output(tensor: torch.Tensor) -> Image.Image:
             raise ValueError("postprocess_output expects a batch containing exactly one image")
         tensor = tensor[0]
     if tensor.dim() != 3 or tensor.size(0) != 3:
-        raise ValueError(
-            "postprocess_output expects a tensor shaped [3, H, W] or [1, 3, H, W]"
-        )
+        raise ValueError("postprocess_output expects a tensor shaped [3, H, W] or [1, 3, H, W]")
 
     tensor = tensor.detach().cpu().clamp(-1, 1)
     tensor = (tensor + 1.0) / 2.0

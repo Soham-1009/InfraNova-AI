@@ -2,6 +2,7 @@
 Comprehensive Test-Split Evaluation, Candidate Checkpoint Comparison,
 and Downstream YOLO Extraction Benchmark (High-Performance Batched Pipeline).
 """
+
 from __future__ import annotations
 
 import json
@@ -12,12 +13,12 @@ import time
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -42,26 +43,24 @@ def compute_batch_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str,
     # Convert to [0, 1]
     p = (pred.clamp(-1.0, 1.0) + 1.0) / 2.0
     t = (target.clamp(-1.0, 1.0) + 1.0) / 2.0
-    
+
     B = p.size(0)
-    
+
     # 1. PSNR & MAE & RMSE
     mse = F.mse_loss(p, t, reduction="none").mean(dim=[1, 2, 3])  # [B]
     psnr = 10.0 * torch.log10(1.0 / mse.clamp_min(1e-8))  # [B]
     mae = F.l1_loss(p, t, reduction="none").mean(dim=[1, 2, 3])  # [B]
     rmse = mse.sqrt()  # [B]
-    
+
     # 2. Simple SSIM (per-sample)
-    C1 = 0.01 ** 2
-    C2 = 0.03 ** 2
+    C1 = 0.01**2
+    C2 = 0.03**2
     mu_p = p.mean(dim=[2, 3], keepdim=True)
     mu_t = t.mean(dim=[2, 3], keepdim=True)
     sigma_p = p.std(dim=[2, 3], keepdim=True)
     sigma_t = t.std(dim=[2, 3], keepdim=True)
     sigma_pt = ((p - mu_p) * (t - mu_t)).mean(dim=[2, 3], keepdim=True)
-    ssim = ((2 * mu_p * mu_t + C1) * (2 * sigma_pt + C2)) / (
-        (mu_p**2 + mu_t**2 + C1) * (sigma_p**2 + sigma_t**2 + C2)
-    )
+    ssim = ((2 * mu_p * mu_t + C1) * (2 * sigma_pt + C2)) / ((mu_p**2 + mu_t**2 + C1) * (sigma_p**2 + sigma_t**2 + C2))
     ssim = ssim.mean(dim=[1, 2, 3])  # [B]
 
     # 3. Spectral Angle Mapper (SAM in radians)
@@ -85,10 +84,10 @@ def compute_batch_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str,
         x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047
         y = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 1.08883
         z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883
-        
+
         def f(c):
             return torch.where(c > 0.008856, c.clamp_min(1e-10).pow(1.0 / 3.0), (903.3 * c + 16.0) / 116.0)
-            
+
         fx, fy, fz = f(x), f(y), f(z)
         L = 116.0 * fy - 16.0
         a = 500.0 * (fx - fy)
@@ -129,7 +128,7 @@ def compute_batch_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str,
 def load_candidate_model(checkpoint_path: Path, device: torch.device) -> Pix2Pix:
     logger.info(f"Loading checkpoint: {checkpoint_path.name}")
     ckpt = load_torch_checkpoint(str(checkpoint_path), map_location=device)
-    
+
     model = Pix2Pix(
         device=device,
         in_channels=2,
@@ -139,7 +138,7 @@ def load_candidate_model(checkpoint_path: Path, device: torch.device) -> Pix2Pix
         multi_scale=True,
         num_scales=2,
     )
-    
+
     if isinstance(ckpt, dict) and "generator_state_dict" in ckpt:
         clean_gen = {k.replace("module.", ""): v for k, v in ckpt["generator_state_dict"].items()}
         model.generator.load_state_dict(clean_gen, strict=True)
@@ -161,7 +160,7 @@ def load_candidate_model(checkpoint_path: Path, device: torch.device) -> Pix2Pix
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using compute device: {device}")
-    
+
     data_root = PROJECT_ROOT / "data" / "landsat9_b10_b11" / "splits"
     if not data_root.exists():
         logger.error(f"Dataset root not found: {data_root}")
@@ -184,13 +183,17 @@ def main():
     for s in test_dataset:
         all_ir.append(s["ir"])
         all_rgb.append(s["rgb"])
-    test_ir_tensor = torch.stack(all_ir, dim=0)   # [1259, 2, 128, 128]
-    test_rgb_tensor = torch.stack(all_rgb, dim=0) # [1259, 3, 128, 128]
-    logger.info(f"Pre-loaded {num_test_samples} test tensors ({test_ir_tensor.element_size() * test_ir_tensor.nelement() / 1e6:.1f} MB) in {time.perf_counter() - t0:.2f}s")
+    test_ir_tensor = torch.stack(all_ir, dim=0)  # [1259, 2, 128, 128]
+    test_rgb_tensor = torch.stack(all_rgb, dim=0)  # [1259, 3, 128, 128]
+    logger.info(
+        f"Pre-loaded {num_test_samples} test tensors ({test_ir_tensor.element_size() * test_ir_tensor.nelement() / 1e6:.1f} MB) in {time.perf_counter() - t0:.2f}s"
+    )
 
-    candidates_dir = PROJECT_ROOT / "kaggle_kernel" / "run_output" / "outputs" / "pix2pixhd_band10_band11" / "checkpoints"
+    candidates_dir = (
+        PROJECT_ROOT / "kaggle_kernel" / "run_output" / "outputs" / "pix2pixhd_band10_band11" / "checkpoints"
+    )
     final_dir = PROJECT_ROOT / "outputs" / "final"
-    
+
     candidate_paths = {
         "best_ssim": candidates_dir / "best_ssim.pth",
         "best_psnr": candidates_dir / "best_psnr.pth",
@@ -226,21 +229,27 @@ def main():
         candidate_models[name] = model
 
         all_metrics = {
-            "psnr": [], "ssim": [], "mae": [], "rmse": [],
-            "sam": [], "sat_ratio": [], "lab_error": [], "hist_dist": []
+            "psnr": [],
+            "ssim": [],
+            "mae": [],
+            "rmse": [],
+            "sam": [],
+            "sat_ratio": [],
+            "lab_error": [],
+            "hist_dist": [],
         }
-        
+
         start_time = time.perf_counter()
 
         with torch.inference_mode():
             for i in range(0, num_test_samples, batch_size):
                 ir = test_ir_tensor[i : i + batch_size].to(device)
                 target = test_rgb_tensor[i : i + batch_size].to(device)
-                
+
                 pred = model.generate(ir)
                 batch_res = compute_batch_metrics(pred, target)
-                
-                for k in all_metrics.keys():
+
+                for k in all_metrics:
                     all_metrics[k].extend(batch_res[k])
 
         elapsed = time.perf_counter() - start_time
@@ -256,11 +265,11 @@ def main():
             summary[f"{k}_mean"] = float(np.mean(vals))
             summary[f"{k}_std"] = float(np.std(vals))
             summary[f"{k}_median"] = float(np.median(vals))
-        
+
         summary["sat_ratio_error"] = float(abs(summary["sat_ratio_mean"] - 1.0))
         candidate_metrics[name] = summary
 
-        print(f"\n========================================================")
+        print("\n========================================================")
         print(f"Test Split Results for [{name}]:")
         print(f"  PSNR (dB):  {summary['psnr_mean']:.3f} ± {summary['psnr_std']:.3f} dB")
         print(f"  SSIM:       {summary['ssim_mean']:.4f} ± {summary['ssim_std']:.4f}")
@@ -270,7 +279,7 @@ def main():
         print(f"  CIE Lab:    {summary['lab_error_mean']:.3f}")
         print(f"  Sat Ratio:  {summary['sat_ratio_mean']:.4f} (Error vs 1.0: {summary['sat_ratio_error']:.4f})")
         print(f"  Hist Dist:  {summary['hist_dist_mean']:.4f}")
-        print(f"========================================================")
+        print("========================================================")
 
     # Save to JSON
     out_eval_dir = PROJECT_ROOT / "outputs" / "evaluation"
@@ -287,7 +296,7 @@ def main():
     num_vis_samples = 4
     vis_indices = [int(i) for i in np.linspace(10, num_test_samples - 10, num_vis_samples)]
 
-    fig, axes = plt.subplots(num_vis_samples, len(valid_candidates) + 2, figsize=(22, 3.4 * num_vis_samples), dpi=300)
+    _fig, axes = plt.subplots(num_vis_samples, len(valid_candidates) + 2, figsize=(22, 3.4 * num_vis_samples), dpi=300)
 
     for row_idx, sample_idx in enumerate(vis_indices):
         sample = test_dataset[sample_idx]
@@ -346,6 +355,7 @@ def main():
     logger.info("\nRunning Downstream YOLO Feature & Extraction Benchmark...")
     try:
         from ultralytics import YOLO
+
         yolo_model = YOLO("yolov8n.pt")
 
         benchmark_subset_size = min(100, num_test_samples)
@@ -353,10 +363,10 @@ def main():
             "thermal_input": {"total_detections": 0, "avg_confidence": 0.0},
             "ground_truth_rgb": {"total_detections": 0, "avg_confidence": 0.0},
         }
-        for name in valid_candidates.keys():
+        for name in valid_candidates:
             detector_stats[name] = {"total_detections": 0, "avg_confidence": 0.0}
 
-        conf_lists = {k: [] for k in detector_stats.keys()}
+        conf_lists = {k: [] for k in detector_stats}
 
         for idx in range(benchmark_subset_size):
             sample = test_dataset[idx]
@@ -366,7 +376,9 @@ def main():
             b10 = (ir[0, 0].cpu().numpy() + 1.0) / 2.0
             b11 = (ir[0, 1].cpu().numpy() + 1.0) / 2.0
             thermal_img = (np.stack([b10, b11, (b10 + b11) / 2.0], axis=-1) * 255.0).astype(np.uint8)
-            target_img = (((target.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
+            target_img = (
+                ((target.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0
+            ).astype(np.uint8)
 
             res_gt = yolo_model(target_img, verbose=False)[0]
             detector_stats["ground_truth_rgb"]["total_detections"] += len(res_gt.boxes)
@@ -381,20 +393,26 @@ def main():
             for name, model in candidate_models.items():
                 with torch.inference_mode():
                     pred = model.generate(ir)
-                pred_img = (((pred.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
+                pred_img = (
+                    ((pred.clamp(-1.0, 1.0) + 1.0) / 2.0).squeeze(0).cpu().numpy().transpose(1, 2, 0) * 255.0
+                ).astype(np.uint8)
 
                 res_pred = yolo_model(pred_img, verbose=False)[0]
                 detector_stats[name]["total_detections"] += len(res_pred.boxes)
                 if len(res_pred.boxes) > 0:
                     conf_lists[name].extend(res_pred.boxes.conf.cpu().numpy())
 
-        for k in detector_stats.keys():
+        for k in detector_stats:
             detector_stats[k]["avg_confidence"] = float(np.mean(conf_lists[k])) if conf_lists[k] else 0.0
-            detector_stats[k]["detection_rate_per_patch"] = float(detector_stats[k]["total_detections"] / benchmark_subset_size)
+            detector_stats[k]["detection_rate_per_patch"] = float(
+                detector_stats[k]["total_detections"] / benchmark_subset_size
+            )
 
         logger.info("\nDownstream YOLO Benchmark Results (across 100 test patches):")
         for k, v in detector_stats.items():
-            print(f"  {k:18s}: Total Detections = {v['total_detections']:3d}, Avg Conf = {v['avg_confidence']:.3f}, Rate/Patch = {v['detection_rate_per_patch']:.2f}")
+            print(
+                f"  {k:18s}: Total Detections = {v['total_detections']:3d}, Avg Conf = {v['avg_confidence']:.3f}, Rate/Patch = {v['detection_rate_per_patch']:.2f}"
+            )
 
         out_yolo_file = out_eval_dir / "downstream_yolo_benchmark.json"
         with open(out_yolo_file, "w") as f:

@@ -58,15 +58,14 @@ class Landsat9Dataset(Dataset):
         if not self.split_dir.exists():
             raise FileNotFoundError(f"Split directory not found: {self.split_dir}")
 
-        self.samples = sorted([
-            d for d in self.split_dir.iterdir() if d.is_dir()
-        ])
+        self.samples = sorted([d for d in self.split_dir.iterdir() if d.is_dir()])
 
         if not self.samples:
             raise ValueError(f"No samples found in {self.split_dir}")
 
         if subset_ratio is not None and 0.0 < subset_ratio < 1.0:
             import random
+
             rng = random.Random(subset_seed)
             # Create a deterministic copy and shuffle it
             shuffled_samples = list(self.samples)
@@ -74,14 +73,12 @@ class Landsat9Dataset(Dataset):
             subset_size = max(1, int(len(shuffled_samples) * subset_ratio))
             self.samples = shuffled_samples[:subset_size]
 
-
         # Load global stats if requested
         self._global_stats: dict[str, Any] | None = None
         if normalization == "global":
             if stats_file is None:
                 raise ValueError(
-                    "normalization='global' requires stats_file path. "
-                    "Run compute_normalization_stats.py first."
+                    "normalization='global' requires stats_file path. Run compute_normalization_stats.py first."
                 )
             stats_path = Path(stats_file)
             if not stats_path.exists():
@@ -94,7 +91,11 @@ class Landsat9Dataset(Dataset):
 
         logger.info(
             "Loaded %d samples for %s split (subset_ratio=%s), task=%s, normalization=%s",
-            len(self.samples), split, subset_ratio, task, normalization,
+            len(self.samples),
+            split,
+            subset_ratio,
+            task,
+            normalization,
         )
 
     def __len__(self) -> int:
@@ -244,15 +245,15 @@ class Landsat9Dataset(Dataset):
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         sample_dir = self.samples[idx]
 
-        tir_200m = np.load(sample_dir / 'tir_200m.npy')
-        tir_100m = np.load(sample_dir / 'tir_100m.npy')
-        rgb_100m = np.load(sample_dir / 'rgb_100m.npy')
+        tir_200m = np.load(sample_dir / "tir_200m.npy")
+        tir_100m = np.load(sample_dir / "tir_100m.npy")
+        rgb_100m = np.load(sample_dir / "rgb_100m.npy")
 
         # Load Band 11 if input_channels == 2
         tir_b11_100m = None
         tir_b11_200m = None
         if self.input_channels == 2:
-            b11_file_100 = sample_dir / 'tir_b11_100m.npy'
+            b11_file_100 = sample_dir / "tir_b11_100m.npy"
             if not b11_file_100.exists():
                 raise FileNotFoundError(
                     f"Genuine Band 11 file missing in {sample_dir}: {b11_file_100} required when input_channels=2"
@@ -260,13 +261,16 @@ class Landsat9Dataset(Dataset):
             tir_b11_100m = np.load(b11_file_100)
             if tir_b11_100m.dtype != np.float32 or not np.isfinite(tir_b11_100m).all():
                 raise RuntimeError(f"Band 11 array in {sample_dir} must be float32 and contain only finite values.")
-            
-            b11_file_200 = sample_dir / 'tir_b11_200m.npy'
+
+            b11_file_200 = sample_dir / "tir_b11_200m.npy"
             if b11_file_200.exists():
                 tir_b11_200m = np.load(b11_file_200)
 
         # SHAPE VALIDATION (Warn on resize)
-        if tir_100m.shape[-2:] != (self.image_size, self.image_size) or rgb_100m.shape[-2:] != (self.image_size, self.image_size):
+        if tir_100m.shape[-2:] != (self.image_size, self.image_size) or rgb_100m.shape[-2:] != (
+            self.image_size,
+            self.image_size,
+        ):
             logger.warning_once(
                 f"Dataset patch spatial shape does not match configured image_size ({self.image_size}). "
                 "Dynamically resizing, which may slow down training."
@@ -340,7 +344,7 @@ class Landsat9Dataset(Dataset):
             target_tensor = torch.from_numpy(target_arr).float()
 
         return {
-            'ir': input_tensor,
-            'rgb': target_tensor,
-            'name': sample_dir.name,
+            "ir": input_tensor,
+            "rgb": target_tensor,
+            "name": sample_dir.name,
         }

@@ -70,7 +70,9 @@ def save_checkpoint(
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--short", "HEAD"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 git_version = result.stdout.strip()
@@ -78,9 +80,7 @@ def save_checkpoint(
             pass
 
         # Config hash (hash the metrics dict as a proxy for config identity)
-        config_hash = hashlib.sha256(
-            str(sorted(metrics.items())).encode()
-        ).hexdigest()[:12]
+        config_hash = hashlib.sha256(str(sorted(metrics.items())).encode()).hexdigest()[:12]
 
         checkpoint["arch_info"] = {
             "family": "pix2pix",
@@ -89,7 +89,9 @@ def save_checkpoint(
             "generator_impl": getattr(model, "generator_impl", "unknown"),
             "discriminator": type(disc).__name__ if disc is not None else "unknown",
             "discriminator_impl": "multiscale" if getattr(model, "multi_scale", False) else "patchgan",
-            "discriminator_scales": getattr(model.discriminator, "num_scales", 1) if hasattr(model, "discriminator") else 1,
+            "discriminator_scales": getattr(model.discriminator, "num_scales", 1)
+            if hasattr(model, "discriminator")
+            else 1,
             "input_channels": in_ch,
             "output_channels": out_ch,
             "image_size": getattr(model, "image_size", 128),
@@ -100,9 +102,7 @@ def save_checkpoint(
         pass  # Don't fail checkpoint saving over metadata extraction
 
     if isinstance(optimizer, dict):
-        checkpoint["optimizer_state_dict"] = {
-            name: opt.state_dict() for name, opt in optimizer.items()
-        }
+        checkpoint["optimizer_state_dict"] = {name: opt.state_dict() for name, opt in optimizer.items()}
     else:
         checkpoint["optimizer_state_dict"] = optimizer.state_dict()
 
@@ -111,9 +111,7 @@ def save_checkpoint(
 
     if scheduler is not None:
         if isinstance(scheduler, dict):
-            checkpoint["scheduler_state_dict"] = {
-                name: sched.state_dict() for name, sched in scheduler.items()
-            }
+            checkpoint["scheduler_state_dict"] = {name: sched.state_dict() for name, sched in scheduler.items()}
         else:
             checkpoint["scheduler_state_dict"] = scheduler.state_dict()
 
@@ -158,27 +156,20 @@ def load_checkpoint(
                 expected_in = getattr(model, "in_channels", getattr(gen, "in_channels", None))
                 saved_in = arch_info.get("input_channels", arch_info.get("in_channels"))
                 if expected_in is not None and saved_in is not None and expected_in != saved_in:
-                    errors.append(
-                        f"Generator in_channels mismatch: checkpoint={saved_in}, model={expected_in}"
-                    )
+                    errors.append(f"Generator in_channels mismatch: checkpoint={saved_in}, model={expected_in}")
 
                 expected_out = getattr(model, "out_channels", getattr(gen, "out_channels", None))
                 saved_out = arch_info.get("output_channels", arch_info.get("out_channels"))
                 if expected_out is not None and saved_out is not None and expected_out != saved_out:
-                    errors.append(
-                        f"Generator out_channels mismatch: checkpoint={saved_out}, model={expected_out}"
-                    )
+                    errors.append(f"Generator out_channels mismatch: checkpoint={saved_out}, model={expected_out}")
             except Exception:
                 pass  # Don't fail loading over metadata check
 
         if errors:
-            raise ValueError(
-                "Checkpoint architecture mismatch:\n  - " + "\n  - ".join(errors)
-            )
+            raise ValueError("Checkpoint architecture mismatch:\n  - " + "\n  - ".join(errors))
     else:
         logger.warning(
-            "Checkpoint at %s has no arch_info metadata (legacy format). "
-            "Skipping compatibility check.",
+            "Checkpoint at %s has no arch_info metadata (legacy format). Skipping compatibility check.",
             path,
         )
 

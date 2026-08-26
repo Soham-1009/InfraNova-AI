@@ -1,7 +1,8 @@
-import sys
 import hashlib
 import json
+import sys
 from pathlib import Path
+
 import numpy as np
 import torch
 
@@ -31,7 +32,7 @@ def record_baseline():
     print("=" * 80)
     print("RECORDING PRE-CLEANUP BASELINE (STREAMING HASH & MODEL METADATA)")
     print("=" * 80)
-    
+
     ckpt_sha = compute_file_sha256(CKPT_PATH)
     ckpt_size = CKPT_PATH.stat().st_size
     print(f"Checkpoint Path: {CKPT_PATH}")
@@ -44,7 +45,7 @@ def record_baseline():
     disc_cls = type(model.discriminator).__name__
     gen_params = sum(p.numel() for p in model.generator.parameters())
     disc_params = sum(p.numel() for p in model.discriminator.parameters())
-    
+
     print(f"Generator Class: {gen_cls} ({gen_params:,} parameters)")
     print(f"Discriminator Class: {disc_cls} ({disc_params:,} parameters)")
     print(f"Device: {eng.device}")
@@ -71,7 +72,7 @@ def record_baseline():
 
     np.save(BASELINE_DIR / "synth_out.npy", out_synth)
     np.save(BASELINE_DIR / "real_out.npy", out_real)
-    
+
     meta = {
         "ckpt_sha256": ckpt_sha,
         "ckpt_size_bytes": ckpt_size,
@@ -96,7 +97,7 @@ def verify_parity():
     print("=" * 80)
     print("VERIFYING POST-CLEANUP NUMERICAL PARITY & MODEL PRESERVATION")
     print("=" * 80)
-    
+
     # 1. Checkpoint File Integrity Verification
     meta = json.loads((BASELINE_DIR / "metadata.json").read_text())
     post_sha = compute_file_sha256(CKPT_PATH)
@@ -119,9 +120,15 @@ def verify_parity():
     print(f"Discriminator: {disc_cls} ({disc_params:,} parameters)")
 
     assert gen_cls == meta["generator_class"], f"Generator class mismatch: {gen_cls} vs {meta['generator_class']}"
-    assert disc_cls == meta["discriminator_class"], f"Discriminator class mismatch: {disc_cls} vs {meta['discriminator_class']}"
-    assert gen_params == meta["generator_parameters"], f"Generator parameter count mismatch: {gen_params} vs {meta['generator_parameters']}"
-    assert disc_params == meta["discriminator_parameters"], f"Discriminator parameter count mismatch: {disc_params} vs {meta['discriminator_parameters']}"
+    assert disc_cls == meta["discriminator_class"], (
+        f"Discriminator class mismatch: {disc_cls} vs {meta['discriminator_class']}"
+    )
+    assert gen_params == meta["generator_parameters"], (
+        f"Generator parameter count mismatch: {gen_params} vs {meta['generator_parameters']}"
+    )
+    assert disc_params == meta["discriminator_parameters"], (
+        f"Discriminator parameter count mismatch: {disc_params} vs {meta['discriminator_parameters']}"
+    )
     print("-> Model Architecture & Parameter Counts: 100% MATCH")
 
     # 3. Deterministic Inference Evaluation

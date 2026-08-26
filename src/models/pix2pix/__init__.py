@@ -13,15 +13,15 @@ from .generator_hd import (
 from .pix2pix import Pix2Pix
 
 __all__ = [
-    "Pix2Pix",
-    "Pix2PixHDGenerator",
+    "DiscBlock",
+    "DownBlock",
     "GlobalGenerator",
     "LocalEnhancer",
     "LocalEnhancerBlock",
     "LocalEnhancerUpBlock",
-    "DownBlock",
-    "UpBlock",
     "MultiScaleDiscriminator",
     "PatchDiscriminator",
-    "DiscBlock",
+    "Pix2Pix",
+    "Pix2PixHDGenerator",
+    "UpBlock",
 ]

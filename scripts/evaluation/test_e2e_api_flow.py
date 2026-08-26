@@ -1,15 +1,17 @@
 import io
 import sys
 from pathlib import Path
+
 import numpy as np
-from PIL import Image
 from fastapi.testclient import TestClient
+from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from api.main import app
+
 
 def test_full_api_flow():
     print("=" * 80)
@@ -31,7 +33,7 @@ def test_full_api_flow():
         print(f"   Status: {res_ui.status_code}")
         print(f"   Content-Type: {res_ui.headers.get('content-type')}")
         assert res_ui.status_code == 200
-        assert "<div id=\"root\">" in res_ui.text
+        assert '<div id="root">' in res_ui.text
 
         # 3. Real dual-band Landsat 9 TIFF Upload
         scene_dir = PROJECT_ROOT / "data" / "landsat9" / "raw" / "accra"
@@ -41,7 +43,7 @@ def test_full_api_flow():
 
         print("\n3. /colorize with Real Landsat 9 B10 + B11 TIFF files:")
         print(f"   B10 size: {len(b10_bytes):,} bytes | B11 size: {len(b11_bytes):,} bytes")
-        
+
         res_tiff = client.post(
             "/colorize",
             files={
@@ -54,7 +56,7 @@ def test_full_api_flow():
         print(f"   Payload size: {len(res_tiff.content):,} bytes")
         assert res_tiff.status_code == 200
         assert res_tiff.headers.get("content-type") == "image/png"
-        
+
         # Verify valid PIL Image
         img_out = Image.open(io.BytesIO(res_tiff.content))
         print(f"   Synthesized RGB size: {img_out.size}, mode: {img_out.mode}")
@@ -118,6 +120,7 @@ def test_full_api_flow():
     print("\n" + "=" * 80)
     print("ALL E2E API ENDPOINTS & FLOWS VERIFIED 100% OPERATIONAL")
     print("=" * 80)
+
 
 if __name__ == "__main__":
     test_full_api_flow()

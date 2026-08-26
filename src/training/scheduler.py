@@ -133,6 +133,4 @@ def build_scheduler(
             eta_min=eta_min,
         )
     else:
-        raise ValueError(
-            f"Unknown scheduler type: '{scheduler_type}'. Use 'linear' or 'cosine'."
-        )
+        raise ValueError(f"Unknown scheduler type: '{scheduler_type}'. Use 'linear' or 'cosine'.")

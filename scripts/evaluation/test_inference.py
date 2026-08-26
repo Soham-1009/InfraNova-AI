@@ -9,15 +9,18 @@ from src.models.pix2pix.pix2pix import Pix2Pix
 
 logger = logging.getLogger(__name__)
 
+
 def load_config(config_path: str) -> dict:
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
 
 def run_inference_pass(model: Pix2Pix, ir_tensor: torch.Tensor) -> torch.Tensor:
     model.eval()
     with torch.inference_mode():
         output = model.generate(ir_tensor)
     return output
+
 
 def validate_tensor(tensor: torch.Tensor, name: str) -> None:
     logger.info(f"Validating {name}...")
@@ -35,8 +38,9 @@ def validate_tensor(tensor: torch.Tensor, name: str) -> None:
     else:
         logger.info(f"  {name} validation passed.")
 
+
 def test_inference_consistency(config_path: str, checkpoint_path: str):
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     logger.info("Starting Standalone Inference & Reload Consistency Test")
     logger.info(f"Config: {config_path}")
     logger.info(f"Checkpoint: {checkpoint_path}")
@@ -107,6 +111,7 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
         raise AssertionError(f"Reload consistency failed! Max diff {max_diff} exceeds tolerance.")
 
     logger.info("SUCCESS: Checkpoint reload consistency verified (outputs match within floating-point tolerance).")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

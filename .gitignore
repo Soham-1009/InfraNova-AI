@@ -16,15 +16,14 @@ env/
 web/node_modules/
 web/dist/
 
-# Test artifacts
-test_output/
-test_input.tif
-
 # Ruff
 .ruff_cache/
 
 # Large files - NEVER commit
 *.pth
+*.pt
+*.ckpt
+*.npy
 *.zip
 *.tar.gz
 *.arrow
@@ -34,13 +33,7 @@ test_input.tif
 *.h5
 *.pkl
 
-# Old Sentinel-2 data (no longer used)
-data/cache/
-data/raw/sentinel2/
-data/multispectral/
-data/samples/
-
-# Landsat 9 data (too large for GitHub)
+# Landsat 9 data
 data/landsat9/raw/
 data/landsat9/patches/
 data/landsat9/splits/
@@ -48,52 +41,27 @@ data/landsat9_b10_b11/raw/
 data/landsat9_b10_b11/patches/
 data/landsat9_b10_b11/splits/
 
-# Earth Engine cache
-.config/earthengine/
+# Training outputs / logs
+logs/
+outputs/latest/
 
-# Model checkpoints
-checkpoints/best/*.pth
-checkpoints/latest/*.pth
-checkpoints/final/*.pth
-
-# Training outputs
-logs/wandb/
-logs/tensorboard/
-logs/*.csv
-logs/*.png
-
-# Generated visualizations (training samples)
-outputs/visualizations/epoch_*.png
-outputs/predictions/
-
-# Old pipeline backup
-_old_sentinel2_pipeline/
-
-# IDE
+# IDE / OS
 .vscode/
 .idea/
 *.swp
 .DS_Store
 Thumbs.db
 
-# OS
-*.log
-*.tmp
-
 # Jupyter
 .ipynb_checkpoints/
 
-# Hugging Face cache
-~/.cache/huggingface/
-.cache/huggingface/
-
-# EXCEPTION: Allow the final model for the live website
-!best_model.pth
-# Pipeline State files
-quarantine_log.txt
-
-#project files
-docs/project/
+# Earth Engine cache
+.config/earthengine/
 
 # Local maintenance archives
 archive/
+
+# Pipeline state
+quarantine_log.txt
+
+docs/project/

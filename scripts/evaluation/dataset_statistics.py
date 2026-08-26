@@ -40,10 +40,7 @@ def discover_samples(data_dir: Path) -> dict[str, list[Path]]:
             continue
         # Check if this is a split directory (train/val/test)
         if child.name in ("train", "val", "test"):
-            samples = sorted(
-                d for d in child.iterdir()
-                if d.is_dir() and any((d / f).exists() for f in EXPECTED_FILES)
-            )
+            samples = sorted(d for d in child.iterdir() if d.is_dir() and any((d / f).exists() for f in EXPECTED_FILES))
             if samples:
                 groups[child.name] = samples
         else:
@@ -187,9 +184,7 @@ def generate_statistics(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate aggregate dataset statistics."
-    )
+    parser = argparse.ArgumentParser(description="Generate aggregate dataset statistics.")
     parser.add_argument(
         "--dir",
         default=str(PROJECT_ROOT / "data/landsat9/splits"),
@@ -207,4 +202,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

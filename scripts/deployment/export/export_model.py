@@ -108,9 +108,7 @@ def export_torchscript(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Export InfraNova AI generator to ONNX and/or TorchScript."
-    )
+    parser = argparse.ArgumentParser(description="Export InfraNova AI generator to ONNX and/or TorchScript.")
     parser.add_argument(
         "--checkpoint",
         default="checkpoints/best/pix2pix_landsat_best.pth",
@@ -162,14 +160,16 @@ def main() -> None:
 
     if args.format in ("onnx", "both"):
         export_onnx(
-            generator, dummy_input,
+            generator,
+            dummy_input,
             str(output_dir / "infraNova_generator.onnx"),
             opset_version=args.opset,
         )
 
     if args.format in ("torchscript", "both"):
         export_torchscript(
-            generator, dummy_input,
+            generator,
+            dummy_input,
             str(output_dir / "infraNova_generator.pt"),
         )
 
@@ -178,5 +178,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

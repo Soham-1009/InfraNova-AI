@@ -34,9 +34,7 @@ class Pix2Pix(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.device = torch.device(
-            device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
         self.generator_impl = generator_impl
         self.in_channels = in_channels
         self.out_channels = out_channels
