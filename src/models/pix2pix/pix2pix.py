@@ -4,19 +4,19 @@ import torch
 import torch.nn as nn
 
 from .discriminator import MultiScaleDiscriminator, PatchDiscriminator
-from .generator import GeneratorUNet
-from .generator_dynamic import GeneratorUNetDynamic
+from .generator_hd import Pix2PixHDGenerator
 
 
 class Pix2Pix(nn.Module):
     """
-    Pix2Pix wrapper module.
+    Pix2PixHD wrapper module for InfraNova AI.
 
-    Supports single-scale (PatchGAN) and multi-scale discriminator modes.
+    Coordinates the dual-band (Band 10 + Band 11) Pix2PixHDGenerator with
+    the multi-scale PatchGAN discriminator (MultiScaleDiscriminator).
 
     Exposes:
-        - generator
-        - discriminator
+        - generator (Pix2PixHDGenerator)
+        - discriminator (MultiScaleDiscriminator or PatchDiscriminator)
         - generate(ir)
         - discriminate(ir, rgb, return_features=False)
         - count_parameters()
@@ -25,34 +25,38 @@ class Pix2Pix(nn.Module):
     def __init__(
         self,
         device: torch.device | str | None = None,
-        in_channels: int = 1,
+        in_channels: int = 2,
         out_channels: int = 3,
-        image_size: int = 256,
-        multi_scale: bool = False,
-        generator_impl: str = "legacy",
+        image_size: int = 128,
+        multi_scale: bool = True,
+        generator_impl: str = "hd",
+        num_scales: int = 2,
     ) -> None:
         super().__init__()
 
         self.device = torch.device(
             device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu")
         )
-        self.multi_scale = multi_scale
+        self.generator_impl = generator_impl
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.image_size = image_size
+        self.num_scales = num_scales
+        self.multi_scale = multi_scale or (num_scales > 1)
 
-        if generator_impl == "dynamic":
-            self.generator = GeneratorUNetDynamic(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                image_size=image_size,
-            )
-        else:
-            self.generator = GeneratorUNet(
-                in_channels=in_channels,
-                out_channels=out_channels,
-            )
+        # Primary Pix2PixHD Generator
+        self.generator = Pix2PixHDGenerator(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            image_size=image_size,
+        )
 
         disc_in_channels = in_channels + out_channels
-        if multi_scale:
-            self.discriminator = MultiScaleDiscriminator(in_channels=disc_in_channels)
+        if self.multi_scale:
+            self.discriminator = MultiScaleDiscriminator(
+                in_channels=disc_in_channels,
+                num_scales=num_scales,
+            )
         else:
             self.discriminator = PatchDiscriminator(in_channels=disc_in_channels)
 
@@ -73,10 +77,10 @@ class Pix2Pix(nn.Module):
         Generate RGB image from IR input.
 
         Args:
-            ir: Tensor [B, 1, H, W]
+            ir: Tensor [B, C_in, H, W] (e.g. [B, 2, 128, 128])
 
         Returns:
-            fake_rgb: Tensor [B, 3, H, W]
+            fake_rgb: Tensor [B, 3, H, W] in [-1, 1]
         """
         ir = ir.to(self._model_device())
         return self.generator(ir)
@@ -91,14 +95,14 @@ class Pix2Pix(nn.Module):
         Discriminate concatenated IR + RGB pair.
 
         Args:
-            ir: Tensor [B, 1, H, W]
+            ir: Tensor [B, C_in, H, W]
             rgb: Tensor [B, 3, H, W]
             return_features: If True, also return intermediate features for
                 feature matching loss.
 
         Returns:
-            Single-scale: Patch score map [B, 1, 30, 30] or (scores, features)
-            Multi-scale: Dict with "fine" and "coarse" outputs
+            Multi-scale: Dict with "scale_0", "scale_1", etc. discriminator outputs.
+            Single-scale: Patch score map [B, 1, H', W'] or (scores, features).
         """
         device = self._model_device()
         ir = ir.to(device)

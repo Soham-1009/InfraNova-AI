@@ -38,6 +38,7 @@ class Landsat9Dataset(Dataset):
         root_dir: str = "data/landsat9/splits",
         split: str = "train",
         image_size: int = 256,
+        input_channels: int = 1,
         augment: bool = True,
         task: str = "colorization",
         normalization: str = "local",
@@ -48,6 +49,7 @@ class Landsat9Dataset(Dataset):
         self.root_dir = Path(root_dir)
         self.split = split
         self.image_size = image_size
+        self.input_channels = input_channels
         self.augment = augment and (split == "train")
         self.task = task
         self.normalization = normalization
@@ -246,6 +248,23 @@ class Landsat9Dataset(Dataset):
         tir_100m = np.load(sample_dir / 'tir_100m.npy')
         rgb_100m = np.load(sample_dir / 'rgb_100m.npy')
 
+        # Load Band 11 if input_channels == 2
+        tir_b11_100m = None
+        tir_b11_200m = None
+        if self.input_channels == 2:
+            b11_file_100 = sample_dir / 'tir_b11_100m.npy'
+            if not b11_file_100.exists():
+                raise FileNotFoundError(
+                    f"Genuine Band 11 file missing in {sample_dir}: {b11_file_100} required when input_channels=2"
+                )
+            tir_b11_100m = np.load(b11_file_100)
+            if tir_b11_100m.dtype != np.float32 or not np.isfinite(tir_b11_100m).all():
+                raise RuntimeError(f"Band 11 array in {sample_dir} must be float32 and contain only finite values.")
+            
+            b11_file_200 = sample_dir / 'tir_b11_200m.npy'
+            if b11_file_200.exists():
+                tir_b11_200m = np.load(b11_file_200)
+
         # SHAPE VALIDATION (Warn on resize)
         if tir_100m.shape[-2:] != (self.image_size, self.image_size) or rgb_100m.shape[-2:] != (self.image_size, self.image_size):
             logger.warning_once(
@@ -267,11 +286,18 @@ class Landsat9Dataset(Dataset):
             raise RuntimeError("Arrays must not contain NaNs or Infs.")
 
         if self.task == "colorization":
-            input_arr = tir_100m
+            if self.input_channels == 2 and tir_b11_100m is not None:
+                input_arr = np.stack([tir_100m, tir_b11_100m], axis=0)  # (2, H, W)
+            else:
+                input_arr = tir_100m
             target_arr = rgb_100m
         elif self.task == "super_resolution":
-            input_arr = tir_200m
-            target_arr = tir_100m[np.newaxis, ...]
+            if self.input_channels == 2 and tir_b11_200m is not None:
+                input_arr = np.stack([tir_200m, tir_b11_200m], axis=0)
+                target_arr = np.stack([tir_100m, tir_b11_100m], axis=0)
+            else:
+                input_arr = tir_200m
+                target_arr = tir_100m[np.newaxis, ...]
         else:
             raise ValueError(f"Unknown task: {self.task}")
 
@@ -294,6 +320,11 @@ class Landsat9Dataset(Dataset):
         if input_arr.ndim == 2:
             input_arr = self._normalize_tir(input_arr)
             input_tensor = torch.from_numpy(input_arr).unsqueeze(0).float()
+        elif input_arr.shape[0] == 2:
+            # Independent normalization for Band 10 and Band 11
+            b10_norm = self._normalize_tir(input_arr[0])
+            b11_norm = self._normalize_tir(input_arr[1])
+            input_tensor = torch.from_numpy(np.stack([b10_norm, b11_norm], axis=0)).float()
         else:
             input_arr = self._normalize_rgb(input_arr) if input_arr.shape[0] == 3 else self._normalize_tir(input_arr)
             input_tensor = torch.from_numpy(input_arr).float()

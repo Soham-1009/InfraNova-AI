@@ -21,8 +21,10 @@ class LinearLRScheduler:
         self.total_epochs = int(total_epochs)
         self.decay_start_epoch = int(decay_start_epoch)
         self.initial_lrs = [group["lr"] for group in optimizer.param_groups]
+        self.last_epoch = 0
 
     def step(self, epoch: int) -> None:
+        self.last_epoch = epoch
         if epoch < self.decay_start_epoch:
             lr_mult = 1.0
         else:
@@ -34,6 +36,20 @@ class LinearLRScheduler:
 
     def get_last_lr(self) -> list[float]:
         return [group["lr"] for group in self.optimizer.param_groups]
+
+    def state_dict(self) -> dict:
+        return {
+            "initial_lrs": self.initial_lrs,
+            "last_epoch": self.last_epoch,
+            "total_epochs": self.total_epochs,
+            "decay_start_epoch": self.decay_start_epoch,
+        }
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        self.initial_lrs = state_dict.get("initial_lrs", self.initial_lrs)
+        self.last_epoch = state_dict.get("last_epoch", 0)
+        # Keep self.total_epochs and self.decay_start_epoch as configured by the caller
+        # so resuming with a lengthened training schedule (e.g. 50 -> 100 epochs) works correctly.
 
 
 class CosineScheduler:
@@ -70,6 +86,12 @@ class CosineScheduler:
 
     def get_last_lr(self) -> list[float]:
         return [group["lr"] for group in self.optimizer.param_groups]
+
+    def state_dict(self) -> dict:
+        return self.scheduler.state_dict()
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        self.scheduler.load_state_dict(state_dict)
 
 
 def build_scheduler(

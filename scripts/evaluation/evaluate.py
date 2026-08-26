@@ -178,10 +178,11 @@ def to_unit_interval(tensor: torch.Tensor) -> torch.Tensor:
 def evaluate(
     checkpoint_path: str,
     split: str = "test",
-    data_root: str = str(PROJECT_ROOT / "data/landsat9/splits"),
-    image_size: int = 256,
+    data_root: str = str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
+    image_size: int = 128,
     output_csv: str = "outputs/evaluation_results.csv",
     use_lpips: bool = True,
+    generator_impl: str | None = None,
 ) -> dict[str, float]:
     """
     Evaluate model on a dataset split.
@@ -196,7 +197,22 @@ def evaluate(
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
 
-    model = Pix2Pix(device=device, in_channels=1, out_channels=3)
+    # Extract architecture metadata if present
+    arch_info = ckpt.get("arch_info", {})
+    impl = generator_impl if generator_impl is not None else arch_info.get("generator_impl", "hd")
+    in_channels = int(arch_info.get("input_channels", arch_info.get("in_channels", 2)))
+    multi_scale = bool(arch_info.get("multi_scale_disc", True))
+    num_scales = int(arch_info.get("discriminator_scales", 2))
+
+    model = Pix2Pix(
+        device=device,
+        in_channels=in_channels,
+        out_channels=3,
+        image_size=image_size,
+        generator_impl=impl,
+        multi_scale=multi_scale,
+        num_scales=num_scales,
+    )
     if "model_state_dict" in ckpt:
         model.load_state_dict(ckpt["model_state_dict"], strict=False)
     else:
@@ -368,6 +384,12 @@ def main() -> None:
         action="store_true",
         help="Skip LPIPS computation.",
     )
+    parser.add_argument(
+        "--generator-impl",
+        type=str,
+        default=None,
+        help="Force generator implementation (legacy, dynamic, hd).",
+    )
     args = parser.parse_args()
 
     if not Path(args.checkpoint).exists():
@@ -381,6 +403,7 @@ def main() -> None:
         image_size=args.image_size,
         output_csv=args.output,
         use_lpips=not args.no_lpips,
+        generator_impl=args.generator_impl,
     )
 
 

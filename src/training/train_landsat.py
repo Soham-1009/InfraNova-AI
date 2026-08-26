@@ -87,6 +87,8 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
     subset_seed_raw = dataset_cfg.get("subset_seed")
     subset_seed = int(subset_seed_raw) if subset_seed_raw is not None else 42
 
+    input_channels = int(dataset_cfg.get("input_channels", 1))
+
     # Normalization config (backward-compatible: defaults to "local")
     norm_cfg = dataset_cfg.get("normalization", {})
     normalization = str(norm_cfg.get("mode", "local"))
@@ -96,6 +98,7 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
         root_dir=root_dir,
         split="train",
         image_size=image_size,
+        input_channels=input_channels,
         normalization=normalization,
         stats_file=stats_file,
         subset_ratio=subset_ratio,
@@ -105,6 +108,7 @@ def build_dataloaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
         root_dir=root_dir,
         split="val",
         image_size=image_size,
+        input_channels=input_channels,
         augment=False,
         normalization=normalization,
         stats_file=stats_file,
@@ -286,15 +290,18 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     train_loader, val_loader = build_dataloaders(cfg)
 
     # Multi-scale discriminator support
-    multi_scale = bool(cfg.get("model", {}).get("multi_scale_disc", False))
+    model_cfg = cfg.get("model", {})
+    multi_scale = bool(model_cfg.get("multi_scale_disc", False))
+    num_scales = int(model_cfg.get("discriminator", {}).get("num_scales", 2 if multi_scale else 1))
 
     model = Pix2Pix(
         device=device,
-        in_channels=int(dataset_cfg.get("input_channels", 1)),
+        in_channels=int(dataset_cfg.get("input_channels", 2)),
         out_channels=int(dataset_cfg.get("output_channels", 3)),
-        image_size=int(dataset_cfg.get("image_size", 256)),
+        image_size=int(dataset_cfg.get("image_size", 128)),
         multi_scale=multi_scale,
-        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "legacy"),
+        num_scales=num_scales,
+        generator_impl=model_cfg.get("generator", {}).get("implementation", "hd"),
     )
 
     trainer = Trainer(
@@ -308,30 +315,11 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     best_val_ssim = -float("inf")
     no_improve = 0
 
-    # Resume checkpoint if present
-    if resume_from and Path(resume_from).exists():
-        logger.info("Resuming from checkpoint: %s", resume_from)
-        checkpoint_epoch, checkpoint_metrics = load_checkpoint(
-            path=resume_from,
-            model=trainer.model,
-            optimizer={
-                "generator": trainer.optimizer_g,
-                "discriminator": trainer.optimizer_d,
-            },
-            scaler=trainer.scaler,
-        )
-        start_epoch = int(checkpoint_epoch)
-
-        if isinstance(checkpoint_metrics, dict):
-            best_val_ssim = float(checkpoint_metrics.get("val_ssim", best_val_ssim))
-            logger.info("Resumed epoch=%d, best_val_ssim=%.4f", start_epoch, best_val_ssim)
-
-    # Reset LR to configured base LR before schedule steps
+    # Build schedulers before loading checkpoint
     base_lr = float(training_cfg["optimizer"]["lr"])
     _set_optimizer_lr(trainer.optimizer_g, base_lr)
     _set_optimizer_lr(trainer.optimizer_d, base_lr * 0.5)
 
-    # Build scheduler from config — top-level key, fallback to training.scheduler
     sched_cfg = cfg.get("scheduler", training_cfg.get("scheduler", {}))
     sched_type = str(sched_cfg.get("type", "linear"))
 
@@ -353,6 +341,28 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
         T_mult=int(sched_cfg.get("T_mult", 2)),
         eta_min=float(sched_cfg.get("eta_min", 1e-6)),
     )
+
+    # Resume checkpoint if present
+    if resume_from and Path(resume_from).exists():
+        logger.info("Resuming from checkpoint: %s", resume_from)
+        checkpoint_epoch, checkpoint_metrics = load_checkpoint(
+            path=resume_from,
+            model=trainer.model,
+            optimizer={
+                "generator": trainer.optimizer_g,
+                "discriminator": trainer.optimizer_d,
+            },
+            scaler=trainer.scaler,
+            scheduler={
+                "generator": scheduler_g,
+                "discriminator": scheduler_d,
+            },
+        )
+        start_epoch = int(checkpoint_epoch)
+
+        if isinstance(checkpoint_metrics, dict):
+            best_val_ssim = float(checkpoint_metrics.get("val_ssim", best_val_ssim))
+            logger.info("Resumed epoch=%d, best_val_ssim=%.4f", start_epoch, best_val_ssim)
 
     history: dict[str, list] = {
         "g_loss": [],
@@ -409,6 +419,10 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
             metrics=epoch_metrics,
             path=latest_path,
             scaler=trainer.scaler,
+            scheduler={
+                "generator": scheduler_g,
+                "discriminator": scheduler_d,
+            },
         )
         _save_experiment_json(
             cfg,
@@ -417,6 +431,34 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
             val_metrics["val_psnr"],
             Path(latest_path).parent
         )
+
+        # Stage checkpoint (every 10 epochs)
+        if (epoch + 1) % 10 == 0:
+            stage_dir = Path(paths_cfg["outputs"]) / "experiments" / "pix2pixhd_long_training" / f"epoch_{epoch + 1}"
+            stage_dir.mkdir(parents=True, exist_ok=True)
+            stage_path = stage_dir / "checkpoint.pth"
+            save_checkpoint(
+                model=trainer.model,
+                optimizer={
+                    "generator": trainer.optimizer_g,
+                    "discriminator": trainer.optimizer_d,
+                },
+                epoch=epoch + 1,
+                metrics=epoch_metrics,
+                path=str(stage_path),
+                scaler=trainer.scaler,
+                scheduler={
+                    "generator": scheduler_g,
+                    "discriminator": scheduler_d,
+                },
+            )
+            _save_experiment_json(
+                cfg,
+                dataset_info,
+                best_val_ssim,
+                val_metrics["val_psnr"],
+                stage_dir
+            )
 
         # Best checkpoint based on validation SSIM
         if val_metrics["val_ssim"] > best_val_ssim:
@@ -434,6 +476,10 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                 metrics=epoch_metrics,
                 path=best_path,
                 scaler=trainer.scaler,
+                scheduler={
+                    "generator": scheduler_g,
+                    "discriminator": scheduler_d,
+                },
             )
             _save_experiment_json(
                 cfg,
@@ -499,7 +545,9 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
 
 
 def main() -> None:
-    cfg = load_config("configs/config.yaml")
+    import sys
+    config_path = sys.argv[1] if len(sys.argv) > 1 else "configs/config.yaml"
+    cfg = load_config(config_path)
     run_training(cfg)
 
 

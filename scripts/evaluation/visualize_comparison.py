@@ -59,11 +59,25 @@ def generate_comparison(
     # Load model
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-    model = Pix2Pix(device=device, in_channels=1, out_channels=3, generator_impl="dynamic", image_size=image_size)
+    arch_info = ckpt.get("arch_info", {}) if isinstance(ckpt, dict) else {}
+    in_channels = int(arch_info.get("input_channels", arch_info.get("in_channels", 2)))
+    gen_impl = arch_info.get("generator_impl", "hd")
+    num_scales = int(arch_info.get("discriminator_scales", 2))
+
+    model = Pix2Pix(
+        device=device,
+        in_channels=in_channels,
+        out_channels=3,
+        generator_impl=gen_impl,
+        image_size=image_size,
+        num_scales=num_scales,
+    )
     if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"], strict=False)
+        clean_state = {k.replace(".module.", "."): v for k, v in ckpt["model_state_dict"].items()}
+        model.load_state_dict(clean_state, strict=False)
     else:
-        model.load_state_dict(ckpt, strict=False)
+        clean_state = {k.replace(".module.", "."): v for k, v in ckpt.items()}
+        model.load_state_dict(clean_state, strict=False)
     model.eval()
 
     # Load dataset

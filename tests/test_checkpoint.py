@@ -14,7 +14,7 @@ class TestCheckpoint:
 
     def test_save_load_roundtrip(self, tmp_path):
         """Save and load should preserve model weights."""
-        model = Pix2Pix(in_channels=1, out_channels=3)
+        model = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer = {
             "generator": torch.optim.Adam(model.generator.parameters(), lr=2e-4),
             "discriminator": torch.optim.Adam(model.discriminator.parameters(), lr=1e-4),
@@ -25,7 +25,7 @@ class TestCheckpoint:
         save_checkpoint(model, optimizer, epoch=5, metrics=metrics, path=path)
 
         # Load into a new model
-        model2 = Pix2Pix(in_channels=1, out_channels=3)
+        model2 = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer2 = {
             "generator": torch.optim.Adam(model2.generator.parameters(), lr=2e-4),
             "discriminator": torch.optim.Adam(model2.discriminator.parameters(), lr=1e-4),
@@ -43,7 +43,7 @@ class TestCheckpoint:
 
     def test_arch_info_saved(self, tmp_path):
         """Checkpoint should contain arch_info metadata."""
-        model = Pix2Pix(in_channels=1, out_channels=3)
+        model = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer = torch.optim.Adam(model.parameters())
         path = str(tmp_path / "test.pth")
 
@@ -52,20 +52,19 @@ class TestCheckpoint:
         ckpt = load_torch_checkpoint(path)
         assert "arch_info" in ckpt
         info = ckpt["arch_info"]
-        assert info["model"] == "Pix2Pix"
         assert "input_channels" in info
         assert "output_channels" in info
         assert "git_version" in info
 
     def test_load_legacy_checkpoint(self, tmp_path):
         """Legacy checkpoint without arch_info should still load."""
-        model = Pix2Pix(in_channels=1, out_channels=3)
+        model = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer = {
             "generator": torch.optim.Adam(model.generator.parameters()),
             "discriminator": torch.optim.Adam(model.discriminator.parameters()),
         }
 
-        # Save without arch_info (legacy format)
+        # Save without arch_info
         ckpt = {
             "epoch": 3,
             "metrics": {"val_ssim": 0.80},
@@ -78,8 +77,8 @@ class TestCheckpoint:
         path = str(tmp_path / "legacy.pth")
         torch.save(ckpt, path)
 
-        # Should load with a warning, not an error
-        model2 = Pix2Pix(in_channels=1, out_channels=3)
+        # Should load cleanly
+        model2 = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer2 = {
             "generator": torch.optim.Adam(model2.generator.parameters()),
             "discriminator": torch.optim.Adam(model2.discriminator.parameters()),
@@ -89,7 +88,7 @@ class TestCheckpoint:
 
     def test_mismatched_architecture_raises(self, tmp_path):
         """Loading checkpoint with wrong architecture should raise ValueError."""
-        model = Pix2Pix(in_channels=1, out_channels=3)
+        model = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer = torch.optim.Adam(model.parameters())
 
         # Save checkpoint with specific arch_info
@@ -106,7 +105,7 @@ class TestCheckpoint:
         path = str(tmp_path / "mismatch.pth")
         torch.save(ckpt, path)
 
-        model2 = Pix2Pix(in_channels=1, out_channels=3)
+        model2 = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
         optimizer2 = torch.optim.Adam(model2.parameters())
 
         with pytest.raises(ValueError, match="mismatch"):

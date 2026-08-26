@@ -12,7 +12,7 @@ from PIL import Image
 from demo.utils import postprocess_output, preprocess_ir_image
 from scripts.evaluation.evaluate import to_unit_interval
 from scripts.preprocessing.split_patches import split_regions
-from src.models.pix2pix.generator import GeneratorUNet
+from src.models.pix2pix.generator_hd import Pix2PixHDGenerator
 from src.utils.image_processing import to_single_band_array
 from src.utils.logger import TrainingLogger
 
@@ -54,11 +54,16 @@ class ImageProcessingTests(unittest.TestCase):
 
 
 class ModelContractTests(unittest.TestCase):
-    def test_generator_rejects_unsupported_spatial_size_before_normalization(self) -> None:
-        model = GeneratorUNet(in_channels=1, out_channels=3, features=[1] * 8)
+    def test_generator_rejects_unsupported_spatial_size(self) -> None:
+        with self.assertRaises(ValueError):
+            Pix2PixHDGenerator(in_channels=2, out_channels=3, image_size=100)
 
-        with self.assertRaisesRegex(ValueError, "multiples of 256"):
-            model(torch.zeros(1, 1, 128, 128))
+    def test_generator_forward_contract(self) -> None:
+        gen = Pix2PixHDGenerator(in_channels=2, out_channels=3, image_size=128)
+        x = torch.randn(1, 2, 128, 128)
+        out = gen(x)
+        self.assertEqual(out.shape, (1, 3, 128, 128))
+        self.assertTrue(torch.isfinite(out).all())
 
 
 class PipelineRobustnessTests(unittest.TestCase):

@@ -84,14 +84,15 @@ def test_training_integration(tmp_path=None):
     print(f"    Batch shapes - IR: {ir.shape}, RGB: {rgb.shape}")
 
     # 2. Instantiate Model
-    print("\n[3] Initializing Pix2Pix with dynamic generator...")
+    print("\n[3] Initializing Pix2PixHD model...")
     try:
         model = Pix2Pix(
             device=device,
             in_channels=1,
             out_channels=3,
             image_size=128,
-            generator_impl="dynamic"
+            generator_impl="hd",
+            num_scales=2,
         )
         model.train()
     except Exception:
@@ -117,11 +118,17 @@ def test_training_integration(tmp_path=None):
             # Fake
             fake_rgb = model.generate(ir)
             pred_fake = model.discriminate(ir, fake_rgb.detach())
-            loss_d_fake = criterion_gan(pred_fake, torch.zeros_like(pred_fake))
+            if isinstance(pred_fake, dict):
+                loss_d_fake = sum(criterion_gan(p, torch.zeros_like(p)) for p in pred_fake.values())
+            else:
+                loss_d_fake = criterion_gan(pred_fake, torch.zeros_like(pred_fake))
 
             # Real
             pred_real = model.discriminate(ir, rgb)
-            loss_d_real = criterion_gan(pred_real, torch.ones_like(pred_real))
+            if isinstance(pred_real, dict):
+                loss_d_real = sum(criterion_gan(p, torch.ones_like(p)) for p in pred_real.values())
+            else:
+                loss_d_real = criterion_gan(pred_real, torch.ones_like(pred_real))
 
             loss_d = (loss_d_fake + loss_d_real) * 0.5
 
@@ -139,9 +146,12 @@ def test_training_integration(tmp_path=None):
         opt_g.zero_grad()
 
         with autocast(device_type=device.type, enabled=(device.type == "cuda")):
-            # We already have fake_rgb, but standard cycle recomputes or uses it
+            # Generator step
             pred_fake_for_g = model.discriminate(ir, fake_rgb)
-            loss_g_gan = criterion_gan(pred_fake_for_g, torch.ones_like(pred_fake_for_g))
+            if isinstance(pred_fake_for_g, dict):
+                loss_g_gan = sum(criterion_gan(p, torch.ones_like(p)) for p in pred_fake_for_g.values())
+            else:
+                loss_g_gan = criterion_gan(pred_fake_for_g, torch.ones_like(pred_fake_for_g))
             loss_g_l1 = criterion_l1(fake_rgb, rgb) * 10.0
 
             loss_g = loss_g_gan + loss_g_l1

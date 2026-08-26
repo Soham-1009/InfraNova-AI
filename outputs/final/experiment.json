@@ -1,0 +1,83 @@
+{
+  "experiment_name": "pix2pixhd_band10_band11_kaggle",
+  "start_epoch": 218,
+  "target_epoch": 250,
+  "total_epochs": 250,
+  "starting_checkpoint": "Epoch 100",
+  "best_pre_extension_epoch": 96,
+  "best_metrics_summary": {
+    "best_ssim": 0.24102467897884006,
+    "best_psnr": 11.599018906747828,
+    "best_lab_error": 29.044475619353396,
+    "best_sam": 0.21549894365185465,
+    "best_saturation_distance_to_1": 0.015966122709838992,
+    "final_10_epoch_saturation_std": 0.03857736109643575,
+    "max_consecutive_epochs_ssim_above_benchmark": 0
+  },
+  "benchmarks_evaluation": {
+    "1_research_fidelity": {
+      "ssim_peak_benchmark": {
+        "benchmark_epoch96": 0.2514266,
+        "achieved_best": 0.24102467897884006,
+        "status": "FAIL"
+      },
+      "sustained_ssim_benchmark": {
+        "criterion": ">= 3 consecutive validation epochs exceeding 0.2514266",
+        "max_consecutive_epochs": 0,
+        "status": "FAIL"
+      },
+      "psnr_benchmark": {
+        "benchmark_epoch96": 11.5715,
+        "achieved_best": 11.599018906747828,
+        "status": "PASS"
+      },
+      "cie_lab_benchmark": {
+        "benchmark_epoch96": 28.7341,
+        "achieved_best": 29.044475619353396,
+        "status": "FAIL"
+      },
+      "sam_benchmark": {
+        "benchmark_epoch96": 0.20913,
+        "achieved_best": 0.21549894365185465,
+        "status": "FAIL"
+      }
+    },
+    "2_color_and_radiometric": {
+      "saturation_ratio_proximity": {
+        "description": "Checkpoint with saturation ratio closest to target ratio of 1.0",
+        "baseline_epoch100_error": 0.39769,
+        "achieved_best_error": 0.015966122709838992,
+        "status": "PASS"
+      },
+      "saturation_window_stability": {
+        "description": "10-epoch rolling saturation std vs baseline window (0.36321)",
+        "baseline_window_std": 0.36321,
+        "achieved_final_10_std": 0.03857736109643575,
+        "status": "PASS"
+      }
+    },
+    "3_engineering_stability": {
+      "no_nan_or_inf": "PASS",
+      "no_memory_exhaustion": "PASS",
+      "resumed_state_integrity": "PASS",
+      "status": "PASS"
+    },
+    "4_architecture_comparison": {
+      "generator_type": "Pix2PixHD Residual Generator (21.38M parameters)",
+      "discriminator_type": "MultiScale Discriminator (5.53M parameters, 2 scales)",
+      "input_modality": "Landsat 9 Band 10 + Band 11 Thermal Radiance (2 Channels)",
+      "output_modality": "Optical True Color RGB (3 Channels)",
+      "exceeded_baseline_pix2pix": "PASS"
+    }
+  },
+  "final_epoch_metrics": {
+    "val_psnr": 11.494496734448651,
+    "val_ssim": 0.2339571934172561,
+    "val_mae": 0.2217323140725077,
+    "val_rmse": 0.2810004177040228,
+    "val_lab_error": 29.873462122911846,
+    "val_sam": 0.22567129143456507,
+    "val_sat_ratio": 0.9035095982045435,
+    "val_hist_dist": 0.0929215397873071
+  }
+}

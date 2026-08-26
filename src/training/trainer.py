@@ -10,6 +10,7 @@ import torch
 import torch.nn.functional as F
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
+from torchmetrics.image import StructuralSimilarityIndexMeasure
 
 from src.training.callbacks import EarlyStopping, ModelCheckpoint
 from src.training.losses import (
@@ -195,26 +196,22 @@ class Trainer:
 
     def _disc_forward(
         self, ir: torch.Tensor, rgb: torch.Tensor, return_features: bool = False,
-    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]]:
+    ) -> torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]] | dict | tuple[dict, dict]:
         """
         Run discriminator and return final predictions (+ optional features).
-
-        For multi-scale D, averages fine/coarse predictions and concatenates features.
         """
         result = self.model.discriminate(ir, rgb, return_features=return_features)
 
         if self.use_multi_scale:
-            # result is a dict: {"fine": ..., "coarse": ...}
             if return_features:
-                fine_pred, fine_feats = result["fine"]
-                _coarse_pred, coarse_feats = result["coarse"]
-                # Use the fine-scale prediction as the primary adversarial signal
-                # and average for D loss. Features are concatenated.
-                return fine_pred, fine_feats + coarse_feats
+                preds = {}
+                feats = {}
+                for scale, (pred, feat) in result.items():
+                    preds[scale] = pred
+                    feats[scale] = feat
+                return preds, feats
             else:
-                fine_pred = result["fine"]
-                _coarse_pred = result["coarse"]
-                return fine_pred
+                return result
         else:
             return result
 
@@ -232,14 +229,15 @@ class Trainer:
 
         if self.use_multi_scale:
             d_loss = torch.tensor(0.0, device=self.device)
-            for key in ["fine", "coarse"]:
+            scales = list(real_result.keys())
+            for key in scales:
                 rp = real_result[key]
                 fp = fake_result[key]
                 d_loss = d_loss + 0.5 * (
                     self.criterion.gan_loss(rp, True)
                     + self.criterion.gan_loss(fp, False)
                 )
-            return d_loss * 0.5  # average over scales
+            return d_loss / max(len(scales), 1)  # average over scales
         else:
             real_loss = self.criterion.gan_loss(real_result, True)
             fake_loss = self.criterion.gan_loss(fake_result, False)
@@ -282,9 +280,10 @@ class Trainer:
             self.model.discriminator.requires_grad_(True)
             self.optimizer_d.zero_grad(set_to_none=True)
 
-            with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
-                fake_rgb = self.model.generate(ir).detach()
+            with torch.no_grad():
+                fake_rgb = self.model.generate(ir)
 
+            with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
                 # Add noise to prevent discriminator overpowering
                 noise_std = max(0.1 * (1 - epoch / self.total_epochs), 0.01)
                 d_loss = self._disc_loss_multi_scale(ir, rgb, fake_rgb, noise_std)
@@ -296,8 +295,8 @@ class Trainer:
             )
 
             # NaN/inf protection for discriminator
-            if not torch.isfinite(d_loss):
-                logger.warning("Non-finite discriminator loss at batch %d, skipping D step.", batch_idx)
+            if not torch.isfinite(d_loss) or not torch.isfinite(torch.as_tensor(d_grad_norm)):
+                logger.warning("Non-finite discriminator loss or grad norm at batch %d, skipping D step.", batch_idx)
                 self.optimizer_d.zero_grad(set_to_none=True)
             else:
                 self.scaler.step(self.optimizer_d)
@@ -344,8 +343,8 @@ class Trainer:
                 )
 
                 # NaN/inf protection for generator
-                if not torch.isfinite(g_loss):
-                    logger.warning("Non-finite generator loss at batch %d, skipping G step.", batch_idx)
+                if not torch.isfinite(g_loss) or not torch.isfinite(torch.as_tensor(g_grad_norm)):
+                    logger.warning("Non-finite generator loss or grad norm at batch %d, skipping G step.", batch_idx)
                     self.optimizer_g.zero_grad(set_to_none=True)
                 else:
                     self.scaler.step(self.optimizer_g)
@@ -388,6 +387,9 @@ class Trainer:
         lab_error_sum = 0.0
         num_batches = len(self.val_loader)
 
+        # Use corrected torchmetrics Windowed SSIM (same as evaluation pipeline)
+        ssim_metric = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+
         for _batch_idx, batch in enumerate(self.val_loader):
             batch = self._to_device(batch, self.device)
             ir = batch["ir"]
@@ -399,7 +401,8 @@ class Trainer:
             rgb_01 = self._denorm(rgb)
 
             psnr_sum += float(self._psnr(fake_rgb_01, rgb_01).item())
-            ssim_sum += float(self._ssim_simple(fake_rgb_01, rgb_01).item())
+            ssim_sum += float(ssim_metric(fake_rgb_01, rgb_01).item())
+            ssim_metric.reset()
 
             # Color quality metrics
             sat_ratio_sum += compute_mean_saturation_ratio(fake_rgb_01, rgb_01)

@@ -1,14 +1,14 @@
 project:
   name: "InfraNova AI"
   task: "colorization"
-  modality: "landsat9_tir_to_rgb"
+  modality: "landsat9_b10_b11_to_rgb"
   seed: 42
 
 dataset:
-  name: "landsat9"
-  root_dir: "data/landsat9/splits"
+  name: "landsat9_b10_b11"
+  root_dir: "data/landsat9_b10_b11/splits"
   image_size: 128
-  input_channels: 1
+  input_channels: 2
   output_channels: 3
   num_workers: 2
   normalization:
@@ -19,18 +19,19 @@ dataset:
 
 model:
   generator:
-    implementation: "dynamic"
-  multi_scale_disc: false
+    implementation: "hd"
+  multi_scale_disc: true
+  num_scales: 2
 
 training:
-  epochs: 500
-  batch_size: 256
-  decay_start_epoch: 450
-  patience: 100
-  amp: true
+  epochs: 100
+  batch_size: 64
+  decay_start_epoch: 50
+  patience: 25
+  amp: false
   grad_clip: 1.0
-  sample_every: 5
-  resume_from: "outputs/models/best/pix2pix_landsat_latest.pth"
+  sample_every: 1
+  resume_from: null
   optimizer:
     lr: 0.0002
     beta1: 0.5
@@ -48,7 +49,7 @@ loss:
   lambda_perc: 10.0
   lambda_ssim: 5.0
   lambda_chroma: 2.0
-  lambda_feat: 0.0
+  lambda_feat: 5.0
   gan_mode: "bce"
 
 augmentation:
@@ -57,7 +58,7 @@ augmentation:
 
 logging:
   use_wandb: false
-  csv_path: "logs/training.csv"
+  csv_path: "logs/training_pix2pixhd_100epochs.csv"
   tensorboard_dir: "logs/tensorboard"
 
 evaluation:
@@ -68,10 +69,10 @@ evaluation:
   save_format: "tiff"
 
 paths:
-  checkpoints: "outputs/models/best"
-  best_checkpoint: "outputs/models/best/pix2pix_landsat_best.pth"
-  latest_checkpoint: "outputs/models/final/pix2pix_landsat_latest.pth"
-  final_checkpoint: "outputs/models/final/pix2pix_landsat_final.pth"
+  checkpoints: "outputs"
+  best_checkpoint: "outputs/best/pix2pix_landsat_best.pth"
+  latest_checkpoint: "outputs/latest/pix2pix_landsat_latest.pth"
+  final_checkpoint: "outputs/final/pix2pix_landsat_final.pth"
   logs: "logs"
   outputs: "outputs"
   visualizations: "outputs/visualizations"

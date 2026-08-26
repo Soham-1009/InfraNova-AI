@@ -142,27 +142,34 @@ class MultiScaleDiscriminator(nn.Module):
     """
     Multi-scale PatchGAN discriminator.
 
-    Uses two discriminator branches:
-    - Fine: operates on the original resolution input
-    - Coarse: operates on 2x-downsampled input
+    Uses multiple discriminator branches operating at different scales.
+    Scale 0 operates on the original resolution.
+    Scale 1 operates on 2x downsampled input, etc.
 
     Both branches share the same architecture but have independent weights.
-    This enforces realism at both local (fine) and global (coarse) scales.
+    This enforces realism at both local and global scales.
 
     Args:
         in_channels: Number of input channels (typically IR + RGB = 4).
         features: Channel widths for the PatchGAN blocks.
+        num_scales: Number of discriminator scales.
     """
 
     def __init__(
         self,
         in_channels: int = 4,
         features: list[int] | None = None,
+        num_scales: int = 2,
     ) -> None:
         super().__init__()
+        self.num_scales = num_scales
+        self.discriminators = nn.ModuleList()
 
-        self.disc_fine = PatchDiscriminator(in_channels=in_channels, features=features)
-        self.disc_coarse = PatchDiscriminator(in_channels=in_channels, features=features)
+        for _ in range(num_scales):
+            self.discriminators.append(
+                PatchDiscriminator(in_channels=in_channels, features=features)
+            )
+            
         self.downsample = nn.AvgPool2d(kernel_size=3, stride=2, padding=1, count_include_pad=False)
 
     def forward(
@@ -171,18 +178,21 @@ class MultiScaleDiscriminator(nn.Module):
         return_features: bool = False,
     ) -> dict[str, torch.Tensor | tuple[torch.Tensor, list[torch.Tensor]]]:
         """
-        Forward pass through both scales.
+        Forward pass through all scales.
 
         Args:
             x: Concatenated IR+RGB [B, C, H, W]
             return_features: Whether to return intermediate feature maps.
 
         Returns:
-            Dictionary with "fine" and "coarse" discriminator outputs.
+            Dictionary with "scale_0", "scale_1", etc. discriminator outputs.
             Each value is either a tensor or (tensor, [features]) depending on return_features.
         """
-        fine_out = self.disc_fine(x, return_features=return_features)
-        x_down = self.downsample(x)
-        coarse_out = self.disc_coarse(x_down, return_features=return_features)
+        result = {}
+        input_x = x
+        for i, disc in enumerate(self.discriminators):
+            result[f"scale_{i}"] = disc(input_x, return_features=return_features)
+            if i != self.num_scales - 1:
+                input_x = self.downsample(input_x)
 
-        return {"fine": fine_out, "coarse": coarse_out}
+        return result

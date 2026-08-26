@@ -21,7 +21,7 @@ def main():
     stages = {
         "download": [sys.executable, "scripts/download/download_landsat9.py"],
         "preprocess": [sys.executable, "scripts/preprocessing/split_patches.py"],
-        "train": [sys.executable, "scripts/training/run_ablation_study.py"],
+        "train": [sys.executable, "-m", "src.training.train_landsat", "--config", "configs/config.yaml"],
         "evaluate": [sys.executable, "scripts/evaluation/evaluate.py"]
     }
 

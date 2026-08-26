@@ -41,9 +41,12 @@ data/multispectral/
 data/samples/
 
 # Landsat 9 data (too large for GitHub)
-data/landsat9/input/
+data/landsat9/raw/
 data/landsat9/patches/
 data/landsat9/splits/
+data/landsat9_b10_b11/raw/
+data/landsat9_b10_b11/patches/
+data/landsat9_b10_b11/splits/
 
 # Earth Engine cache
 .config/earthengine/
@@ -91,3 +94,6 @@ quarantine_log.txt
 
 #project files
 docs/project/
+
+# Local maintenance archives
+archive/

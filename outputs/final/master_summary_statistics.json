@@ -1,0 +1,58 @@
+{
+  "total_epochs": 250,
+  "total_training_hours": 8.207531767023934,
+  "best_ssim": {
+    "value": 0.2522325951959834,
+    "epoch": 68
+  },
+  "best_psnr": {
+    "value": 11.754097645509177,
+    "epoch": 137
+  },
+  "best_lab_error": {
+    "value": 27.61,
+    "epoch": 40
+  },
+  "best_sam": {
+    "value": 0.2050486789735336,
+    "epoch": 127
+  },
+  "best_saturation_distance": {
+    "value": 0.0032723389524320634,
+    "epoch": 92,
+    "ratio": 1.003272338952432
+  },
+  "stage_averages": {
+    "stage1_epochs_1_100": {
+      "mean_ssim": 0.1899956117511994,
+      "mean_psnr": 11.13894342817594,
+      "mean_lab": 30.351084201437672,
+      "mean_sat_ratio": 0.9364453790287043,
+      "sat_ratio_std": 0.30045402673237004
+    },
+    "stage2_epochs_101_200": {
+      "mean_ssim": 0.23240637976364048,
+      "mean_psnr": 11.333420540580537,
+      "mean_lab": 30.521920434003437,
+      "mean_sat_ratio": 0.955289764151227,
+      "sat_ratio_std": 0.30736134305074614
+    },
+    "stage3_epochs_201_250": {
+      "mean_ssim": 0.23330513108376014,
+      "mean_psnr": 11.498635485345426,
+      "mean_lab": 29.80904481195205,
+      "mean_sat_ratio": 0.8948170153588556,
+      "sat_ratio_std": 0.15746653884441147
+    }
+  },
+  "final_epoch_250": {
+    "ssim": 0.2339571934172561,
+    "psnr": 11.494496734448653,
+    "mae": 0.2217323140725077,
+    "rmse": 0.2810004177040228,
+    "lab_error": 29.87346212291185,
+    "sam": 0.225671291434565,
+    "sat_ratio": 0.9035095982045436,
+    "hist_dist": 0.0929215397873071
+  }
+}

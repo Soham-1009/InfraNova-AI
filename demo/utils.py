@@ -30,37 +30,65 @@ def _normalize_to_uint8(
 
 
 def preprocess_ir_image(
-    image: Image.Image | np.ndarray,
-    image_size: int = 256,
+    image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray],
+    image_size: int = 128,
+    target_channels: int = 1,
 ) -> torch.Tensor:
     """
-    Preprocess an IR image for Pix2Pix inference.
+    Preprocess IR image(s) for Pix2Pix inference.
 
-    Args:
-        image: PIL image or numpy array.
-        image_size: Target size (square resize).
+    Supports:
+        - 2-channel Landsat 9 thermal arrays (shape [2, H, W] or [H, W, 2])
+        - Tuple / list of (band10, band11) arrays
+        - Single-channel PIL image or array (duplicated if target_channels=2)
 
     Returns:
-        Tensor of shape [1, 1, image_size, image_size] in [-1, 1].
+        Tensor of shape [1, target_channels, image_size, image_size] in [-1, 1].
     """
     target_size = int(image_size)
     if target_size <= 0:
         raise ValueError("image_size must be a positive integer")
 
-    arr = to_single_band_array(image)
-
-    lo = np.percentile(arr, DEFAULT_PERCENTILE_LOW)
-    hi = np.percentile(arr, DEFAULT_PERCENTILE_HIGH)
-    if hi - lo < 1e-6:
-        arr = np.zeros_like(arr, dtype=np.float32)
+    # Case 1: Tuple/List of (Band 10, Band 11)
+    if isinstance(image, (tuple, list)) and len(image) == 2:
+        b10, b11 = image
+        b10_arr = to_single_band_array(b10)
+        b11_arr = to_single_band_array(b11)
+        bands = [b10_arr, b11_arr]
+    elif isinstance(image, np.ndarray) and image.ndim == 3:
+        # Channel-first [2, H, W]
+        if image.shape[0] == 2:
+            bands = [image[0], image[1]]
+        elif image.shape[2] == 2:
+            bands = [image[:, :, 0], image[:, :, 1]]
+        elif image.shape[0] >= 3:
+            arr = to_single_band_array(image)
+            bands = [arr, arr] if target_channels == 2 else [arr]
+        else:
+            arr = to_single_band_array(image)
+            bands = [arr, arr] if target_channels == 2 else [arr]
     else:
-        arr = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
+        # Single band input
+        arr = to_single_band_array(image)
+        bands = [arr, arr] if target_channels == 2 else [arr]
 
-    arr = cv2.resize(arr, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
-    arr = np.clip(arr, 0.0, 1.0)
-    arr = arr.astype(np.float32) * 2.0 - 1.0
+    processed_bands = []
+    for b in bands[:target_channels]:
+        b_f = np.asarray(b, dtype=np.float32)
+        lo = np.percentile(b_f, DEFAULT_PERCENTILE_LOW)
+        hi = np.percentile(b_f, DEFAULT_PERCENTILE_HIGH)
+        if hi - lo < 1e-6:
+            norm_b = np.zeros_like(b_f, dtype=np.float32)
+        else:
+            norm_b = np.clip((b_f - lo) / (hi - lo), 0.0, 1.0)
+        norm_b = cv2.resize(norm_b, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
+        norm_b = np.clip(norm_b, 0.0, 1.0)
+        norm_b = norm_b.astype(np.float32) * 2.0 - 1.0
+        processed_bands.append(norm_b)
 
-    tensor = torch.from_numpy(arr).unsqueeze(0).unsqueeze(0)  # [1,1,H,W]
+    # Stack to [C, H, W]
+    stacked = np.stack(processed_bands, axis=0)  # [C, H, W]
+    tensor = torch.from_numpy(stacked).unsqueeze(0)  # [1, C, H, W]
     return tensor
 
 
@@ -123,57 +151,28 @@ def save_output(image: Image.Image, filename: str) -> str:
         filename: Target path.
 
     Returns:
-        Saved file path.
+        String path to saved image.
     """
-    path = Path(filename)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    image.save(path)
-    return str(path)
+    out_path = Path(filename)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(out_path)
+    return str(out_path)
 
 
 def visualize_tir_as_thermal(image: Image.Image | np.ndarray) -> Image.Image:
     """
-    Convert grayscale TIR to thermal colormap for better visualization.
+    Convert a single-channel TIR array to a colorized thermal visualization.
+
+    Applies percentile stretch + OpenCV INFERNO colormap.
 
     Args:
-        image: PIL grayscale or numpy array.
+        image: Input TIR image (PIL or numpy).
 
     Returns:
-        PIL RGB image with thermal colormap applied.
+        PIL RGB image with INFERNO colormap applied.
     """
-    arr = _normalize_to_uint8(to_single_band_array(image))
-
-    # Apply thermal colormap (INFERNO gives a good heat-like appearance)
-    colored = cv2.applyColorMap(arr, cv2.COLORMAP_INFERNO)
-
-    # Convert BGR to RGB
+    arr = to_single_band_array(image)
+    norm = _normalize_to_uint8(arr)
+    colored = cv2.applyColorMap(norm, cv2.COLORMAP_INFERNO)
     colored_rgb = cv2.cvtColor(colored, cv2.COLOR_BGR2RGB)
-
     return Image.fromarray(colored_rgb)
-
-
-def load_sample_images(sample_dir: str = "demo/assets/samples") -> list[Image.Image]:
-    """
-    Load sample IR images for demo/testing.
-
-    Args:
-        sample_dir: Directory containing sample images.
-
-    Returns:
-        List of PIL grayscale images.
-    """
-    directory = Path(sample_dir)
-    if not directory.exists():
-        return []
-
-    images: list[Image.Image] = []
-    for ext in ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff"):
-        for path in sorted(directory.glob(ext)):
-            try:
-                with Image.open(path) as image:
-                    image.load()
-                    images.append(image.copy())
-            except Exception:
-                continue
-
-    return images

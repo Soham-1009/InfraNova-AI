@@ -36,8 +36,8 @@ def _count_params(model: torch.nn.Module) -> int:
 
 
 def generate_model_card(
-    checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
-    experiment_json: str = "logs/experiment_info.json",
+    checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
+    experiment_json: str = "outputs/final/experiment.json",
     output_path: str = "MODEL_CARD.md",
 ) -> str:
     """Generate and save a MODEL_CARD.md."""
@@ -59,49 +59,61 @@ def generate_model_card(
             ckpt_info["epoch"] = ckpt.get("epoch", "unknown")
             ckpt_info["metrics"] = ckpt.get("metrics", {})
 
-    # Model info
-    model = Pix2Pix(in_channels=1, out_channels=3)
-    gen_params = _count_params(model.generator)
-    disc_params = _count_params(model.discriminator)
-    total_params = gen_params + disc_params
+    # Instantiate model for parameter counting
+    in_channels = int(ckpt_info.get("input_channels", 2))
+    out_channels = int(ckpt_info.get("output_channels", 3))
+    image_size = int(ckpt_info.get("image_size", 128))
+    multi_scale = bool(ckpt_info.get("multi_scale_disc", True))
+    num_scales = int(ckpt_info.get("discriminator_scales", 2))
 
-    # Hyperparams
-    hp = exp_info.get("hyperparameters", {})
-    training_hp = hp.get("training", {})
+    model = Pix2Pix(
+        device="cpu",
+        in_channels=in_channels,
+        out_channels=out_channels,
+        image_size=image_size,
+        multi_scale=multi_scale,
+        generator_impl=ckpt_info.get("generator_impl", "hd"),
+        num_scales=num_scales,
+    )
+    gen_params, disc_params, total_params = model.count_parameters()
+
+    # Training hyperparameters
+    training_hp = exp_info.get("training", {})
     optim_hp = training_hp.get("optimizer", {})
-    loss_hp = training_hp.get("loss", {})
+    loss_hp = exp_info.get("loss", {})
 
-    # Metrics
+    # Best metrics
     metrics = ckpt_info.get("metrics", {})
-    best_ssim = exp_info.get("best_ssim", metrics.get("val_ssim", "N/A"))
-    best_psnr = exp_info.get("best_psnr", metrics.get("val_psnr", "N/A"))
+    best_ssim = metrics.get("val_ssim", exp_info.get("best_ssim", "N/A"))
+    best_psnr = metrics.get("val_psnr", exp_info.get("best_psnr", "N/A"))
 
     card = f"""---
-language: en
-license: mit
+language:
+  - en
 tags:
-  - image-to-image
+  - earth-observation
   - thermal-infrared
+  - colorization
   - landsat-9
-  - pix2pix
+  - pix2pixhd
   - remote-sensing
 ---
 
-# InfraNova AI — Thermal IR to RGB Synthesis
+# InfraNova AI — Dual-Band Thermal IR to RGB Synthesis
 
 ## Model Description
 
-**InfraNova AI** is a Pix2Pix GAN trained to synthesize plausible RGB-like images
-from Landsat 9 Band 10 thermal infrared (TIR) data. The model takes single-channel
-thermal input and generates a 3-channel RGB visual interpretation.
+**InfraNova AI** is a Pix2PixHD GAN trained to synthesize plausible RGB-like optical images
+from Landsat 9 Band 10 + Band 11 dual-band thermal infrared (TIR) data. The model takes
+2-channel thermal input and generates a 3-channel RGB visual interpretation at 128x128 resolution.
 
 | Property | Value |
 |----------|-------|
-| Architecture | Pix2Pix (U-Net Generator + PatchGAN Discriminator) |
-| Generator | {ckpt_info.get('generator', 'UNetGenerator')} |
-| Discriminator | {ckpt_info.get('discriminator', 'PatchGANDiscriminator')} |
-| Input | 1 x 256 x 256 (thermal) |
-| Output | 3 x 256 x 256 (RGB) |
+| Architecture | Pix2PixHD (GlobalGenerator + LocalEnhancer + MultiScaleDiscriminator) |
+| Generator | {ckpt_info.get('generator', 'Pix2PixHDGenerator')} |
+| Discriminator | {ckpt_info.get('discriminator', 'MultiScaleDiscriminator')} |
+| Input | {in_channels} x {image_size} x {image_size} (Band 10 + Band 11 thermal) |
+| Output | {out_channels} x {image_size} x {image_size} (RGB) |
 | Total Parameters | {total_params:,} |
 | Generator Parameters | {gen_params:,} |
 | Discriminator Parameters | {disc_params:,} |

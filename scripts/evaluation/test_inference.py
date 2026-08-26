@@ -59,14 +59,14 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
 
     # 2. Build model and load checkpoint (PASS 1)
     logger.info("\n--- PASS 1: Loading Checkpoint ---")
-    multi_scale = bool(cfg.get("model", {}).get("multi_scale_disc", False))
+    multi_scale = bool(cfg.get("model", {}).get("multi_scale_disc", True))
     model_pass1 = Pix2Pix(
         device=device,
         in_channels=int(cfg["dataset"]["input_channels"]),
         out_channels=int(cfg["dataset"]["output_channels"]),
         image_size=int(cfg["dataset"]["image_size"]),
         multi_scale=multi_scale,
-        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "dynamic"),
+        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "hd"),
     )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
@@ -86,7 +86,7 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
         out_channels=int(cfg["dataset"]["output_channels"]),
         image_size=int(cfg["dataset"]["image_size"]),
         multi_scale=multi_scale,
-        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "dynamic"),
+        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "hd"),
     )
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     state_dict = checkpoint["model_state_dict"]

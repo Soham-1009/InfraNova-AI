@@ -99,19 +99,41 @@ class FeatureMatchingLoss(nn.Module):
         weight_per_layer: If True, normalize loss per layer. Otherwise sum all.
     """
 
-    def __init__(self, num_layers: int = 5) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.num_layers = num_layers
 
     def forward(
         self,
-        fake_features: list[torch.Tensor],
-        real_features: list[torch.Tensor],
+        fake_features: list[torch.Tensor] | dict[str, list[torch.Tensor]],
+        real_features: list[torch.Tensor] | dict[str, list[torch.Tensor]],
     ) -> torch.Tensor:
-        loss = fake_features[0].new_tensor(0.0)
-        n = min(len(fake_features), len(real_features), self.num_layers)
+        if isinstance(fake_features, dict) and isinstance(real_features, dict):
+            # Multi-scale
+            loss = 0.0
+            scales = list(fake_features.keys())
+            for scale in scales:
+                loss += self._compute_scale_loss(fake_features[scale], real_features[scale])
+            return loss / max(len(scales), 1)
+        elif isinstance(fake_features, list) and isinstance(real_features, list):
+            # Single-scale
+            return self._compute_scale_loss(fake_features, real_features)
+        else:
+            raise ValueError("Feature mismatch type")
+
+    def _compute_scale_loss(self, fake_feats: list[torch.Tensor], real_feats: list[torch.Tensor]) -> torch.Tensor:
+        # Exclude the final logit (the last element)
+        fake_inter = fake_feats[:-1]
+        real_inter = real_feats[:-1]
+        
+        loss = fake_inter[0].new_tensor(0.0)
+        n = min(len(fake_inter), len(real_inter))
+        if n == 0:
+            return loss
+            
         for i in range(n):
-            loss = loss + F.l1_loss(fake_features[i], real_features[i].detach())
+            # F.l1_loss(..., reduction="mean") handles the division by N_elements automatically
+            loss = loss + F.l1_loss(fake_inter[i], real_inter[i].detach(), reduction="mean")
+            
         return loss / max(n, 1)
 
 
@@ -319,11 +341,11 @@ class CombinedLoss(nn.Module):
 
     def forward(
         self,
-        disc_fake_pred: torch.Tensor,
+        disc_fake_pred: torch.Tensor | dict[str, torch.Tensor],
         fake_rgb: torch.Tensor,
         real_rgb: torch.Tensor,
-        fake_features: list[torch.Tensor] | None = None,
-        real_features: list[torch.Tensor] | None = None,
+        fake_features: list[torch.Tensor] | dict[str, list[torch.Tensor]] | None = None,
+        real_features: list[torch.Tensor] | dict[str, list[torch.Tensor]] | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Compute weighted loss components.
@@ -338,7 +360,15 @@ class CombinedLoss(nn.Module):
         Returns:
             Dictionary with individual and total losses.
         """
-        adv = self.gan_loss(disc_fake_pred, True)
+        if isinstance(disc_fake_pred, dict):
+            # Multi-scale GAN loss for G
+            adv = disc_fake_pred[list(disc_fake_pred.keys())[0]].new_tensor(0.0)
+            for scale_pred in disc_fake_pred.values():
+                adv = adv + self.gan_loss(scale_pred, True)
+            adv = adv / max(len(disc_fake_pred), 1)
+        else:
+            adv = self.gan_loss(disc_fake_pred, True)
+            
         l1 = self.l1_loss(fake_rgb, real_rgb)
         if self.perc_loss is not None and fake_rgb.size(1) == 3 and real_rgb.size(1) == 3:
             perc = self.perc_loss(fake_rgb, real_rgb)

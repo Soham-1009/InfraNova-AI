@@ -23,34 +23,34 @@ def device():
 
 @pytest.fixture
 def dummy_ir_tensor():
-    """Single-channel thermal input tensor (1, 1, 256, 256)."""
-    return torch.randn(1, 1, 256, 256)
+    """2-channel thermal input tensor (1, 2, 128, 128)."""
+    return torch.randn(1, 2, 128, 128)
 
 
 @pytest.fixture
 def dummy_rgb_tensor():
-    """3-channel RGB tensor (1, 3, 256, 256) in [-1, 1]."""
-    return torch.rand(1, 3, 256, 256) * 2.0 - 1.0
+    """3-channel RGB tensor (1, 3, 128, 128) in [-1, 1]."""
+    return torch.rand(1, 3, 128, 128) * 2.0 - 1.0
 
 
 @pytest.fixture
 def dummy_ir_batch():
-    """Batch of thermal inputs (4, 1, 256, 256)."""
-    return torch.randn(4, 1, 256, 256)
+    """Batch of 2-channel thermal inputs (4, 2, 128, 128)."""
+    return torch.randn(4, 2, 128, 128)
 
 
 @pytest.fixture
 def dummy_rgb_batch():
-    """Batch of RGB targets (4, 3, 256, 256) in [-1, 1]."""
-    return torch.rand(4, 3, 256, 256) * 2.0 - 1.0
+    """Batch of RGB targets (4, 3, 128, 128) in [-1, 1]."""
+    return torch.rand(4, 3, 128, 128) * 2.0 - 1.0
 
 
 @pytest.fixture
 def tmp_checkpoint(tmp_path):
-    """Create a temporary checkpoint file for testing."""
+    """Create a temporary Pix2PixHD checkpoint file for testing."""
     from src.models.pix2pix.pix2pix import Pix2Pix
 
-    model = Pix2Pix(in_channels=1, out_channels=3)
+    model = Pix2Pix(in_channels=2, out_channels=3, image_size=128, num_scales=2)
     optimizer_g = torch.optim.Adam(model.generator.parameters(), lr=2e-4)
     optimizer_d = torch.optim.Adam(model.discriminator.parameters(), lr=1e-4)
 
@@ -63,12 +63,14 @@ def tmp_checkpoint(tmp_path):
             "discriminator": optimizer_d.state_dict(),
         },
         "arch_info": {
-            "model": "Pix2Pix",
-            "generator": "UNetGenerator",
-            "discriminator": "PatchGANDiscriminator",
-            "input_channels": 1,
+            "model": "Pix2PixHD",
+            "generator": "Pix2PixHDGenerator",
+            "discriminator": "MultiScaleDiscriminator",
+            "generator_impl": "hd",
+            "input_channels": 2,
             "output_channels": 3,
-            "image_size": 256,
+            "image_size": 128,
+            "discriminator_scales": 2,
         },
     }
 
@@ -89,6 +91,7 @@ def tmp_dataset_dir(tmp_path):
 
         np.save(sample_dir / "tir_200m.npy", np.random.rand(64, 64).astype(np.float32))
         np.save(sample_dir / "tir_100m.npy", np.random.rand(128, 128).astype(np.float32))
+        np.save(sample_dir / "tir_b11_100m.npy", np.random.rand(128, 128).astype(np.float32))
         np.save(sample_dir / "rgb_100m.npy", np.random.rand(3, 128, 128).astype(np.float32))
 
     return tmp_path / "splits"

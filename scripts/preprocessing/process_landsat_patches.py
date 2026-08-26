@@ -77,6 +77,10 @@ def load_rgb(path: Path) -> np.ndarray:
     if img.shape[0] != 3:
         raise ValueError(f"RGB must have 3 bands, got {img.shape[0]}: {path}")
 
+    # Standard remote-sensing NoData handling: map NaN/Inf/negative to 0.0
+    img[~np.isfinite(img)] = 0.0
+    img[img < 0] = 0.0
+
     return img
 
 
@@ -96,6 +100,10 @@ def load_tir(path: Path) -> np.ndarray:
 
     if img.ndim != 2:
         raise ValueError(f"TIR must be 2-D, got ndim={img.ndim}: {path}")
+
+    # Standard remote-sensing NoData handling: map NaN/Inf/negative to 0.0
+    img[~np.isfinite(img)] = 0.0
+    img[img < 0] = 0.0
 
     return img
 
@@ -119,25 +127,31 @@ def resize_bands(image: np.ndarray, height: int, width: int) -> np.ndarray:
 # Core processing
 # ===================================================================
 
-def process_region(region_dir: Path, output_dir: Path) -> int:
+def process_region(region_dir: Path, output_dir: Path, b11_raw_dir: Path | None = None) -> int:
     """
     Process one region folder into aligned patches.
+    Supports optional Band 11 (tir_b11.tif).
 
     Returns the number of patches created (0 on skip / error).
     """
     region_id = region_dir.name
     rgb_path = region_dir / "rgb.tif"
     tir_path = region_dir / "tir.tif"
+    tir_b11_path = (b11_raw_dir / region_id / "tir_b11.tif") if b11_raw_dir else None
 
     # ------ existence check ------
     if not rgb_path.exists() or not tir_path.exists():
         logger.warning("Skipping %s: missing rgb.tif or tir.tif", region_id)
+        return 0
+    if tir_b11_path and not tir_b11_path.exists():
+        logger.warning("Skipping %s: missing tir_b11.tif", region_id)
         return 0
 
     # ------ load ------
     try:
         rgb = load_rgb(rgb_path)
         tir = load_tir(tir_path)
+        tir_b11 = load_tir(tir_b11_path) if tir_b11_path else None
     except Exception as exc:
         logger.warning("Skipping %s: %s", region_id, exc)
         return 0
@@ -149,6 +163,9 @@ def process_region(region_dir: Path, output_dir: Path) -> int:
     if not np.isfinite(rgb).all():
         logger.warning("Skipping %s: RGB contains non-finite values", region_id)
         return 0
+    if tir_b11 is not None and not np.isfinite(tir_b11).all():
+        logger.warning("Skipping %s: TIR B11 contains non-finite values", region_id)
+        return 0
 
     # ------ dimension compatibility ------
     rgb_hw = rgb.shape[1:]          # (H, W) from (3, H, W)
@@ -158,6 +175,12 @@ def process_region(region_dir: Path, output_dir: Path) -> int:
         logger.warning(
             "Skipping %s: RGB spatial %s != TIR spatial %s",
             region_id, rgb_hw, tir_hw,
+        )
+        return 0
+    if tir_b11 is not None and tir_b11.shape != tir_hw:
+        logger.warning(
+            "Skipping %s: TIR B11 spatial %s != TIR B10 spatial %s",
+            region_id, tir_b11.shape, tir_hw,
         )
         return 0
 
@@ -173,10 +196,12 @@ def process_region(region_dir: Path, output_dir: Path) -> int:
     tir_200m = resize_2d(tir, h200, w200)
     tir_100m = resize_2d(tir, h100, w100)
     rgb_100m = resize_bands(rgb, h100, w100)
+    tir_b11_200m = resize_2d(tir_b11, h200, w200) if tir_b11 is not None else None
+    tir_b11_100m = resize_2d(tir_b11, h100, w100) if tir_b11 is not None else None
 
     logger.info(
-        "Processing %s  |  source %dx%d  ->  200 m %dx%d  /  100 m %dx%d",
-        region_id, source_w, source_h, w200, h200, w100, h100,
+        "Processing %s  |  source %dx%d  ->  200 m %dx%d  /  100 m %dx%d (B11=%s)",
+        region_id, source_w, source_h, w200, h200, w100, h100, tir_b11 is not None,
     )
 
     # ------ patch feasibility ------
@@ -196,6 +221,7 @@ def process_region(region_dir: Path, output_dir: Path) -> int:
     # ------ extract patches ------
     count = 0
     skipped_border = 0
+    skipped_nodata = 0
 
     for y in range(0, h200 - PATCH_SIZE_200M + 1, STRIDE):
         for x in range(0, w200 - PATCH_SIZE_200M + 1, STRIDE):
@@ -218,6 +244,31 @@ def process_region(region_dir: Path, output_dir: Path) -> int:
                 skipped_border += 1
                 continue
 
+            # Band 11 patches if available
+            p_tir_b11_200 = None
+            p_tir_b11_100 = None
+            if tir_b11_200m is not None and tir_b11_100m is not None:
+                p_tir_b11_200 = tir_b11_200m[y:y + PATCH_SIZE_200M, x:x + PATCH_SIZE_200M]
+                p_tir_b11_100 = tir_b11_100m[y1:y1 + PATCH_SIZE_100M, x1:x1 + PATCH_SIZE_100M]
+                if p_tir_b11_100.shape != (PATCH_SIZE_100M, PATCH_SIZE_100M):
+                    skipped_border += 1
+                    continue
+
+            # Validity & NoData Filtering (skip if all zero or >50% zero/NaN)
+            zero_ratio_rgb = np.count_nonzero(p_rgb100 == 0) / p_rgb100.size
+            zero_ratio_tir = np.count_nonzero(p_tir100 == 0) / p_tir100.size
+            if zero_ratio_rgb > 0.50 or zero_ratio_tir > 0.50:
+                skipped_nodata += 1
+                continue
+            if not np.isfinite(p_rgb100).all() or not np.isfinite(p_tir100).all():
+                skipped_nodata += 1
+                continue
+            if p_tir_b11_100 is not None:
+                zero_ratio_b11 = np.count_nonzero(p_tir_b11_100 <= 0) / p_tir_b11_100.size
+                if zero_ratio_b11 > 0.50 or not np.isfinite(p_tir_b11_100).all():
+                    skipped_nodata += 1
+                    continue
+
             # Save
             patch_dir = region_out / f"sample_{count:03d}"
             patch_dir.mkdir(exist_ok=True)
@@ -225,11 +276,17 @@ def process_region(region_dir: Path, output_dir: Path) -> int:
             np.save(patch_dir / "tir_200m.npy", p_tir200)
             np.save(patch_dir / "tir_100m.npy", p_tir100)
             np.save(patch_dir / "rgb_100m.npy", p_rgb100)
+            if p_tir_b11_200 is not None:
+                np.save(patch_dir / "tir_b11_200m.npy", p_tir_b11_200)
+            if p_tir_b11_100 is not None:
+                np.save(patch_dir / "tir_b11_100m.npy", p_tir_b11_100)
 
             count += 1
 
     if skipped_border > 0:
         logger.info("  %s: skipped %d border patches", region_id, skipped_border)
+    if skipped_nodata > 0:
+        logger.info("  %s: skipped %d NoData/blank patches", region_id, skipped_nodata)
     logger.info("  %s: created %d patches", region_id, count)
 
     return count
@@ -250,6 +307,12 @@ def main() -> None:
         help="Directory containing region folders with rgb.tif and tir.tif",
     )
     parser.add_argument(
+        "--b11_raw_dir",
+        type=str,
+        default=None,
+        help="Directory containing region folders with tir_b11.tif (optional for B10+B11 dataset)",
+    )
+    parser.add_argument(
         "--output_dir",
         type=str,
         default="data/landsat9/patches",
@@ -262,12 +325,19 @@ def main() -> None:
     if not input_dir.is_absolute():
         input_dir = PROJECT_ROOT / input_dir
 
+    b11_raw_dir = Path(args.b11_raw_dir) if args.b11_raw_dir else None
+    if b11_raw_dir and not b11_raw_dir.is_absolute():
+        b11_raw_dir = PROJECT_ROOT / b11_raw_dir
+
     output_dir = Path(args.output_dir)
     if not output_dir.is_absolute():
         output_dir = PROJECT_ROOT / output_dir
 
     if not input_dir.exists():
         logger.error("Input directory not found: %s", input_dir)
+        sys.exit(1)
+    if b11_raw_dir and not b11_raw_dir.exists():
+        logger.error("B11 raw directory not found: %s", b11_raw_dir)
         sys.exit(1)
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -294,7 +364,7 @@ def main() -> None:
 
     for i, region_dir in enumerate(regions, 1):
         try:
-            n = process_region(region_dir, output_dir)
+            n = process_region(region_dir, output_dir, b11_raw_dir=b11_raw_dir)
             if n > 0:
                 total_patches += n
                 processed += 1

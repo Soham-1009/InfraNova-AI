@@ -57,30 +57,55 @@ class InferenceEngine:
         if not self.checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
+        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
+
+        gen_impl = "dynamic"
+        num_scales = 1
+        in_channels = 1
+
+        state = {}
+        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+            state = checkpoint["model_state_dict"]
+        elif isinstance(checkpoint, dict) and "generator_state_dict" in checkpoint:
+            state = checkpoint["generator_state_dict"]
+        elif isinstance(checkpoint, dict):
+            state = checkpoint
+
+        for k, v in state.items():
+            if "global_gen" in k or "local_enhancer" in k or "global_generator" in k:
+                gen_impl = "hd"
+                num_scales = 2
+            if "global_gen.downs.0.block.0.weight" in k or "global_generator.model.0.weight" in k or "down1.model.0.weight" in k or "generator.down1.model.0.weight" in k:
+                in_channels = v.shape[1]
+
+        if isinstance(checkpoint, dict) and "arch_info" in checkpoint:
+            arch_info = checkpoint["arch_info"]
+            gen_impl = arch_info.get("generator_impl", gen_impl)
+            num_scales = arch_info.get("discriminator_scales", num_scales)
+            in_channels = arch_info.get("in_channels", in_channels)
+
+        self.in_channels = in_channels
+
         # Create model on selected device
         model = Pix2Pix(
             device=self.device,
-            generator_impl="dynamic",
-            image_size=self.image_size
+            in_channels=in_channels,
+            out_channels=3,
+            generator_impl=gen_impl,
+            image_size=self.image_size,
+            num_scales=num_scales,
         )
 
-        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
-
-        # Support common checkpoint formats
-        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-            state_dict = checkpoint["model_state_dict"]
-        elif isinstance(checkpoint, dict) and "generator_state_dict" in checkpoint:
-            # Fallback if only generator is saved separately
-            state_dict = checkpoint["generator_state_dict"]
-            model.generator.load_state_dict(state_dict, strict=True)
+        if isinstance(checkpoint, dict) and "generator_state_dict" in checkpoint:
+            clean_gen = {k.replace("module.", ""): v for k, v in checkpoint["generator_state_dict"].items()}
+            model.generator.load_state_dict(clean_gen, strict=True)
             self.model = model.eval()
             return self.model
-        else:
-            # Assume raw model state_dict
-            state_dict = checkpoint
 
-        clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
-        model.load_state_dict(clean_state_dict, strict=True)
+        clean_state_dict = {k.replace(".module.", ".").replace("module.", ""): v for k, v in state.items()}
+        model_dict = model.state_dict()
+        matched = {k: v for k, v in clean_state_dict.items() if k in model_dict and v.shape == model_dict[k].shape}
+        model.load_state_dict(matched, strict=False)
         model.eval()
 
         self.model = model
@@ -153,7 +178,11 @@ class InferenceEngine:
             PIL RGB image.
         """
         model = self.load_model()
-        ir_tensor = preprocess_ir_image(image, image_size=self.image_size).to(self.device)
+        ir_tensor = preprocess_ir_image(
+            image,
+            image_size=self.image_size,
+            target_channels=getattr(self, "in_channels", 2),
+        ).to(self.device)
 
         if not use_tta:
             fake_rgb = model.generate(ir_tensor)

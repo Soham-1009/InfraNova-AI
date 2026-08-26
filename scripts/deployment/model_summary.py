@@ -178,14 +178,14 @@ def main() -> None:
     parser.add_argument(
         "--input-size",
         type=int,
-        default=256,
-        help="Input spatial size (default: 256).",
+        default=128,
+        help="Input spatial size (default: 128).",
     )
     parser.add_argument(
         "--in-channels",
         type=int,
-        default=1,
-        help="Number of input channels (default: 1).",
+        default=2,
+        help="Number of input channels (default: 2 for B10+B11).",
     )
     args = parser.parse_args()
 

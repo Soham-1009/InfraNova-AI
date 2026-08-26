@@ -29,7 +29,7 @@ from demo.utils import visualize_tir_as_thermal
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-CHECKPOINT_PATH = PROJECT_ROOT / "outputs" / "models" / "best" / "pix2pix_landsat_best.pth"
+CHECKPOINT_PATH = PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth"
 IMAGE_SIZE = 128
 
 # ---------------------------------------------------------------------------
@@ -86,30 +86,53 @@ def get_engine() -> InferenceEngine:
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "model_loaded": engine is not None}
+    eng = get_engine()
+    return {
+        "status": "ok",
+        "model_loaded": eng.model is not None,
+        "device": str(eng.device),
+    }
 
 
 @app.post("/colorize")
-async def colorize(file: UploadFile = File(...), tta: bool = False):
+@app.post("/predict")
+async def colorize(
+    file: UploadFile | None = None,
+    band10: UploadFile | None = None,
+    band11: UploadFile | None = None,
+    tta: bool = False,
+):
     """
-    Colorize a thermal IR image.
+    Colorize a thermal IR image or dual-band (Band 10 + Band 11) Landsat 9 observation.
 
-    Accepts: .tif, .tiff, .png, .jpg, .jpeg, .npy
-    Returns: PNG image of the colorized RGB output.
+    Accepts:
+        - file: .tif, .tiff, .png, .jpg, .jpeg, .npy (single or 2-band raster)
+        - band10 + band11: Separate upload of Band 10 and Band 11 .npy / .tif files
+    Returns:
+        PNG image of the colorized RGB output.
     """
-    allowed = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".npy"}
-    suffix = Path(file.filename or "upload.png").suffix.lower()
-    if suffix not in allowed:
-        raise HTTPException(400, f"Unsupported file type: {suffix}. Allowed: {allowed}")
+    if file is None and (band10 is None or band11 is None):
+        raise HTTPException(400, "Must provide either 'file' or both 'band10' and 'band11'")
 
     try:
-        raw_bytes = await file.read()
-
-        if suffix == ".npy":
-            arr = np.load(io.BytesIO(raw_bytes))
-            image_input = arr
+        if band10 is not None and band11 is not None:
+            raw_b10 = await band10.read()
+            raw_b11 = await band11.read()
+            b10_arr = np.load(io.BytesIO(raw_b10)) if (band10.filename or "").endswith(".npy") else np.array(Image.open(io.BytesIO(raw_b10)))
+            b11_arr = np.load(io.BytesIO(raw_b11)) if (band11.filename or "").endswith(".npy") else np.array(Image.open(io.BytesIO(raw_b11)))
+            image_input = (b10_arr, b11_arr)
         else:
-            image_input = Image.open(io.BytesIO(raw_bytes))
+            assert file is not None
+            allowed = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".npy"}
+            suffix = Path(file.filename or "upload.png").suffix.lower()
+            if suffix not in allowed:
+                raise HTTPException(400, f"Unsupported file type: {suffix}. Allowed: {allowed}")
+
+            raw_bytes = await file.read()
+            if suffix == ".npy":
+                image_input = np.load(io.BytesIO(raw_bytes))
+            else:
+                image_input = Image.open(io.BytesIO(raw_bytes))
 
         eng = get_engine()
         start = time.perf_counter()
@@ -126,7 +149,7 @@ async def colorize(file: UploadFile = File(...), tta: bool = False):
             media_type="image/png",
             headers={
                 "X-Inference-Time": f"{elapsed:.3f}",
-                "X-Model": "pix2pix-landsat-epoch226",
+                "X-Model": "pix2pix-landsat-epoch223-frozen",
             },
         )
     except Exception as exc:

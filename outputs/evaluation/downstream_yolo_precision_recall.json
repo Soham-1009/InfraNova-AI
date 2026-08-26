@@ -1,0 +1,34 @@
+{
+  "eval_subset_size": 200,
+  "iou_threshold": 0.25,
+  "thermal_input": {
+    "total_detections": 64,
+    "true_positives": 1,
+    "false_positives": 63,
+    "false_negatives": 34,
+    "precision": 0.015625,
+    "recall": 0.02857142857142857,
+    "f1_score": 0.020202020202020204,
+    "mean_matched_iou": 0.9944462711496871
+  },
+  "frozen_model": {
+    "total_detections": 64,
+    "true_positives": 1,
+    "false_positives": 63,
+    "false_negatives": 34,
+    "precision": 0.015625,
+    "recall": 0.02857142857142857,
+    "f1_score": 0.020202020202020204,
+    "mean_matched_iou": 0.9989135040177239
+  },
+  "epoch_250": {
+    "total_detections": 112,
+    "true_positives": 0,
+    "false_positives": 112,
+    "false_negatives": 35,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1_score": 0.0,
+    "mean_matched_iou": 1.0
+  }
+}

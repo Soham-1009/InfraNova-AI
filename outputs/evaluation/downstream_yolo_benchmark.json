@@ -1,0 +1,42 @@
+{
+  "thermal_input": {
+    "total_detections": 11,
+    "avg_confidence": 0.3702051043510437,
+    "detection_rate_per_patch": 0.11
+  },
+  "ground_truth_rgb": {
+    "total_detections": 1,
+    "avg_confidence": 0.2885102331638336,
+    "detection_rate_per_patch": 0.01
+  },
+  "best_ssim": {
+    "total_detections": 11,
+    "avg_confidence": 0.3480963408946991,
+    "detection_rate_per_patch": 0.11
+  },
+  "best_psnr": {
+    "total_detections": 11,
+    "avg_confidence": 0.3480963408946991,
+    "detection_rate_per_patch": 0.11
+  },
+  "best_lab": {
+    "total_detections": 13,
+    "avg_confidence": 0.33980944752693176,
+    "detection_rate_per_patch": 0.13
+  },
+  "best_sam": {
+    "total_detections": 13,
+    "avg_confidence": 0.33980944752693176,
+    "detection_rate_per_patch": 0.13
+  },
+  "best_sat_ratio": {
+    "total_detections": 10,
+    "avg_confidence": 0.3658382296562195,
+    "detection_rate_per_patch": 0.1
+  },
+  "epoch_250": {
+    "total_detections": 14,
+    "avg_confidence": 0.31922411918640137,
+    "detection_rate_per_patch": 0.14
+  }
+}

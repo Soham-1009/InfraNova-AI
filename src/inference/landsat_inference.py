@@ -71,13 +71,26 @@ class LandsatColorizationInference:
         if not self.checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
+        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
+
+        # Default fallback
+        gen_impl = "hd"
+        num_scales = 2
+        in_channels = 2
+
+        if isinstance(checkpoint, dict) and "arch_info" in checkpoint:
+            arch_info = checkpoint["arch_info"]
+            gen_impl = arch_info.get("generator_impl", "hd")
+            num_scales = int(arch_info.get("discriminator_scales", 2))
+            in_channels = int(arch_info.get("input_channels", arch_info.get("in_channels", 2)))
+
         model = Pix2Pix(
             device=self.device,
-            in_channels=1,
+            in_channels=in_channels,
             out_channels=3,
-            generator_impl="dynamic"
+            generator_impl=gen_impl,
+            num_scales=num_scales,
         )
-        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
 
         if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
             state_dict = checkpoint["model_state_dict"]

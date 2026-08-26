@@ -783,14 +783,101 @@ def process_region(region_id: str, region_info: dict, output_dir: Path, overwrit
     return False, f"No imagery found for {region_info['name']} after {total_attempts} attempts"
 
 
+def process_region_b11(region_id: str, region_info: dict, baseline_dir: Path, output_dir: Path, overwrite: bool = False, verbose: bool = False) -> tuple[bool, str]:
+    """
+    Downloads and validates genuine Landsat 9 Band 11 (tir_b11.tif) for a region,
+    matching the exact baseline scene ID, spatial bounds, CRS, and dimensions.
+    """
+    baseline_tir = baseline_dir / region_id / "tir.tif"
+    dest_dir = output_dir / region_id
+    b11_path = dest_dir / "tir_b11.tif"
+
+    if not baseline_tir.exists():
+        return False, f"Baseline TIR missing for {region_id}"
+
+    with rasterio.open(baseline_tir) as src:
+        target_shape = src.shape  # (height, width)
+        target_crs = src.crs.to_string()
+        bounds = src.bounds
+        w, h = src.width, src.height
+
+    if not overwrite and b11_path.exists():
+        try:
+            with rasterio.open(b11_path) as b11_src:
+                if b11_src.shape == target_shape and b11_src.crs.to_string() == target_crs and b11_src.count == 1:
+                    data = b11_src.read(1)
+                    if np.isfinite(data).any():
+                        return True, f"Skipping {region_id} (already downloaded & valid)"
+        except Exception:
+            pass  # Corrupted, re-download
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    xmin, xmax = min(bounds.left, bounds.right), max(bounds.left, bounds.right)
+    ymin, ymax = min(bounds.bottom, bounds.top), max(bounds.bottom, bounds.top)
+    geom = ee.Geometry.Rectangle([xmin, ymin, xmax, ymax], proj=target_crs, geodesic=False)
+
+    col = (ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+           .filterBounds(geom)
+           .filterDate('2024-01-01', '2024-06-30')
+           .sort('CLOUD_COVER')
+           .sort('system:time_start', False))
+    
+    count = col.size().getInfo()
+    if count == 0:
+        col = (ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+               .filterBounds(geom)
+               .filterDate('2023-01-01', '2024-06-30')
+               .sort('CLOUD_COVER')
+               .sort('system:time_start', False))
+        count = col.size().getInfo()
+        if count == 0:
+            col = (ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
+                   .filterBounds(geom)
+                   .filterDate('2022-01-01', '2024-06-30')
+                   .sort('CLOUD_COVER')
+                   .sort('system:time_start', False))
+
+    img_l2 = col.first()
+    scene_id = img_l2.get('LANDSAT_SCENE_ID').getInfo()
+
+    img_toa = ee.ImageCollection('LANDSAT/LC09/C02/T1_TOA').filter(ee.Filter.eq('LANDSAT_SCENE_ID', scene_id)).first().clip(geom)
+
+    url = img_toa.select(['B11']).getDownloadURL({
+        'crs': target_crs,
+        'region': geom,
+        'dimensions': [w, h],
+        'format': 'GEO_TIFF'
+    })
+
+    download_and_extract(url, dest_dir, "tir_b11.tif")
+
+    # Immediate rigorous validation
+    with rasterio.open(b11_path) as b11_src:
+        if b11_src.count != 1:
+            raise ValueError(f"Expected 1 band, got {b11_src.count}")
+        if b11_src.shape != target_shape:
+            raise ValueError(f"Shape mismatch: {b11_src.shape} vs expected {target_shape}")
+        if b11_src.crs.to_string() != target_crs:
+            raise ValueError(f"CRS mismatch: {b11_src.crs} vs expected {target_crs}")
+        arr = b11_src.read(1)
+        if not np.isfinite(arr).any():
+            raise ValueError("All pixels are non-finite / NaN")
+
+    return True, f"Successfully acquired B11 for {region_id} (Scene: {scene_id})"
+
+
 def worker(task: tuple) -> tuple:
     """Worker function for threading. Handles network retries."""
-    region_id, region_info, output_dir, overwrite, verbose = task
+    region_id, region_info, output_dir, overwrite, verbose, band11_only, baseline_dir = task
 
     for attempt in range(1, 6):  # Max 5 retries for network errors
         try:
-            success, msg = process_region(
-                region_id, region_info, output_dir, overwrite, verbose)
+            if band11_only:
+                success, msg = process_region_b11(
+                    region_id, region_info, baseline_dir, output_dir, overwrite, verbose)
+            else:
+                success, msg = process_region(
+                    region_id, region_info, output_dir, overwrite, verbose)
             return region_id, success, msg, attempt, False
         except NETWORK_ERRORS as e:
             if attempt < 5:
@@ -815,7 +902,11 @@ def main():
         description="Direct Landsat 9 Downloader (Local)")
     parser.add_argument("--output-dir", type=str, default=str(PROJECT_ROOT /
                         "data/landsat9/raw"), help="Output directory")
-    parser.add_argument("--workers", type=int, default=4,
+    parser.add_argument("--baseline-raw-dir", type=str, default=str(PROJECT_ROOT /
+                        "data/landsat9/raw"), help="Baseline raw directory containing tir.tif for scene matching")
+    parser.add_argument("--band11-only", action="store_true",
+                        help="Download only genuine Band 11 (tir_b11.tif) matching existing baseline scenes")
+    parser.add_argument("--workers", type=int, default=8,
                         help="Number of parallel downloads")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing files")
@@ -825,6 +916,7 @@ def main():
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    baseline_dir = Path(args.baseline_raw_dir)
 
     logger = setup_logger(Path("logs/download.log"))
     logger.info("Starting Landsat 9 direct local downloader")
@@ -837,7 +929,7 @@ def main():
         return
 
     # Initialize State
-    state_file = Path("progress.json")
+    state_file = Path("progress_b11.json" if args.band11_only else "progress.json")
     state = {
         "completed": 0,
         "successful_regions": [],
@@ -853,15 +945,15 @@ def main():
                 print(
                     f"Resumed from checkpoint: {state['completed']} completed, {len(state['successful_regions'])} successful")
         except Exception:
-            print("Failed to load progress.json, starting fresh.")
+            print("Failed to load progress file, starting fresh.")
 
     def run_pass(regions_to_run, pass_name):
-        print(f"\\n--- {pass_name} ---")
+        print(f"\n--- {pass_name} ---")
         if not regions_to_run:
             print("No regions to process in this pass.")
             return
 
-        tasks = [(rid, REGIONS[rid], output_dir, args.overwrite, args.verbose)
+        tasks = [(rid, REGIONS[rid], output_dir, args.overwrite, args.verbose, args.band11_only, baseline_dir)
                  for rid in regions_to_run]
         total = len(tasks)
         success_in_pass = 0
@@ -892,7 +984,7 @@ def main():
                                 state["network_errors"].append(region_id)
                             if not args.verbose:
                                 print(
-                                    f"[{i}/{total}] 🌐 Network Error: {REGIONS[region_id]['name']}")
+                                    f"[{i}/{total}] [NET] Network Error: {REGIONS[region_id]['name']} ({msg})")
                         else:
                             if region_id not in state["failed_regions"]:
                                 state["failed_regions"].append(region_id)
@@ -904,7 +996,7 @@ def main():
                         save_progress(state, state_file)
 
         except KeyboardInterrupt:
-            print("\\nInterrupted by user! Saving progress...")
+            print("\nInterrupted by user! Saving progress...")
             save_progress(state, state_file)
             sys.exit(0)
 
@@ -934,7 +1026,7 @@ def main():
         run_pass(pass3_regions, "PASS 3")
 
     # Final Summary
-    print("\\nFINAL")
+    print("\nFINAL")
     print("--------")
     print(f"Successful : {len(state['successful_regions'])}")
     print(f"Failed     : {len(state['failed_regions'])}")
@@ -944,18 +1036,11 @@ def main():
     print(f"Time        : {datetime.timedelta(seconds=int(elapsed))}")
 
     if state["failed_regions"] or state["network_errors"]:
-        print("\\nRemaining unavailable regions:")
+        print("\nRemaining unavailable regions:")
         for r in state["failed_regions"] + state["network_errors"]:
             print(f"- {REGIONS[r]['name']}")
-
-    # Write individual state lists
-    with open("successful_regions.json", "w") as f:
-        json.dump(state["successful_regions"], f)
-    with open("failed_regions.json", "w") as f:
-        json.dump(state["failed_regions"], f)
-    with open("network_errors.json", "w") as f:
-        json.dump(state["network_errors"], f)
 
 
 if __name__ == '__main__':
     main()
+
