@@ -36,8 +36,8 @@ def numpy_to_tensor(array: np.ndarray) -> torch.Tensor:
     if array.ndim == 2:
         channels_first = array[np.newaxis, ...]
     elif array.ndim == 3:
-        first_is_channel = array.shape[0] in (1, 3, 4)
-        last_is_channel = array.shape[-1] in (1, 3, 4)
+        first_is_channel = array.shape[0] in (1, 2, 3, 4)
+        last_is_channel = array.shape[-1] in (1, 2, 3, 4)
         if last_is_channel and not first_is_channel:
             channels_first = np.moveaxis(array, -1, 0)
         elif first_is_channel and not last_is_channel:
@@ -46,18 +46,20 @@ def numpy_to_tensor(array: np.ndarray) -> torch.Tensor:
             channels_first = np.moveaxis(array, -1, 0)
         else:
             raise ValueError(
-                "Expected a channel-first or channel-last image with 1, 3, or 4 channels; "
+                "Expected a channel-first or channel-last image with 1, 2, 3, or 4 channels; "
                 f"received shape {array.shape}."
             )
     elif array.ndim == 4:
-        second_is_channel = array.shape[1] in (1, 3, 4)
-        last_is_channel = array.shape[-1] in (1, 3, 4)
+        second_is_channel = array.shape[1] in (1, 2, 3, 4)
+        last_is_channel = array.shape[-1] in (1, 2, 3, 4)
         if last_is_channel and not second_is_channel:
             channels_first = np.moveaxis(array, -1, 1)
         elif second_is_channel:
             channels_first = array
         else:
-            raise ValueError(f"Expected a BCHW or BHWC batch with 1, 3, or 4 channels; received shape {array.shape}.")
+            raise ValueError(
+                f"Expected a BCHW or BHWC batch with 1, 2, 3, or 4 channels; received shape {array.shape}."
+            )
     else:
         raise ValueError(f"Expected a 2D, 3D, or 4D array, received shape {array.shape}.")
 
@@ -107,12 +109,12 @@ def to_single_band_array(image: ImageInput) -> np.ndarray:
     else:
         raise ValueError(f"Expected a 2D or 3D image array, received shape {arr.shape}.")
 
-    single_band = np.asarray(single_band, dtype=np.float32)
-    finite = np.isfinite(single_band)
-    if not finite.any():
+    single_band = np.asarray(single_band).astype(np.float32)
+    valid = np.isfinite(single_band) & (single_band > -1e10) & (single_band < 1e10)
+    if not valid.any():
         raise ValueError("Input image contains no finite pixel values.")
-    if not finite.all():
-        replacement = float(np.median(single_band[finite]))
-        single_band = np.where(finite, single_band, replacement)
+    if not valid.all():
+        replacement = float(np.median(single_band[valid]))
+        single_band = np.where(valid, single_band, replacement)
 
     return np.ascontiguousarray(single_band)

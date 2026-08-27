@@ -127,25 +127,27 @@ class TiledRasterInference:
         Apply global scene-level percentile stretching and normalization to [-1, 1].
         Returns normalized 2-band float32 array of shape [2, H, W].
         """
-        b10 = band10.astype(np.float32)
-        b11 = band11.astype(np.float32)
+        b10 = to_single_band_array(band10)
+        b11 = to_single_band_array(band11)
 
         # Normalize Band 10
-        lo10 = np.percentile(b10, self.percentile_low)
-        hi10 = np.percentile(b10, self.percentile_high)
+        lo10 = float(np.percentile(b10, self.percentile_low))
+        hi10 = float(np.percentile(b10, self.percentile_high))
+        diff10 = max(hi10 - lo10, 1e-6)
         if hi10 - lo10 < 1e-6:
             norm10 = np.zeros_like(b10, dtype=np.float32)
         else:
-            norm10 = np.clip((b10 - lo10) / (hi10 - lo10), 0.0, 1.0)
+            norm10 = np.clip((b10 - lo10) / diff10, 0.0, 1.0)
         norm10 = norm10 * 2.0 - 1.0
 
         # Normalize Band 11
-        lo11 = np.percentile(b11, self.percentile_low)
-        hi11 = np.percentile(b11, self.percentile_high)
+        lo11 = float(np.percentile(b11, self.percentile_low))
+        hi11 = float(np.percentile(b11, self.percentile_high))
+        diff11 = max(hi11 - lo11, 1e-6)
         if hi11 - lo11 < 1e-6:
             norm11 = np.zeros_like(b11, dtype=np.float32)
         else:
-            norm11 = np.clip((b11 - lo11) / (hi11 - lo11), 0.0, 1.0)
+            norm11 = np.clip((b11 - lo11) / diff11, 0.0, 1.0)
         norm11 = norm11 * 2.0 - 1.0
 
         return np.stack([norm10, norm11], axis=0)  # [2, H, W]

@@ -20,10 +20,16 @@ def _normalize_to_uint8(
     high: float = DEFAULT_PERCENTILE_HIGH,
 ) -> np.ndarray:
     """Percentile-stretch a single-channel array to uint8 for display."""
-    arr = arr.astype(np.float32)
-    lo = np.percentile(arr, low)
-    hi = np.percentile(arr, high)
-    if hi - lo < 1e-6:
+    arr = np.asarray(arr, dtype=np.float32)
+    finite = np.isfinite(arr)
+    if not finite.any():
+        return np.zeros_like(arr, dtype=np.uint8)
+    if not finite.all():
+        med = float(np.median(arr[finite]))
+        arr = np.where(finite, arr, med)
+    lo = float(np.percentile(arr, low))
+    hi = float(np.percentile(arr, high))
+    if not np.isfinite(lo) or not np.isfinite(hi) or (hi - lo < 1e-6):
         return np.zeros_like(arr, dtype=np.uint8)
     arr = np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
     return (arr * 255.0).round().astype(np.uint8)
@@ -52,18 +58,13 @@ def preprocess_ir_image(
     # Case 1: Tuple/List of (Band 10, Band 11)
     if isinstance(image, (tuple, list)) and len(image) == 2:
         b10, b11 = image
-        b10_arr = to_single_band_array(b10)
-        b11_arr = to_single_band_array(b11)
-        bands = [b10_arr, b11_arr]
+        bands = [to_single_band_array(b10), to_single_band_array(b11)]
     elif isinstance(image, np.ndarray) and image.ndim == 3:
         # Channel-first [2, H, W]
         if image.shape[0] == 2:
-            bands = [image[0], image[1]]
+            bands = [to_single_band_array(image[0]), to_single_band_array(image[1])]
         elif image.shape[2] == 2:
-            bands = [image[:, :, 0], image[:, :, 1]]
-        elif image.shape[0] >= 3:
-            arr = to_single_band_array(image)
-            bands = [arr, arr] if target_channels == 2 else [arr]
+            bands = [to_single_band_array(image[:, :, 0]), to_single_band_array(image[:, :, 1])]
         else:
             arr = to_single_band_array(image)
             bands = [arr, arr] if target_channels == 2 else [arr]
@@ -74,13 +75,22 @@ def preprocess_ir_image(
 
     processed_bands = []
     for b in bands[:target_channels]:
-        b_f = np.asarray(b, dtype=np.float32)
-        lo = np.percentile(b_f, DEFAULT_PERCENTILE_LOW)
-        hi = np.percentile(b_f, DEFAULT_PERCENTILE_HIGH)
-        if hi - lo < 1e-6:
+        b_f = np.asarray(b).astype(np.float32)
+        finite = np.isfinite(b_f)
+        if not finite.any():
+            norm_b = np.zeros((target_size, target_size), dtype=np.float32) - 1.0
+            processed_bands.append(norm_b)
+            continue
+        if not finite.all():
+            med = float(np.median(b_f[finite]))
+            b_f = np.where(finite, b_f, med)
+        lo = float(np.percentile(b_f, DEFAULT_PERCENTILE_LOW))
+        hi = float(np.percentile(b_f, DEFAULT_PERCENTILE_HIGH))
+        if not np.isfinite(lo) or not np.isfinite(hi) or (hi - lo < 1e-6):
             norm_b = np.zeros_like(b_f, dtype=np.float32)
         else:
-            norm_b = np.clip((b_f - lo) / (hi - lo), 0.0, 1.0)
+            diff = max(hi - lo, 1e-6)
+            norm_b = np.clip((b_f - lo) / diff, 0.0, 1.0)
         norm_b = cv2.resize(norm_b, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
         norm_b = np.clip(norm_b, 0.0, 1.0)
         norm_b = norm_b.astype(np.float32) * 2.0 - 1.0

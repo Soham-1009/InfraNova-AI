@@ -31,11 +31,15 @@ class InferenceEngine:
 
     def __init__(
         self,
-        checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
+        checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
         device: str | None = None,
         image_size: int = 128,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
+        if not self.checkpoint_path.exists():
+            alt_path = Path("checkpoints/best/pix2pix_landsat_best.pth")
+            if alt_path.exists():
+                self.checkpoint_path = alt_path
         self.image_size = int(image_size)
         if self.image_size < 128 or self.image_size % 128 != 0:
             raise ValueError("image_size must be a multiple of 128 for this generator")

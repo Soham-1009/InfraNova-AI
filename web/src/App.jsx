@@ -3,12 +3,18 @@ import './App.css'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+const PRESETS = [
+  { id: 'accra', name: 'Accra', label: '🌊 Coastal Urban', file: 'accra_thermal.tif' },
+  { id: 'adilabad', name: 'Adilabad', label: '🌲 River Basin', file: 'adilabad_thermal.tif' },
+  { id: 'abuja', name: 'Abuja', label: '🏙️ Urban Plateau', file: 'abuja_thermal.tif' },
+]
+
 function App() {
   const [file, setFile] = useState(null)
   const [inputPreview, setInputPreview] = useState(null)
   const [thermalPreview, setThermalPreview] = useState(null)
   const [outputImage, setOutputImage] = useState(null)
-  const [displayImage, setDisplayImage] = useState(null) // current output (may be post-processed)
+  const [displayImage, setDisplayImage] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
   const [useTTA, setUseTTA] = useState(false)
@@ -17,11 +23,32 @@ function App() {
   const [error, setError] = useState(null)
   const [sliderPos, setSliderPos] = useState(50)
   const [claheApplied, setClaheApplied] = useState(false)
-  const [apiStatus, setApiStatus] = useState('checking') // 'checking' | 'online' | 'offline'
+  const [apiStatus, setApiStatus] = useState('checking')
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const fileInputRef = useRef(null)
   const sliderContainerRef = useRef(null)
   const isDraggingSlider = useRef(false)
+
+  // Track URLs for cleanup
+  const blobUrlsRef = useRef([])
+  const trackBlobUrl = useCallback((url) => {
+    if (url && url.startsWith('blob:')) {
+      blobUrlsRef.current.push(url)
+    }
+    return url
+  }, [])
+
+  const cleanupBlobUrls = useCallback(() => {
+    blobUrlsRef.current.forEach(url => {
+      try { URL.revokeObjectURL(url) } catch { /* ignore */ }
+    })
+    blobUrlsRef.current = []
+  }, [])
+
+  // Cleanup all blob URLs on unmount
+  useEffect(() => {
+    return () => cleanupBlobUrls()
+  }, [cleanupBlobUrls])
 
   // Apply theme to document
   useEffect(() => {
@@ -39,6 +66,7 @@ function App() {
   }, [])
 
   const handleFile = useCallback((selectedFile) => {
+    cleanupBlobUrls()
     setFile(selectedFile)
     setOutputImage(null)
     setDisplayImage(null)
@@ -65,9 +93,29 @@ function App() {
         if (!res.ok) throw new Error('Preview failed')
         return res.blob()
       })
-      .then(blob => setThermalPreview(URL.createObjectURL(blob)))
+      .then(blob => {
+        const url = trackBlobUrl(URL.createObjectURL(blob))
+        setThermalPreview(url)
+      })
       .catch(() => { /* thermal preview is optional */ })
-  }, [])
+  }, [cleanupBlobUrls, trackBlobUrl])
+
+  const loadPreset = async (preset) => {
+    try {
+      setLoading(true)
+      setLoadingMessage(`Loading ${preset.name} preset…`)
+      const res = await fetch(`/samples/${preset.file}`)
+      if (!res.ok) throw new Error(`Could not load ${preset.file}`)
+      const blob = await res.blob()
+      const sampleFile = new File([blob], preset.file, { type: 'image/tiff' })
+      handleFile(sampleFile)
+    } catch (err) {
+      setError(`Failed to load preset: ${err.message}`)
+    } finally {
+      setLoading(false)
+      setLoadingMessage('')
+    }
+  }
 
   const handleDrop = useCallback((e) => {
     e.preventDefault()
@@ -98,7 +146,7 @@ function App() {
     if (!file) return
 
     setLoading(true)
-    setLoadingMessage('Colorizing satellite imagery…')
+    setLoadingMessage('Colorizing satellite imagery with Pix2PixHD…')
     setError(null)
     setClaheApplied(false)
 
@@ -120,7 +168,7 @@ function App() {
       if (time) setInferenceTime(parseFloat(time))
 
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
+      const url = trackBlobUrl(URL.createObjectURL(blob))
       setOutputImage(url)
       setDisplayImage(url)
     } catch (err) {
@@ -138,7 +186,6 @@ function App() {
     setLoadingMessage('Applying CLAHE enhancement…')
 
     try {
-      // Fetch the original output blob
       const originalBlob = await fetch(outputImage).then(r => r.blob())
       const formData = new FormData()
       formData.append('file', originalBlob, 'output.png')
@@ -151,7 +198,8 @@ function App() {
       if (!res.ok) throw new Error('CLAHE failed')
 
       const blob = await res.blob()
-      setDisplayImage(URL.createObjectURL(blob))
+      const url = trackBlobUrl(URL.createObjectURL(blob))
+      setDisplayImage(url)
       setClaheApplied(true)
     } catch (err) {
       setError(`Post-processing failed: ${err.message}`)
@@ -167,6 +215,7 @@ function App() {
   }
 
   const resetAll = () => {
+    cleanupBlobUrls()
     setFile(null)
     setInputPreview(null)
     setThermalPreview(null)
@@ -187,7 +236,7 @@ function App() {
     a.click()
   }
 
-  // --- Slider interaction ---
+  // Slider interaction
   const updateSliderPos = useCallback((clientX) => {
     const container = sliderContainerRef.current
     if (!container) return
@@ -198,30 +247,42 @@ function App() {
   }, [])
 
   const onSliderMouseDown = useCallback((e) => {
-    e.preventDefault()
     isDraggingSlider.current = true
     updateSliderPos(e.clientX)
   }, [updateSliderPos])
 
+  const onSliderTouchStart = useCallback((e) => {
+    if (e.touches && e.touches[0]) {
+      isDraggingSlider.current = true
+      updateSliderPos(e.touches[0].clientX)
+    }
+  }, [updateSliderPos])
+
   useEffect(() => {
-    const onMouseMove = (e) => {
+    const handleMouseMove = (e) => {
       if (isDraggingSlider.current) updateSliderPos(e.clientX)
     }
-    const onMouseUp = () => { isDraggingSlider.current = false }
-    const onTouchMove = (e) => {
-      if (isDraggingSlider.current) updateSliderPos(e.touches[0].clientX)
+    const handleMouseUp = () => {
+      isDraggingSlider.current = false
     }
-    const onTouchEnd = () => { isDraggingSlider.current = false }
+    const handleTouchMove = (e) => {
+      if (isDraggingSlider.current && e.touches && e.touches[0]) {
+        updateSliderPos(e.touches[0].clientX)
+      }
+    }
+    const handleTouchEnd = () => {
+      isDraggingSlider.current = false
+    }
 
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-    window.addEventListener('touchmove', onTouchMove)
-    window.addEventListener('touchend', onTouchEnd)
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('touchmove', handleTouchMove, { passive: true })
+    window.addEventListener('touchend', handleTouchEnd)
     return () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-      window.removeEventListener('touchmove', onTouchMove)
-      window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
     }
   }, [updateSliderPos])
 
@@ -229,11 +290,13 @@ function App() {
 
   return (
     <div className="app-shell">
-      {/* Loading Overlay */}
+      {/* Loading overlay */}
       {loading && (
-        <div className="loader-overlay">
-          <div className="loader-ring" />
-          <p className="loader-text">{loadingMessage}</p>
+        <div className="loading-overlay">
+          <div className="loader-card">
+            <div className="loader-ring" />
+            <p className="loader-text">{loadingMessage || 'Processing…'}</p>
+          </div>
         </div>
       )}
 
@@ -242,7 +305,7 @@ function App() {
         <div className="container navbar__inner">
           <div className="navbar__brand">
             <span className="navbar__title">InfraNova AI</span>
-            <span className="navbar__tag">v1.0</span>
+            <span className="navbar__tag">v2.1</span>
             <span className={`status-dot status-dot--${apiStatus}`} title={`API ${apiStatus}`} />
           </div>
           <ul className="navbar__links">
@@ -259,19 +322,18 @@ function App() {
       {/* Main content */}
       <main className="main-content">
         {!file ? (
-          /* ---- UPLOAD STATE ---- */
+          /* ---- UPLOAD & LANDING STATE ---- */
           <div className="upload-view">
             <div className="hero fade-in-up">
               <div className="hero__badge">
                 <span className="dot" />
-                Pix2Pix · Landsat-9 · Epoch 226
+                Pix2PixHD · Landsat-9 Dual-Band (B10+B11) · Epoch 223 Frozen
               </div>
               <h1 className="hero__title">
                 <span className="gradient-thermal">Thermal</span> to <span className="gradient-rgb">True Color</span>
               </h1>
               <p className="hero__subtitle">
-                Upload a thermal infrared satellite image and watch our AI model
-                generate a photorealistic RGB colorization in seconds.
+                Transform raw thermal infrared satellite rasters into photorealistic optical RGB imagery in real-time.
               </p>
             </div>
 
@@ -300,6 +362,45 @@ function App() {
                 id="file-input"
               />
             </div>
+
+            {/* Presets Section */}
+            <div className="presets-section fade-in-up fade-in-up--delay-3">
+              <span className="presets-label">⚡ Quick Presets:</span>
+              <div className="presets-grid">
+                {PRESETS.map(p => (
+                  <button
+                    key={p.id}
+                    className="preset-btn"
+                    onClick={(e) => { e.stopPropagation(); loadPreset(p); }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Model Architecture & Benchmarks Section */}
+            <section className="architecture-section fade-in-up fade-in-up--delay-4">
+              <h2 className="section-title">Production Model Architecture & Performance</h2>
+              <div className="metrics-grid">
+                <div className="metric-card">
+                  <span className="metric-card__value">11.71 dB</span>
+                  <span className="metric-card__label">Test Peak PSNR</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-card__value">0.235</span>
+                  <span className="metric-card__label">Windowed SSIM</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-card__value">0.219 rad</span>
+                  <span className="metric-card__label">Spectral Angle (SAM)</span>
+                </div>
+                <div className="metric-card">
+                  <span className="metric-card__value">26.91M</span>
+                  <span className="metric-card__label">Total Parameters</span>
+                </div>
+              </div>
+            </section>
           </div>
         ) : (
           /* ---- WORKSPACE STATE ---- */
@@ -365,7 +466,7 @@ function App() {
                   className="slider-container"
                   ref={sliderContainerRef}
                   onMouseDown={onSliderMouseDown}
-                  onTouchStart={(e) => { isDraggingSlider.current = true; updateSliderPos(e.touches[0].clientX) }}
+                  onTouchStart={onSliderTouchStart}
                 >
                   {/* Output (full) */}
                   <img className="slider-img slider-img--output" src={displayImage} alt="Generated RGB" draggable={false} />
@@ -384,7 +485,7 @@ function App() {
                   </div>
 
                   {/* Labels */}
-                  <span className="slider-label slider-label--left">Thermal IR</span>
+                  <span className="slider-label slider-label--left">Thermal IR (B10/B11)</span>
                   <span className="slider-label slider-label--right">
                     RGB Output{claheApplied ? ' + CLAHE' : ''}
                   </span>
@@ -394,13 +495,13 @@ function App() {
                 <div className="single-preview">
                   <img className="single-preview__img" src={thermalSrc} alt="Thermal preview" />
                   <span className="single-preview__label">Thermal IR Preview</span>
-                  <p className="single-preview__hint">Click <strong>✨ Colorize</strong> to generate RGB output</p>
+                  <p className="single-preview__hint">Click <strong>✨ Colorize</strong> to synthesize optical RGB</p>
                 </div>
               ) : (
                 /* Loading preview placeholder */
                 <div className="single-preview single-preview--loading">
                   <div className="loader-ring loader-ring--small" />
-                  <p className="single-preview__hint">Loading thermal preview…</p>
+                  <p className="single-preview__hint">Generating thermal preview…</p>
                 </div>
               )}
             </div>
@@ -409,8 +510,8 @@ function App() {
             {displayImage && (
               <div className="stats-bar fade-in-up">
                 <div className="stat-pill"><span className="stat-pill__label">Resolution</span><span className="stat-pill__value">128×128</span></div>
-                <div className="stat-pill"><span className="stat-pill__label">Inference</span><span className="stat-pill__value">{inferenceTime ? `${inferenceTime.toFixed(2)}s` : '—'}</span></div>
-                <div className="stat-pill"><span className="stat-pill__label">Model</span><span className="stat-pill__value">Epoch 226</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">Inference</span><span className="stat-pill__value">{inferenceTime ? `${inferenceTime.toFixed(3)}s` : '—'}</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">Architecture</span><span className="stat-pill__value">Pix2PixHD</span></div>
                 <div className="stat-pill"><span className="stat-pill__label">TTA</span><span className="stat-pill__value">{useTTA ? 'On' : 'Off'}</span></div>
                 <div className="stat-pill"><span className="stat-pill__label">CLAHE</span><span className="stat-pill__value">{claheApplied ? 'On' : 'Off'}</span></div>
               </div>
@@ -419,8 +520,17 @@ function App() {
         )}
       </main>
 
-
-
+      {/* Footer */}
+      <footer className="footer">
+        <div className="container footer__inner">
+          <p>© 2026 InfraNova AI · Thermal to RGB Colorization · Landsat 9 Pix2PixHD</p>
+          <div className="footer__links">
+            <a href="https://github.com/Soham-1009/InfraNova-AI" target="_blank" rel="noreferrer">GitHub</a>
+            <span className="footer__divider">·</span>
+            <a href="/docs" target="_blank" rel="noreferrer">REST API</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -117,6 +117,8 @@ async def colorize(
         if band10 is not None and band11 is not None:
             raw_b10 = await band10.read()
             raw_b11 = await band11.read()
+            if len(raw_b10) == 0 or len(raw_b11) == 0:
+                raise HTTPException(400, "Uploaded band10 or band11 file is empty (0 bytes).")
             b10_arr = (
                 np.load(io.BytesIO(raw_b10))
                 if (band10.filename or "").endswith(".npy")
@@ -136,6 +138,9 @@ async def colorize(
                 raise HTTPException(400, f"Unsupported file type: {suffix}. Allowed: {allowed}")
 
             raw_bytes = await file.read()
+            if len(raw_bytes) == 0:
+                raise HTTPException(400, "Uploaded file is empty (0 bytes).")
+
             if suffix == ".npy":
                 image_input = np.load(io.BytesIO(raw_bytes))
             else:
@@ -159,6 +164,10 @@ async def colorize(
                 "X-Model": "pix2pix-landsat-epoch223-frozen",
             },
         )
+    except HTTPException:
+        raise
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:
         raise HTTPException(500, f"Inference failed: {exc}") from exc
 
@@ -177,6 +186,8 @@ async def thermal_preview(file: UploadFile = File(...)):
 
     try:
         raw_bytes = await file.read()
+        if len(raw_bytes) == 0:
+            raise HTTPException(400, "Uploaded file is empty (0 bytes).")
 
         if suffix == ".npy":
             arr = np.load(io.BytesIO(raw_bytes))
@@ -191,6 +202,10 @@ async def thermal_preview(file: UploadFile = File(...)):
         buf.seek(0)
 
         return StreamingResponse(buf, media_type="image/png")
+    except HTTPException:
+        raise
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:
         raise HTTPException(500, f"Preview failed: {exc}") from exc
 
@@ -213,6 +228,9 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
         import cv2
 
         raw_bytes = await file.read()
+        if len(raw_bytes) == 0:
+            raise HTTPException(400, "Uploaded file is empty (0 bytes).")
+
         arr = np.array(Image.open(io.BytesIO(raw_bytes)).convert("RGB"))
 
         # Convert to LAB, apply CLAHE to L channel, convert back
@@ -227,6 +245,10 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
         buf.seek(0)
 
         return StreamingResponse(buf, media_type="image/png")
+    except HTTPException:
+        raise
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:
         raise HTTPException(500, f"CLAHE failed: {exc}") from exc
 
