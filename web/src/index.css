@@ -719,17 +719,34 @@ img {
 }
 
 /* ================================================================
+   Viewport (image display area)
+   ================================================================ */
+.viewport {
+  flex: 1;
+  min-height: 400px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+/* ================================================================
    Interactive Comparison Slider
    ================================================================ */
 .slider-container {
   position: relative;
   width: 100%;
   height: 100%;
+  min-height: 400px;
   cursor: ew-resize;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .slider-img {
@@ -747,20 +764,8 @@ img {
   z-index: 1;
 }
 
-.slider-clip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  overflow: hidden;
+.slider-img--input {
   z-index: 2;
-}
-
-.slider-clip .slider-img--input {
-  width: 100cqw;
-  height: 100cqh;
-  max-width: none;
-  max-height: none;
 }
 
 .slider-divider {

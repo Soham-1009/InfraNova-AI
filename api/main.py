@@ -53,6 +53,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Inference-Time", "X-Model"],
 )
 
 if FRONTEND_DIR.is_dir():

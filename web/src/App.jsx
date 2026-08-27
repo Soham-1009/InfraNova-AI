@@ -468,13 +468,17 @@ function App() {
                   onMouseDown={onSliderMouseDown}
                   onTouchStart={onSliderTouchStart}
                 >
-                  {/* Output (full) */}
+                  {/* Output RGB (full bottom image) */}
                   <img className="slider-img slider-img--output" src={displayImage} alt="Generated RGB" draggable={false} />
 
-                  {/* Thermal (clipped) */}
-                  <div className="slider-clip" style={{ width: `${sliderPos}%` }}>
-                    <img className="slider-img slider-img--input" src={thermalSrc} alt="Thermal input" draggable={false} />
-                  </div>
+                  {/* Thermal input (top image clipped at sliderPos) */}
+                  <img
+                    className="slider-img slider-img--input"
+                    src={thermalSrc}
+                    alt="Thermal input"
+                    style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                    draggable={false}
+                  />
 
                   {/* Divider line */}
                   <div className="slider-divider" style={{ left: `${sliderPos}%` }}>
