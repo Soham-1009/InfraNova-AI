@@ -1,0 +1,126 @@
+# Experiment 5 — lambda_sat introduced (Lab-chroma-magnitude loss)
+# Single-variable change vs. the validated Experiment 2 resolved configuration.
+#
+# Source of truth: outputs/exp2/logs/env_record.json (config_resolved block)
+# Exp2 config SHA-256: 6969136a8fcba54f7f66e58bcadc92adb2ab2f5be2eead5c8c5e43e5b9139831
+# Exp2 resolved: lambda_sat was undefined (the term was not yet introduced).
+# Exp5 scientific change: NEW TERM lambda_sat = 0.05 (Lab-chroma-magnitude loss)
+#
+# Exp2 (not Exp1) is the strongest validated baseline. Exp1 had
+# lambda_feat=5.0 (the test in which feature-matching was first enabled);
+# Exp2 turned it off (lambda_feat=0.0) and showed no measurable
+# structural regression. The production winner at outputs/best/ is the
+# Exp2-resolved configuration promoted to the production slot.
+#
+# Rationale (from the Exp1/2/3/1-long/4 adjudication):
+#   All five prior experiments showed persistent color-saturation
+#   under-recovery (val_sat_ratio near 0.6-0.8 vs target 1.0; the
+#   protected production winner's test-set sat_ratio is 1.10, and the
+#   long-run val_sat_ratio drifted to 0.60). The existing `ChromaLoss`
+#   uses per-pixel RGB std — a magnitude metric that conflates color
+#   intensity with color spread. Doubling it (Exp3, lambda_chroma=4)
+#   did not solve the problem.
+#
+#   Exp5 introduces a NEW term: `lambda_sat` weighting a perceptual
+#   saturation loss that measures per-pixel Lab chroma magnitude
+#   sqrt(a**2 + b**2) between generated and target images. This is
+#   distinct from lambda_chroma in two ways:
+#     1. Operates in Lab (perceptually uniform), not RGB.
+#     2. Measures color magnitude (Euclidean distance from the
+#        neutral L-axis) rather than RGB channel spread.
+#   It is a MAGNITUDE loss, not an angle loss — it does not try to
+#   match hue, only colorfulness.
+#
+#   lambda_sat = 0.05 (per the post-design scale audit). A naive weight of
+#   2.0 made the new term dominate the total loss (sat raw mean ~22.87 vs
+#   chroma raw mean ~0.096, a 237x raw ratio; sat contributed 61.83% of
+#   total). The chosen 0.05 gives a contribution of ~1.1 (~1.5% of total),
+#   which is a small perturbation that preserves the existing training
+#   dynamics established by the prior 5 experiments.
+#
+# Baseline checkpoint SHA-256 (LAPTOP, not modified here):
+#   4604d36d07a0fb4c0696a53040c17004084068c51cc745a23f69b76c8baf6aa8
+#
+# All other settings identical to the Exp2 RESOLVED config.
+# All output paths are redirected under outputs/exp5/ so Exp1/2/3/long/final artifacts
+# are never touched.
+
+project:
+  name: "InfraNova-AI-Exp5-LambdaSat2"
+  task: "colorization"
+  modality: "landsat9_b10_b11_to_rgb"
+  seed: 42
+
+dataset:
+  name: "landsat9_b10_b11"
+  root_dir: "data/landsat9_b10_b11/splits"
+  image_size: 128
+  input_channels: 2
+  output_channels: 3
+  num_workers: 2
+  normalization:
+    mode: "local"
+    stats_file: null
+  subset_ratio: null
+  subset_seed: 42
+
+model:
+  generator:
+    implementation: "hd"
+  multi_scale_disc: true
+  num_scales: 2
+
+training:
+  epochs: 100
+  batch_size: 64
+  decay_start_epoch: 50
+  patience: 25
+  amp: false
+  grad_clip: 1.0
+  sample_every: 1
+  resume_from: null
+  optimizer:
+    lr: 0.0002
+    beta1: 0.5
+    beta2: 0.999
+
+scheduler:
+  type: "linear"
+  T_0: 50
+  T_mult: 2
+  eta_min: 0.000001
+
+loss:
+  lambda_adv: 1.0
+  lambda_l1: 10.0
+  lambda_perc: 5.0
+  lambda_ssim: 5.0
+  lambda_chroma: 2.0
+  lambda_sat: 0.05 # NEW TERM: Lab chroma magnitude (perceptual saturation)
+  lambda_feat: 0.0
+  gan_mode: "bce"
+
+augmentation:
+  enabled: true
+  flip_prob: 0.5
+
+logging:
+  use_wandb: false
+  csv_path: "outputs/exp5/logs/training.csv"
+  tensorboard_dir: "outputs/exp5/logs/tensorboard"
+
+evaluation:
+  image_size: 128
+  percentile_low: 2.0
+  percentile_high: 98.0
+  tta: true
+  save_format: "tiff"
+
+paths:
+  checkpoints: "outputs/exp5"
+  best_checkpoint: "outputs/exp5/best/pix2pix_landsat_best.pth"
+  latest_checkpoint: "outputs/exp5/latest/pix2pix_landsat_latest.pth"
+  final_checkpoint: "outputs/exp5/final/pix2pix_landsat_final.pth"
+  logs: "outputs/exp5/logs"
+  outputs: "outputs/exp5"
+  visualizations: "outputs/exp5/visualizations"

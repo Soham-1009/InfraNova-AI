@@ -82,6 +82,7 @@ class InferenceEngine:
                 or "global_generator.model.0.weight" in k
                 or "down1.model.0.weight" in k
                 or "generator.down1.model.0.weight" in k
+                or "generator.model.1.weight" in k
             ):
                 in_channels = v.shape[1]
 
@@ -89,7 +90,7 @@ class InferenceEngine:
             arch_info = checkpoint["arch_info"]
             gen_impl = arch_info.get("generator_impl", gen_impl)
             num_scales = arch_info.get("discriminator_scales", num_scales)
-            in_channels = arch_info.get("in_channels", in_channels)
+            in_channels = arch_info.get("input_channels", arch_info.get("in_channels", in_channels))
 
         self.in_channels = in_channels
 
@@ -243,7 +244,8 @@ class InferenceEngine:
             return []
 
         model = self.load_model()
-        tensors = [preprocess_ir_image(img, image_size=self.image_size) for img in images]
+        target_ch = getattr(self, "in_channels", 2)
+        tensors = [preprocess_ir_image(img, image_size=self.image_size, target_channels=target_ch) for img in images]
         batch_tensor = torch.cat(tensors, dim=0).to(self.device)
 
         if not use_tta:

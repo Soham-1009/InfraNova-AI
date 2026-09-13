@@ -44,7 +44,8 @@ class TrainingLogger:
                 import wandb
 
                 self._wandb = wandb
-                wandb.init(project=project_name, name="pix2pix-training", reinit=True)
+                wandb.init(project=project_name,
+                           name="pix2pix-training", reinit=True)
             except Exception:
                 self._wandb = None
                 self.use_wandb = False
@@ -82,9 +83,11 @@ class TrainingLogger:
         if not self.rows:
             return
 
-        fieldnames = list(dict.fromkeys(key for row in self.rows for key in row))
+        fieldnames = list(dict.fromkeys(
+            key for row in self.rows for key in row))
         with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer = csv.DictWriter(
+                f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(self.rows)
 
@@ -104,7 +107,8 @@ class TrainingLogger:
         info: dict[str, Any] = {}
         if self.experiment_path.exists():
             with suppress(Exception):
-                info = json.loads(self.experiment_path.read_text(encoding="utf-8"))
+                info = json.loads(
+                    self.experiment_path.read_text(encoding="utf-8"))
 
         if phase == "start":
             info["timestamp_start"] = datetime.now(UTC).isoformat()
@@ -135,16 +139,20 @@ class TrainingLogger:
             info["timestamp_end"] = datetime.now(UTC).isoformat()
 
             if self.rows:
-                val_ssim_values = [(r.get("epoch", 0), r.get("val_ssim", 0.0)) for r in self.rows if "val_ssim" in r]
-                val_psnr_values = [(r.get("epoch", 0), r.get("val_psnr", 0.0)) for r in self.rows if "val_psnr" in r]
+                val_ssim_values = [(r.get("epoch", 0), r.get("val_ssim", 0.0))
+                                   for r in self.rows if "val_ssim" in r]
+                val_psnr_values = [(r.get("epoch", 0), r.get("val_psnr", 0.0))
+                                   for r in self.rows if "val_psnr" in r]
 
                 if val_ssim_values:
-                    best_ssim_epoch, best_ssim = max(val_ssim_values, key=lambda x: x[1])
+                    best_ssim_epoch, best_ssim = max(
+                        val_ssim_values, key=lambda x: x[1])
                     info["best_ssim"] = best_ssim
                     info["best_ssim_epoch"] = best_ssim_epoch
 
                 if val_psnr_values:
-                    best_psnr_epoch, best_psnr = max(val_psnr_values, key=lambda x: x[1])
+                    best_psnr_epoch, best_psnr = max(
+                        val_psnr_values, key=lambda x: x[1])
                     info["best_psnr"] = best_psnr
                     info["best_psnr_epoch"] = best_psnr_epoch
 
@@ -170,7 +178,8 @@ class TrainingLogger:
         hp = info.get("hyperparameters", {})
         loss_cfg = hp.get("loss", hp.get("training", {}).get("loss", {}))
         norm_cfg = hp.get("dataset", {}).get("normalization", {})
-        sched_cfg = hp.get("scheduler", hp.get("training", {}).get("scheduler", {}))
+        sched_cfg = hp.get("scheduler", hp.get(
+            "training", {}).get("scheduler", {}))
 
         row = {
             "timestamp": info.get("timestamp_end", ""),
@@ -230,7 +239,8 @@ class TrainingLogger:
             if key not in all_keys:
                 continue
             values = [row.get(key) for row in self.rows]
-            plot_epochs = [e for e, v in zip(epochs, values, strict=False) if v is not None]
+            plot_epochs = [e for e, v in zip(
+                epochs, values, strict=False) if v is not None]
             plot_values = [v for v in values if v is not None]
             if plot_values:
                 plt.plot(plot_epochs, plot_values, label=key)
@@ -291,10 +301,12 @@ class TrainingLogger:
             plt.figure(figsize=(10, 5))
             for key in available:
                 values = [row.get(key) for row in self.rows]
-                plot_epochs = [e for e, v in zip(epochs, values, strict=False) if v is not None]
+                plot_epochs = [e for e, v in zip(
+                    epochs, values, strict=False) if v is not None]
                 plot_values = [v for v in values if v is not None]
                 if plot_values:
-                    plt.plot(plot_epochs, plot_values, label=key, linewidth=1.5)
+                    plt.plot(plot_epochs, plot_values,
+                             label=key, linewidth=1.5)
 
             plt.xlabel("Epoch")
             plt.ylabel(spec["ylabel"])

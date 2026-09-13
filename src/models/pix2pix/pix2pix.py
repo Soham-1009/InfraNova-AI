@@ -4,18 +4,19 @@ import torch
 import torch.nn as nn
 
 from .discriminator import MultiScaleDiscriminator, PatchDiscriminator
-from .generator_hd import Pix2PixHDGenerator
+from .generator_hd import Pix2PixHDGenerator, Pix2PixHDGlobalResNetGenerator
 
 
 class Pix2Pix(nn.Module):
     """
     Pix2PixHD wrapper module for InfraNova AI.
 
-    Coordinates the dual-band (Band 10 + Band 11) Pix2PixHDGenerator with
-    the multi-scale PatchGAN discriminator (MultiScaleDiscriminator).
+    Coordinates the dual-band (Band 10 + Band 11) Generator (Pix2PixHDGenerator or
+    Pix2PixHDGlobalResNetGenerator) with the multi-scale PatchGAN discriminator
+    (MultiScaleDiscriminator).
 
     Exposes:
-        - generator (Pix2PixHDGenerator)
+        - generator (Pix2PixHDGenerator or Pix2PixHDGlobalResNetGenerator)
         - discriminator (MultiScaleDiscriminator or PatchDiscriminator)
         - generate(ir)
         - discriminate(ir, rgb, return_features=False)
@@ -35,19 +36,32 @@ class Pix2Pix(nn.Module):
         super().__init__()
 
         self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
-        self.generator_impl = generator_impl
+        self.generator_impl = str(generator_impl).lower()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.image_size = image_size
         self.num_scales = num_scales
         self.multi_scale = multi_scale or (num_scales > 1)
 
-        # Primary Pix2PixHD Generator
-        self.generator = Pix2PixHDGenerator(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            image_size=image_size,
-        )
+        # Primary Generator selection
+        if self.generator_impl in ("resnet", "global_resnet", "hd_resnet"):
+            self.generator = Pix2PixHDGlobalResNetGenerator(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                ngf=64,
+                n_downsampling=2,
+                n_blocks=9,
+            )
+        elif self.generator_impl == "hd":
+            self.generator = Pix2PixHDGenerator(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                image_size=image_size,
+            )
+        else:
+            raise ValueError(
+                f"Unknown generator implementation: '{generator_impl}'. Choose 'hd' or 'resnet'."
+            )
 
         disc_in_channels = in_channels + out_channels
         if self.multi_scale:

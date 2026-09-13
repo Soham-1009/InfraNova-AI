@@ -74,7 +74,40 @@ InfraNova AI employs a **multi-scale conditional Generative Adversarial Network*
 
 ---
 
-## 3. Discriminator Specification (`MultiScaleDiscriminator`)
+## 3. Global ResNet Generator Specification (`Pix2PixHDGlobalResNetGenerator` — Exp9)
+
+**File**: [`src/models/pix2pix/generator_hd.py`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/src/models/pix2pix/generator_hd.py)  
+**Total Parameters**: **11,369,795** (11.37M — 46.83% parameter reduction vs. `Pix2PixHDGenerator`)  
+**Input Shape**: `[B, 2, 128, 128]`  
+**Output Shape**: `[B, 3, 128, 128]` (Range $[-1, 1]$ via Tanh)  
+
+### 3.1. Architectural Design & Inductive Bias
+Inspired by the Johnson et al. / Pix2PixHD Global Generator, this network trades multi-scale U-Net branches for a streamlined, deep residual pipeline operating at constant feature resolution:
+
+1. **Initial Processing Layer**:
+   - `ReflectionPad2d(3)` $\to$ `Conv2d(2, 64, kernel=7, padding=0, bias=False)` $\to$ `InstanceNorm2d(64)` $\to$ `ReLU(inplace=True)`
+   - Spatial dimension: $[B, 64, 128, 128]$.
+2. **Strided Downsampling (2 Stages)**:
+   - Down 1: `Conv2d(64, 128, kernel=3, stride=2, padding=1, bias=False)` $\to$ `InstanceNorm2d(128)` $\to$ `ReLU` $\to [B, 128, 64, 64]$
+   - Down 2: `Conv2d(128, 256, kernel=3, stride=2, padding=1, bias=False)` $\to$ `InstanceNorm2d(256)` $\to$ `ReLU` $\to [B, 256, 32, 32]$
+3. **Deep Residual Engine (9 ResnetBlocks)**:
+   - Exactly **9 residual blocks** operating at constant feature dimension $[B, 256, 32, 32]$.
+   - Each `ResnetBlock`:
+     $$\mathbf{x} + \text{InstanceNorm}\left(\text{Conv}_{3\times 3}\left(\text{Pad}\left(\text{ReLU}\left(\text{InstanceNorm}\left(\text{Conv}_{3\times 3}\left(\text{Pad}(\mathbf{x})\right)\right)\right)\right)\right)\right)$$
+   - Uses reflection padding (`ReflectionPad2d(1)`) to eliminate boundary gradient distortions.
+4. **Transposed Convolution Upsampling (2 Stages)**:
+   - Up 1: `ConvTranspose2d(256, 128, kernel=3, stride=2, padding=1, output_padding=1, bias=False)` $\to$ `InstanceNorm2d(128)` $\to$ `ReLU` $\to [B, 128, 64, 64]$
+   - Up 2: `ConvTranspose2d(128, 64, kernel=3, stride=2, padding=1, output_padding=1, bias=False)` $\to$ `InstanceNorm2d(64)` $\to$ `ReLU` $\to [B, 64, 128, 128]$
+5. **Final Output Layer**:
+   - `ReflectionPad2d(3)` $\to$ `Conv2d(64, 3, kernel=7, padding=0)` $\to$ `Tanh()` $\to [B, 3, 128, 128]$.
+
+### 3.2. Performance & Efficiency Advantages
+- **No Skip-Connection Contamination**: Thermal features are translated into semantic representations rather than directly copied across long skip connections, eliminating high-frequency noise and magenta chromatic artifacts.
+- **Superior Generalization**: Achieves **0.4502 SSIM** (+38.3% over Production) and **13.745 dB PSNR** (+2.03 dB over Production) on 1,259 test samples.
+
+---
+
+## 4. Discriminator Specification (`MultiScaleDiscriminator`)
 
 **File**: [`src/models/pix2pix/discriminator.py`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/src/models/pix2pix/discriminator.py)  
 **Total Parameters**: **5,532,418** (5.53M across 2 scales)  

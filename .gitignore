@@ -60,8 +60,13 @@ Thumbs.db
 
 # Local maintenance archives
 archive/
+scratch/
 
 # Pipeline state
 quarantine_log.txt
 
+# Internal project documentation
 docs/project/
+
+# Outputs
+outputs/

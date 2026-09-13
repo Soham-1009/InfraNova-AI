@@ -10,8 +10,8 @@
 
 InfraNova AI is structured into four decoupled subsystems:
 1. **Data Ingestion & Preprocessing Subsystem**: Downloads Earth Engine imagery, resamples, filters invalid/blank pixels, and generates geographic spatial splits.
-2. **Model Training & Optimization Subsystem**: Multi-loss optimization on dual GPUs using `DataParallel`, linear learning rate decay, and memory-safe checkpointing.
-3. **Inference & Serving Subsystem**: Standalone production inference engine with TTA, confidence estimation, and 3-band GIS GeoTIFF export.
+2. **Model Training & Optimization Subsystem**: Multi-loss optimization on dual GPUs using `DataParallel`, linear learning rate decay, early stopping patience, and dual generator support (`hd` and `resnet`).
+3. **Inference & Serving Subsystem**: Standalone production inference engine with TTA, confidence estimation, auto-detecting model architecture (`hd` or `resnet`), and 3-band GIS GeoTIFF export.
 4. **Application & Web Subsystem**: FastAPI REST backend serving a containerized React + Vite frontend.
 
 ```
@@ -29,9 +29,11 @@ InfraNova AI is structured into four decoupled subsystems:
 |                                             |                                      |
 |                                             v                                      |
 |                                    Trainer (Dual T4 GPU DataParallel)              |
+|                                    ├── Pix2PixHDGenerator (Prod, 21.38M)           |
+|                                    └── GlobalResNetGenerator (Exp9, 11.37M)        |
 |                                             |                                      |
 |                                             v                                      |
-|                                    outputs/final/ (checkpoints & logs)             |
+|                                    outputs/ (checkpoints & logs)                   |
 +------------------------------------------------------------------------------------+
                                               |
                                               v
@@ -39,7 +41,7 @@ InfraNova AI is structured into four decoupled subsystems:
 |                               SERVING & APPLICATION SUBSYSTEM                      |
 |                                                                                    |
 |                       FastAPI REST Backend (api/main.py :8000)                     |
-|                         ├── POST /colorize                                         |
+|                         ├── POST /colorize (supports ?tta=true)                    |
 |                         ├── POST /thermal-preview                                  |
 |                         ├── POST /postprocess/clahe                                |
 |                         └── GET  /health                                           |
@@ -58,12 +60,13 @@ InfraNova AI is structured into four decoupled subsystems:
 
 ## 2. Component Interoperability & Contracts
 
-### 2.1. Checkpoint Compatibility
+### 2.1. Checkpoint & Architecture Compatibility
 - When training under `nn.DataParallel`, PyTorch prefixes all module keys with `.module.`.
 - `src/utils/checkpoint.py`, `demo/inference.py`, and `src/inference/landsat_inference.py` strip this prefix dynamically upon loading:
   ```python
   clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
   ```
+- **Auto-Detection**: The inference engine detects whether a `.pth` checkpoint was trained with `Pix2PixHDGenerator` (checks for `downsample_local`) or `Pix2PixHDGlobalResNetGenerator` (checks for `res_blocks`), instantiating the appropriate architecture seamlessly.
 
 ### 2.2. Production Containerization (`Dockerfile`)
 - **Stage 1 (`frontend-build`)**: Installs Node.js dependencies and executes `npm run build` to generate optimized production assets in `/web/dist`.

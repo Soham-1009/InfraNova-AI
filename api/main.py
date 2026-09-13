@@ -162,7 +162,7 @@ async def colorize(
             media_type="image/png",
             headers={
                 "X-Inference-Time": f"{elapsed:.3f}",
-                "X-Model": "pix2pix-landsat-epoch223-frozen",
+                "X-Model": "pix2pix-landsat-exp9-resnet",
             },
         )
     except HTTPException:

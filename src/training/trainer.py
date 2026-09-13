@@ -40,7 +40,8 @@ class Trainer:
         self.val_loader = val_loader
         self.config = config
 
-        self.device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
+        self.device = torch.device(config.get(
+            "device", "cuda" if torch.cuda.is_available() else "cpu"))
         self.model.to(self.device)
 
         training_cfg = config.get("training", {})
@@ -59,8 +60,10 @@ class Trainer:
         loss_cfg = config.get("loss", training_cfg.get("loss", {}))
         self.use_feature_matching = float(loss_cfg.get("lambda_feat", 0.0)) > 0
 
-        self.checkpoint_dir = Path(config.get("paths", {}).get("checkpoints", "checkpoints"))
-        self.visual_dir = Path(config.get("paths", {}).get("outputs", "outputs")) / "visualizations"
+        self.checkpoint_dir = Path(config.get(
+            "paths", {}).get("checkpoints", "checkpoints"))
+        self.visual_dir = Path(config.get("paths", {}).get(
+            "outputs", "outputs")) / "visualizations"
         self.log_dir = Path(config.get("paths", {}).get("logs", "logs"))
 
         self.visual_dir.mkdir(parents=True, exist_ok=True)
@@ -81,11 +84,13 @@ class Trainer:
             betas=(self.beta1, self.beta2),
         )
 
-        # Wrap with DataParallel AFTER optimizer creation
+        # DataParallel DISABLED — after 3 consecutive kernel failures (V12/V13/V14)
+        # with cudaErrorMisalignedAddress, DataParallel's threaded scatter/gather
+        # is confirmed incompatible with the Kaggle T4 x2 runtime. Single-GPU
+        # training on cuda:0 (16 GB) is sufficient for batch_size=64 @ 128x128.
         if self.device.type == "cuda" and torch.cuda.device_count() > 1:
-            print(f"Using {torch.cuda.device_count()} GPUs for training!")
-            self.model.generator = torch.nn.DataParallel(self.model.generator)
-            self.model.discriminator = torch.nn.DataParallel(self.model.discriminator)
+            print(
+                f"[trainer] {torch.cuda.device_count()} GPUs detected, using single GPU (cuda:0) — DataParallel disabled for stability.")
 
         self.criterion = CombinedLoss(
             lambda_adv=float(loss_cfg.get("lambda_adv", 1.0)),
@@ -93,17 +98,20 @@ class Trainer:
             lambda_perc=float(loss_cfg.get("lambda_perc", 10.0)),
             lambda_ssim=float(loss_cfg.get("lambda_ssim", 5.0)),
             lambda_chroma=float(loss_cfg.get("lambda_chroma", 0.0)),
+            lambda_sat=float(loss_cfg.get("lambda_sat", 0.0)),
             lambda_feat=float(loss_cfg.get("lambda_feat", 0.0)),
             gan_mode=str(loss_cfg.get("gan_mode", "bce")),
         ).to(self.device)
 
-        amp_enabled = bool(training_cfg.get("amp", True)) and self.device.type == "cuda"
+        amp_enabled = bool(training_cfg.get("amp", True)
+                           ) and self.device.type == "cuda"
         self.scaler = GradScaler(self.device.type, enabled=amp_enabled)
 
         self.logger = TrainingLogger(
             log_dir=str(self.log_dir),
             use_wandb=bool(config.get("logging", {}).get("use_wandb", False)),
-            project_name=config.get("logging", {}).get("project_name", "InfraNova-AI"),
+            project_name=config.get("logging", {}).get(
+                "project_name", "InfraNova-AI"),
         )
 
         self.checkpoint = ModelCheckpoint(
@@ -138,6 +146,7 @@ class Trainer:
             "perc": [],
             "ssim": [],
             "chroma": [],
+            "sat": [],
             "feat": [],
             "val_psnr": [],
             "val_ssim": [],
@@ -168,7 +177,8 @@ class Trainer:
 
         sigma_x = ((fake - mu_x) ** 2).mean(dim=(2, 3), keepdim=True)
         sigma_y = ((real - mu_y) ** 2).mean(dim=(2, 3), keepdim=True)
-        sigma_xy = ((fake - mu_x) * (real - mu_y)).mean(dim=(2, 3), keepdim=True)
+        sigma_xy = ((fake - mu_x) * (real - mu_y)
+                    ).mean(dim=(2, 3), keepdim=True)
 
         ssim = ((2 * mu_x * mu_y + c1) * (2 * sigma_xy + c2)) / (
             (mu_x.pow(2) + mu_y.pow(2) + c1) * (sigma_x + sigma_y + c2)
@@ -188,7 +198,8 @@ class Trainer:
         """
         Run discriminator and return final predictions (+ optional features).
         """
-        result = self.model.discriminate(ir, rgb, return_features=return_features)
+        result = self.model.discriminate(
+            ir, rgb, return_features=return_features)
 
         if self.use_multi_scale:
             if return_features:
@@ -224,7 +235,9 @@ class Trainer:
             for key in scales:
                 rp = real_result[key]
                 fp = fake_result[key]
-                d_loss = d_loss + 0.5 * (self.criterion.gan_loss(rp, True) + self.criterion.gan_loss(fp, False))
+                d_loss = d_loss + 0.5 * \
+                    (self.criterion.gan_loss(rp, True) +
+                     self.criterion.gan_loss(fp, False))
             return d_loss / max(len(scales), 1)  # average over scales
         else:
             real_loss = self.criterion.gan_loss(real_result, True)
@@ -247,6 +260,7 @@ class Trainer:
             "perc": 0.0,
             "ssim": 0.0,
             "chroma": 0.0,
+            "sat": 0.0,
             "feat": 0.0,
             "grad_norm_g": 0.0,
             "grad_norm_d": 0.0,
@@ -254,7 +268,8 @@ class Trainer:
 
         num_batches = len(self.train_loader)
         if num_batches == 0:
-            raise ValueError("Training loader produced zero batches. Check the dataset split and batch size.")
+            raise ValueError(
+                "Training loader produced zero batches. Check the dataset split and batch size.")
         d_loss_last = torch.tensor(0.0, device=self.device)
 
         for batch_idx, batch in enumerate(self.train_loader):
@@ -272,15 +287,18 @@ class Trainer:
             with autocast(device_type=self.device.type, enabled=self.scaler.is_enabled()):
                 # Add noise to prevent discriminator overpowering
                 noise_std = max(0.1 * (1 - epoch / self.total_epochs), 0.01)
-                d_loss = self._disc_loss_multi_scale(ir, rgb, fake_rgb, noise_std)
+                d_loss = self._disc_loss_multi_scale(
+                    ir, rgb, fake_rgb, noise_std)
 
             self.scaler.scale(d_loss).backward()
             self.scaler.unscale_(self.optimizer_d)
-            d_grad_norm = torch.nn.utils.clip_grad_norm_(self.model.discriminator.parameters(), self.grad_clip)
+            d_grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.discriminator.parameters(), self.grad_clip)
 
             # NaN/inf protection for discriminator
             if not torch.isfinite(d_loss) or not torch.isfinite(torch.as_tensor(d_grad_norm)):
-                logger.warning("Non-finite discriminator loss or grad norm at batch %d, skipping D step.", batch_idx)
+                logger.warning(
+                    "Non-finite discriminator loss or grad norm at batch %d, skipping D step.", batch_idx)
                 self.optimizer_d.zero_grad(set_to_none=True)
             else:
                 self.scaler.step(self.optimizer_d)
@@ -298,7 +316,8 @@ class Trainer:
 
                     # Get features for feature matching if enabled
                     use_feats = self.use_feature_matching
-                    disc_result = self._disc_forward(ir, fake_rgb, return_features=use_feats)
+                    disc_result = self._disc_forward(
+                        ir, fake_rgb, return_features=use_feats)
 
                     fake_features: list[torch.Tensor] | None = None
                     real_features: list[torch.Tensor] | None = None
@@ -306,7 +325,8 @@ class Trainer:
                     if use_feats:
                         fake_pred_for_g, fake_features = disc_result
                         with torch.no_grad():
-                            real_disc_result = self._disc_forward(ir, rgb, return_features=True)
+                            real_disc_result = self._disc_forward(
+                                ir, rgb, return_features=True)
                             _, real_features = real_disc_result
                     else:
                         fake_pred_for_g = disc_result
@@ -322,11 +342,13 @@ class Trainer:
 
                 self.scaler.scale(g_loss).backward()
                 self.scaler.unscale_(self.optimizer_g)
-                g_grad_norm = torch.nn.utils.clip_grad_norm_(self.model.generator.parameters(), self.grad_clip)
+                g_grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self.model.generator.parameters(), self.grad_clip)
 
                 # NaN/inf protection for generator
                 if not torch.isfinite(g_loss) or not torch.isfinite(torch.as_tensor(g_grad_norm)):
-                    logger.warning("Non-finite generator loss or grad norm at batch %d, skipping G step.", batch_idx)
+                    logger.warning(
+                        "Non-finite generator loss or grad norm at batch %d, skipping G step.", batch_idx)
                     self.optimizer_g.zero_grad(set_to_none=True)
                 else:
                     self.scaler.step(self.optimizer_g)
@@ -342,6 +364,7 @@ class Trainer:
             running["perc"] += float(losses["perc"].detach().item())
             running["ssim"] += float(losses["ssim"].detach().item())
             running["chroma"] += float(losses["chroma"].detach().item())
+            running["sat"] += float(losses["sat"].detach().item())
             running["feat"] += float(losses["feat"].detach().item())
             running["grad_norm_g"] += float(g_grad_norm)
             running["grad_norm_d"] += float(d_grad_norm)
@@ -352,7 +375,8 @@ class Trainer:
         # Epoch timing and GPU memory
         running["epoch_duration"] = time.perf_counter() - epoch_start
         if self.device.type == "cuda":
-            running["gpu_mem_mb"] = torch.cuda.max_memory_allocated(self.device) / (1024 * 1024)
+            running["gpu_mem_mb"] = torch.cuda.max_memory_allocated(
+                self.device) / (1024 * 1024)
         else:
             running["gpu_mem_mb"] = 0.0
 
@@ -370,7 +394,8 @@ class Trainer:
         num_batches = len(self.val_loader)
 
         # Use corrected torchmetrics Windowed SSIM (same as evaluation pipeline)
-        ssim_metric = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+        ssim_metric = StructuralSimilarityIndexMeasure(
+            data_range=1.0).to(self.device)
 
         for _batch_idx, batch in enumerate(self.val_loader):
             batch = self._to_device(batch, self.device)
@@ -388,7 +413,8 @@ class Trainer:
 
             # Color quality metrics
             sat_ratio_sum += compute_mean_saturation_ratio(fake_rgb_01, rgb_01)
-            hist_dist_sum += compute_color_histogram_distance(fake_rgb_01, rgb_01)
+            hist_dist_sum += compute_color_histogram_distance(
+                fake_rgb_01, rgb_01)
             lab_error_sum += compute_lab_color_error(fake_rgb_01, rgb_01)
 
         n = max(num_batches, 1)
@@ -458,7 +484,8 @@ class Trainer:
                 axes[i, 1].axis("off")
 
                 target = rgb[i].numpy()
-                target = np.transpose(target, (1, 2, 0)).clip(0, 1) if target.shape[0] == 3 else target[0].clip(0, 1)
+                target = np.transpose(target, (1, 2, 0)).clip(
+                    0, 1) if target.shape[0] == 3 else target[0].clip(0, 1)
                 axes[i, 2].imshow(target)
                 axes[i, 2].set_title("Real RGB")
                 axes[i, 2].axis("off")
@@ -467,7 +494,8 @@ class Trainer:
             save_path = self.visual_dir / f"epoch_{epoch}.png"
             plt.savefig(save_path, dpi=150, bbox_inches="tight")
         except Exception as exc:
-            print(f"[WARNING] Could not save sample images for epoch {epoch}: {exc}")
+            print(
+                f"[WARNING] Could not save sample images for epoch {epoch}: {exc}")
         finally:
             if fig is not None:
                 plt.close(fig)

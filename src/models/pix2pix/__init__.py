@@ -8,6 +8,8 @@ from .generator_hd import (
     LocalEnhancerBlock,
     LocalEnhancerUpBlock,
     Pix2PixHDGenerator,
+    Pix2PixHDGlobalResNetGenerator,
+    ResnetBlock,
     UpBlock,
 )
 from .pix2pix import Pix2Pix
@@ -23,5 +25,7 @@ __all__ = [
     "PatchDiscriminator",
     "Pix2Pix",
     "Pix2PixHDGenerator",
+    "Pix2PixHDGlobalResNetGenerator",
+    "ResnetBlock",
     "UpBlock",
 ]

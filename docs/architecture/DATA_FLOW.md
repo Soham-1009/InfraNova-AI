@@ -50,11 +50,14 @@
                                           |
                                           v
 +-----------------------------------------------------------------------------------+
-| 5. MODEL FORWARD PASS (Pix2PixHDGenerator)                                        |
-|    - Input: [B, 2, 128, 128]                                                      |
-|    - Global Coarse Branch: [B, 2, 64, 64] -> Global Latent [B, 128, 64, 64]       |
-|    - Local Fine Branch:   [B, 2, 128, 128] + Global Latent -> [B, 3, 128, 128]   |
-|    - Range: Tanh in [-1, 1]                                                       |
+| 5. MODEL FORWARD PASS (Dual Generator Option)                                     |
+|    - Input: [B, 2, 128, 128] (B10 and B11 dual-band thermal radiance)                |
+|    - Option A: Production Pix2PixHDGenerator (21.38M parameters)                   |
+|        * Global Coarse Branch: [B, 2, 64, 64] -> Global Latent [B, 128, 64, 64]   |
+|        * Local Fine Branch:   [B, 2, 128, 128] + Global Latent -> [B, 3, 128, 128] |
+|    - Option B: Candidate Pix2PixHDGlobalResNetGenerator (11.37M params, -46.83%)  |
+|        * Single-scale 9 ResNet blocks at constant 256 channels -> [B, 3, 128, 128] |
+|    - Output Activation: Tanh scaled to [-1, 1]                                    |
 +-----------------------------------------------------------------------------------+
                                           |
                                           v

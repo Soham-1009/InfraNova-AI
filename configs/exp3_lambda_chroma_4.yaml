@@ -1,0 +1,96 @@
+# ==============================================================================
+# InfraNova-AI: Experiment 3 Configuration
+# 
+# HYPOTHESIS & SCIENTIFIC DESIGN:
+#   Experiment 1 demonstrated that reducing perceptual loss (lambda_perc: 100.0 -> 5.0)
+#   restored spatial gradients and dramatically boosted SSIM (0.23 -> 0.296).
+#   Experiment 2 demonstrated that removing feature matching (lambda_feat: 5.0 -> 0.0)
+#   fully preserved structural fidelity (SSIM 0.296, PSNR 12.70 dB) while improving
+#   color saturation recovery (sat ratio 0.80 -> 0.88).
+#   Experiment 3 evaluates increasing chroma loss weight (lambda_chroma: 2.0 -> 4.0)
+#   to further accelerate chromatic convergence, penalize color deviations in Lab/chroma space,
+#   and improve spectral fidelity while maintaining structural SSIM/PSNR gains.
+#
+# SCIENTIFIC DELTA FROM EXP2:
+#   loss.lambda_chroma: 2.0 -> 4.0
+#   (ALL other hyperparameters, seed, architecture, normalization, and splits identical to Exp2)
+# ==============================================================================
+
+project:
+  name: "InfraNova-AI-Exp3-LambdaChroma4"
+  task: "colorization"
+  modality: "landsat9_b10_b11_to_rgb"
+  seed: 42
+
+dataset:
+  name: "landsat9_b10_b11"
+  root_dir: "data/landsat9_b10_b11/splits"
+  image_size: 128
+  input_channels: 2
+  output_channels: 3
+  num_workers: 2
+  normalization:
+    mode: "local"
+    stats_file: null
+  subset_ratio: null
+  subset_seed: 42
+
+model:
+  generator:
+    implementation: "hd"
+  multi_scale_disc: true
+  num_scales: 2
+
+training:
+  epochs: 100
+  batch_size: 64
+  decay_start_epoch: 50
+  patience: 25
+  amp: false
+  grad_clip: 1.0
+  sample_every: 1
+  resume_from: null
+  optimizer:
+    lr: 0.0002
+    beta1: 0.5
+    beta2: 0.999
+
+scheduler:
+  type: "linear"
+  T_0: 50
+  T_mult: 2
+  eta_min: 0.000001
+
+loss:
+  lambda_adv: 1.0
+  lambda_l1: 10.0
+  lambda_perc: 5.0
+  lambda_ssim: 5.0
+  lambda_chroma: 4.0
+  lambda_feat: 0.0
+  gan_mode: "bce"
+
+augmentation:
+  enabled: true
+  flip_prob: 0.5
+
+logging:
+  use_wandb: false
+  csv_path: "outputs/exp3/logs/training.csv"
+  tensorboard_dir: "outputs/exp3/logs/tensorboard"
+
+evaluation:
+  image_size: 128
+  percentile_low: 2.0
+  percentile_high: 98.0
+  tta: true
+  save_format: "tiff"
+
+paths:
+  checkpoints: "outputs/exp3"
+  best_checkpoint: "outputs/exp3/best/pix2pix_landsat_best.pth"
+  latest_checkpoint: "outputs/exp3/latest/pix2pix_landsat_latest.pth"
+  final_checkpoint: "outputs/exp3/final/pix2pix_landsat_final.pth"
+  logs: "outputs/exp3/logs"
+  outputs: "outputs/exp3"
+  visualizations: "outputs/exp3/visualizations"

@@ -33,7 +33,8 @@ class GANLoss(nn.Module):
         elif self.mode == "lsgan":
             self.criterion = nn.MSELoss()
         else:
-            raise ValueError(f"Unknown GAN loss mode: {mode}. Use 'bce' or 'lsgan'.")
+            raise ValueError(
+                f"Unknown GAN loss mode: {mode}. Use 'bce' or 'lsgan'.")
 
     def forward(
         self,
@@ -86,6 +87,76 @@ class ChromaLoss(nn.Module):
         return F.l1_loss(fake_sat, real_sat)
 
 
+class SaturationLoss(nn.Module):
+    """
+    Perceptual color-saturation loss in CIE Lab space.
+
+    Penalises the L1 distance between the per-pixel Lab chroma magnitude
+    sqrt(a**2 + b**2) of the generated and target images. This is a
+    *magnitude* loss, not an angle loss — it does not try to match the
+    hue direction, only how colorful each pixel is in a perceptually
+    uniform color space.
+
+    Input tensors are in [-1, 1]; converted to [0, 1] then to Lab via
+    the same simplified sRGB->Lab primitive used by
+    `compute_lab_color_error` in this file.
+
+    Differs from the existing `ChromaLoss` (which uses per-pixel RGB
+    channel std) in two ways:
+      1. Operates in Lab (perceptually uniform), not RGB
+         (display-dependent).
+      2. Computes the Euclidean distance from the neutral L-axis
+         (the chroma magnitude sqrt(a**2 + b**2)), so it specifically
+         measures color magnitude rather than the (R+G+B)-confounded
+         RGB channel spread.
+
+    This is NOT an angle loss: it does not penalise hue rotations, only
+    deviations in the magnitude of colorfulness. It is the saturation
+    analogue of MSE on the chroma channels in a perceptual color space.
+    """
+
+    @staticmethod
+    def _srgb_to_lab_approx(rgb: torch.Tensor) -> torch.Tensor:
+        """Identical primitive to the one inside compute_lab_color_error."""
+        linear = torch.where(
+            rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+        r, g, b = linear[:, 0:1], linear[:, 1:2], linear[:, 2:3]
+        x = 0.4124 * r + 0.3576 * g + 0.1805 * b
+        y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        z = 0.0193 * r + 0.1192 * g + 0.9505 * b
+        x = x / 0.95047
+        z = z / 1.08883
+        eps = 0.008856
+        kappa = 903.3
+
+        def f(t: torch.Tensor) -> torch.Tensor:
+            return torch.where(t > eps, t.clamp_min(1e-10).pow(1.0 / 3.0), (kappa * t + 16.0) / 116.0)
+
+        fx, fy, fz = f(x), f(y), f(z)
+        L = 116.0 * fy - 16.0
+        a = 500.0 * (fx - fy)
+        b_ch = 200.0 * (fy - fz)
+        return torch.cat([L, a, b_ch], dim=1)
+
+    def forward(self, fake_rgb: torch.Tensor, real_rgb: torch.Tensor) -> torch.Tensor:
+        fake = (fake_rgb + 1.0) / 2.0
+        real = (real_rgb + 1.0) / 2.0
+        fake_lab = self._srgb_to_lab_approx(fake)
+        real_lab = self._srgb_to_lab_approx(real)
+        # Per-pixel chroma magnitude sqrt(a^2 + b^2). L is intentionally
+        # excluded: it is the lightness axis, not a chroma axis. The +1e-6
+        # inside the sqrt stabilises the backward pass at a=b=0, where
+        # d(sqrt(x))/dx = 1/(2*sqrt(x)) would otherwise be 1/0 = inf
+        # and the chain rule would yield NaN gradients when the L1
+        # upstream is non-zero (i.e. when fake_chroma != real_chroma).
+        _eps_chroma = 1e-6
+        fake_chroma = torch.sqrt(
+            fake_lab[:, 1:2] ** 2 + fake_lab[:, 2:3] ** 2 + _eps_chroma)
+        real_chroma = torch.sqrt(
+            real_lab[:, 1:2] ** 2 + real_lab[:, 2:3] ** 2 + _eps_chroma)
+        return F.l1_loss(fake_chroma, real_chroma)
+
+
 class FeatureMatchingLoss(nn.Module):
     """
     Feature matching loss from Pix2PixHD.
@@ -112,7 +183,8 @@ class FeatureMatchingLoss(nn.Module):
             loss = 0.0
             scales = list(fake_features.keys())
             for scale in scales:
-                loss += self._compute_scale_loss(fake_features[scale], real_features[scale])
+                loss += self._compute_scale_loss(
+                    fake_features[scale], real_features[scale])
             return loss / max(len(scales), 1)
         elif isinstance(fake_features, list) and isinstance(real_features, list):
             # Single-scale
@@ -132,7 +204,9 @@ class FeatureMatchingLoss(nn.Module):
 
         for i in range(n):
             # F.l1_loss(..., reduction="mean") handles the division by N_elements automatically
-            loss = loss + F.l1_loss(fake_inter[i], real_inter[i].detach(), reduction="mean")
+            loss = loss + \
+                F.l1_loss(fake_inter[i],
+                          real_inter[i].detach(), reduction="mean")
 
         return loss / max(n, 1)
 
@@ -168,11 +242,14 @@ class VGGPerceptualLoss(nn.Module):
         except Exception:
             # Fall back to uninitialized weights if pretrained weights are not available.
             # This keeps offline environments and Docker builds from crashing.
-            logger.warning("VGG19 pretrained weights unavailable; perceptual loss is disabled.")
+            logger.warning(
+                "VGG19 pretrained weights unavailable; perceptual loss is disabled.")
             self.enabled = False
             self.blocks = nn.ModuleList()
-            self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-            self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+            self.register_buffer("mean", torch.tensor(
+                [0.485, 0.456, 0.406]).view(1, 3, 1, 1))
+            self.register_buffer("std", torch.tensor(
+                [0.229, 0.224, 0.225]).view(1, 3, 1, 1))
             return
 
         self.blocks = nn.ModuleList(
@@ -246,7 +323,8 @@ class SSIMLoss(nn.Module):
         self.window_size = window_size
         self.sigma = sigma
         self.channel = 3
-        self.register_buffer("window", self._create_window(window_size, sigma, self.channel))
+        self.register_buffer("window", self._create_window(
+            window_size, sigma, self.channel))
 
     @staticmethod
     def _gaussian(window_size: int, sigma: float) -> torch.Tensor:
@@ -267,23 +345,30 @@ class SSIMLoss(nn.Module):
         channel = img1.size(1)
         # This is the fix: we make sure the 'dtype' matches so it doesn't crash
         if channel != self.channel or self.window.device != img1.device or self.window.dtype != img1.dtype:
-            window = self._create_window(self.window_size, self.sigma, channel).to(device=img1.device, dtype=img1.dtype)
+            window = self._create_window(self.window_size, self.sigma, channel).to(
+                device=img1.device, dtype=img1.dtype)
             self.window = window
         else:
             window = self.window
 
-        mu1 = F.conv2d(img1, window, padding=self.window_size // 2, groups=channel)
-        mu2 = F.conv2d(img2, window, padding=self.window_size // 2, groups=channel)
+        mu1 = F.conv2d(img1, window, padding=self.window_size //
+                       2, groups=channel)
+        mu2 = F.conv2d(img2, window, padding=self.window_size //
+                       2, groups=channel)
 
         mu1_sq = mu1.pow(2)
         mu2_sq = mu2.pow(2)
         mu1_mu2 = mu1 * mu2
 
-        sigma1_sq = F.conv2d(img1 * img1, window, padding=self.window_size // 2, groups=channel) - mu1_sq
-        sigma2_sq = F.conv2d(img2 * img2, window, padding=self.window_size // 2, groups=channel) - mu2_sq
-        sigma12 = F.conv2d(img1 * img2, window, padding=self.window_size // 2, groups=channel) - mu1_mu2
+        sigma1_sq = F.conv2d(
+            img1 * img1, window, padding=self.window_size // 2, groups=channel) - mu1_sq
+        sigma2_sq = F.conv2d(
+            img2 * img2, window, padding=self.window_size // 2, groups=channel) - mu2_sq
+        sigma12 = F.conv2d(
+            img1 * img2, window, padding=self.window_size // 2, groups=channel) - mu1_mu2
 
-        ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / ((mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2))
+        ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / \
+            ((mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2))
 
         return ssim_map.mean()
 
@@ -299,14 +384,16 @@ class CombinedLoss(nn.Module):
     Combined Pix2Pix loss.
 
     Total = λ_adv * GAN + λ_l1 * L1 + λ_perc * Perceptual
-            + λ_ssim * SSIM + λ_chroma * Chroma + λ_feat * FeatureMatching
+            + λ_ssim * SSIM + λ_chroma * Chroma + λ_sat * Saturation
+            + λ_feat * FeatureMatching
 
     Args:
         lambda_adv: Adversarial loss weight.
         lambda_l1: Pixel L1 loss weight.
         lambda_perc: VGG perceptual loss weight.
         lambda_ssim: SSIM loss weight.
-        lambda_chroma: Chroma/saturation loss weight.
+        lambda_chroma: Chroma/saturation (RGB std) loss weight.
+        lambda_sat: Perceptual saturation (Lab chroma magnitude) loss weight.
         lambda_feat: Feature matching loss weight. Set to 0 to disable.
         gan_mode: "bce" or "lsgan".
     """
@@ -318,6 +405,7 @@ class CombinedLoss(nn.Module):
         lambda_perc: float = 10.0,
         lambda_ssim: float = 5.0,
         lambda_chroma: float = 2.0,
+        lambda_sat: float = 0.0,
         lambda_feat: float = 0.0,
         gan_mode: str = "bce",
     ) -> None:
@@ -328,6 +416,7 @@ class CombinedLoss(nn.Module):
         self.lambda_perc = lambda_perc
         self.lambda_ssim = lambda_ssim
         self.lambda_chroma = lambda_chroma
+        self.lambda_sat = lambda_sat
         self.lambda_feat = lambda_feat
 
         self.gan_loss = GANLoss(mode=gan_mode)
@@ -335,6 +424,7 @@ class CombinedLoss(nn.Module):
         self.perc_loss = VGGPerceptualLoss() if self.lambda_perc > 0 else None
         self.ssim_loss = SSIMLoss()
         self.chroma_loss = ChromaLoss() if self.lambda_chroma > 0 else None
+        self.sat_loss = SaturationLoss() if self.lambda_sat > 0 else None
         self.feat_loss = FeatureMatchingLoss() if self.lambda_feat > 0 else None
 
     def forward(
@@ -342,8 +432,10 @@ class CombinedLoss(nn.Module):
         disc_fake_pred: torch.Tensor | dict[str, torch.Tensor],
         fake_rgb: torch.Tensor,
         real_rgb: torch.Tensor,
-        fake_features: list[torch.Tensor] | dict[str, list[torch.Tensor]] | None = None,
-        real_features: list[torch.Tensor] | dict[str, list[torch.Tensor]] | None = None,
+        fake_features: list[torch.Tensor] | dict[str,
+                                                 list[torch.Tensor]] | None = None,
+        real_features: list[torch.Tensor] | dict[str,
+                                                 list[torch.Tensor]] | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Compute weighted loss components.
@@ -360,7 +452,8 @@ class CombinedLoss(nn.Module):
         """
         if isinstance(disc_fake_pred, dict):
             # Multi-scale GAN loss for G
-            adv = disc_fake_pred[next(iter(disc_fake_pred.keys()))].new_tensor(0.0)
+            adv = disc_fake_pred[next(
+                iter(disc_fake_pred.keys()))].new_tensor(0.0)
             for scale_pred in disc_fake_pred.values():
                 adv = adv + self.gan_loss(scale_pred, True)
             adv = adv / max(len(disc_fake_pred), 1)
@@ -379,6 +472,11 @@ class CombinedLoss(nn.Module):
         else:
             chroma = fake_rgb.new_tensor(0.0)
 
+        if self.sat_loss is not None and fake_rgb.size(1) == 3 and real_rgb.size(1) == 3:
+            sat = self.sat_loss(fake_rgb, real_rgb)
+        else:
+            sat = fake_rgb.new_tensor(0.0)
+
         if self.feat_loss is not None and fake_features is not None and real_features is not None:
             feat = self.feat_loss(fake_features, real_features)
         else:
@@ -390,6 +488,7 @@ class CombinedLoss(nn.Module):
             + self.lambda_perc * perc
             + self.lambda_ssim * ssim
             + self.lambda_chroma * chroma
+            + self.lambda_sat * sat
             + self.lambda_feat * feat
         )
 
@@ -400,6 +499,7 @@ class CombinedLoss(nn.Module):
             "perc": perc,
             "ssim": ssim,
             "chroma": chroma,
+            "sat": sat,
             "feat": feat,
         }
 
@@ -467,7 +567,8 @@ def compute_lab_color_error(
     def _srgb_to_lab_approx(rgb: torch.Tensor) -> torch.Tensor:
         """Simplified sRGB -> Lab via linearization + XYZ -> Lab."""
         # Linearize sRGB
-        linear = torch.where(rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+        linear = torch.where(
+            rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
         r, g, b = linear[:, 0:1], linear[:, 1:2], linear[:, 2:3]
         # sRGB -> XYZ (D65)
         x = 0.4124 * r + 0.3576 * g + 0.1805 * b

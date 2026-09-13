@@ -107,7 +107,8 @@ class PatchDiscriminator(nn.Module):
     def _init_weights(module: nn.Module) -> None:
         """Kaiming initialization for convolution layers."""
         if isinstance(module, nn.Conv2d):
-            nn.init.kaiming_normal_(module.weight, a=0.2, mode="fan_in", nonlinearity="leaky_relu")
+            nn.init.kaiming_normal_(
+                module.weight, a=0.2, mode="fan_in", nonlinearity="leaky_relu")
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
 
@@ -166,9 +167,11 @@ class MultiScaleDiscriminator(nn.Module):
         self.discriminators = nn.ModuleList()
 
         for _ in range(num_scales):
-            self.discriminators.append(PatchDiscriminator(in_channels=in_channels, features=features))
+            self.discriminators.append(PatchDiscriminator(
+                in_channels=in_channels, features=features))
 
-        self.downsample = nn.AvgPool2d(kernel_size=3, stride=2, padding=1, count_include_pad=False)
+        self.downsample = nn.AvgPool2d(
+            kernel_size=3, stride=2, padding=1, count_include_pad=False)
 
     def forward(
         self,
@@ -189,7 +192,8 @@ class MultiScaleDiscriminator(nn.Module):
         result = {}
         input_x = x
         for i, disc in enumerate(self.discriminators):
-            result[f"scale_{i}"] = disc(input_x, return_features=return_features)
+            result[f"scale_{i}"] = disc(
+                input_x, return_features=return_features)
             if i != self.num_scales - 1:
                 input_x = self.downsample(input_x)
 

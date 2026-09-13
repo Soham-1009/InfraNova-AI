@@ -16,6 +16,10 @@ include = ["src*"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+exclude = [
+    "kaggle_kernel",
+    "outputs",
+]
 
 [tool.ruff.lint]
 select = [
@@ -62,3 +66,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

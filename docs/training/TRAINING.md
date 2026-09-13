@@ -10,15 +10,21 @@
 
 The GAN objective is minimized via two alternating Adam optimizers:
 
-$$\mathcal{L}_{\text{total}} = \lambda_{\text{adv}}\mathcal{L}_{\text{adv}} + \lambda_{L1}\mathcal{L}_{L1} + \lambda_{\text{perc}}\mathcal{L}_{\text{perc}} + \lambda_{\text{ssim}}\mathcal{L}_{\text{ssim}} + \lambda_{\text{chroma}}\mathcal{L}_{\text{chroma}} + \lambda_{\text{feat}}\mathcal{L}_{\text{feat}}$$
+$$\mathcal{L}_{\text{total}} = \lambda_{\text{adv}}\mathcal{L}_{\text{adv}} + \lambda_{L1}\mathcal{L}_{L1} + \lambda_{\text{perc}}\mathcal{L}_{\text{perc}} + \lambda_{\text{ssim}}\mathcal{L}_{\text{ssim}} + \lambda_{\text{chroma}}\mathcal{L}_{\text{chroma}} + \lambda_{\text{feat}}\mathcal{L}_{\text{feat}} + \lambda_{\text{sat}}\mathcal{L}_{\text{sat}}$$
 
-### Configured Hyperparameters (`configs/config.yaml`):
-- $\lambda_{\text{adv}} = 1.0$ (Adversarial loss on multi-scale discriminator outputs)
-- $\lambda_{L1} = 10.0$ (Pixel L1 distance)
-- $\lambda_{\text{perc}} = 10.0$ (VGG-19 perceptual distance across relu1_2, relu2_2, relu3_4, relu4_4)
-- $\lambda_{\text{ssim}} = 5.0$ (Differentiable SSIM loss, $1 - \text{SSIM}$)
-- $\lambda_{\text{chroma}} = 2.0$ (Color saturation std loss)
-- $\lambda_{\text{feat}} = 5.0$ (Discriminator multi-scale feature matching)
+### Hyperparameter Configurations:
+
+| Hyperparameter | Production Baseline (`configs/config.yaml`) | Exp9 Candidate (`configs/exp9_resnet_generator.yaml`) |
+| :--- | :---: | :---: |
+| **Generator Architecture** | `Pix2PixHDGenerator` (21.38M) | `Pix2PixHDGlobalResNetGenerator` (11.37M) |
+| **Adversarial Objective** | BCE (`gan_mode: bce`) | LSGAN (`gan_mode: lsgan`, MSE) |
+| $\lambda_{\text{adv}}$ | 1.0 | 1.0 |
+| $\lambda_{L1}$ | 10.0 | 10.0 |
+| $\lambda_{\text{perc}}$ (VGG-19) | 10.0 | **5.0** (Prevents over-smoothing) |
+| $\lambda_{\text{ssim}}$ | 5.0 | 5.0 |
+| $\lambda_{\text{chroma}}$ | 2.0 | 2.0 |
+| $\lambda_{\text{feat}}$ | 5.0 | 5.0 |
+| $\lambda_{\text{sat}}$ (CIE Lab Saturation) | 0.0 | **0.05** ($\varepsilon = 10^{-6}$ for stable gradients) |
 
 ---
 
@@ -26,9 +32,10 @@ $$\mathcal{L}_{\text{total}} = \lambda_{\text{adv}}\mathcal{L}_{\text{adv}} + \l
 
 - **Optimizers**: Adam for both Generator and Discriminators ($\beta_1 = 0.5, \beta_2 = 0.999$, initial $\text{lr} = 2\times 10^{-4}$).
 - **Linear Learning Rate Annealing**:
-  - Epochs 1–100: Constant $\text{lr} = 2\times 10^{-4}$.
-  - Epochs 101–250: Linear decay from $2\times 10^{-4}$ down to $\eta_{\text{min}} = 1\times 10^{-6}$ at Epoch 250:
+  - Epochs 1–50 (or 1–100): Constant $\text{lr} = 2\times 10^{-4}$.
+  - Subsequent epochs: Linear decay down to $\eta_{\text{min}} = 1\times 10^{-6}$:
     $$\text{lr}(e) = \eta_{\text{min}} + (\text{lr}_{\text{base}} - \eta_{\text{min}})\left(1 - \frac{e - e_{\text{decay}}}{e_{\text{total}} - e_{\text{decay}}}\right)$$
+- **Early Stopping**: Early stopping monitor watches validation SSIM with patience (e.g. `patience: 25`). In Exp9, peak SSIM occurred at epoch 46, and early stopping cleanly terminated training at epoch 71.
 
 ---
 

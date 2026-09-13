@@ -1,18 +1,31 @@
 # InfraNova AI
 
-**Cross-Spectral Satellite Radiance Translation**: Synthesizing visible optical RGB imagery ($0.43\text{--}0.68\,\mu\text{m}$) from dual-band thermal infrared radiance (Landsat 9 TIRS-2 Band 10 [$10.60\text{--}11.19\,\mu\text{m}$] + Band 11 [$11.50\text{--}12.51\,\mu\text{m}$]) using a multi-scale conditional Generative Adversarial Network (**Pix2PixHD**).
+**Cross-Spectral Satellite Radiance Translation**: Synthesizing visible optical RGB imagery ($0.43$--$0.68\,\mu\text{m}$) from dual-band thermal infrared radiance (Landsat 9 TIRS-2 Band 10 [$10.60$--$11.19\,\mu\text{m}$] + Band 11 [$11.50$--$12.51\,\mu\text{m}$]) using a compact Global ResNet conditional Generative Adversarial Network (**Pix2PixHD-style LSGAN**).
 
 ---
 
 ### 🔬 Scientific Context & Radiometric Mapping
 
-Thermal infrared sensors (Landsat 9 TIRS-2) measure terrestrial surface brightness temperature and radiated thermal energy ($10.60\text{--}12.51\,\mu\text{m}$), while optical sensors (Landsat 9 OLI-2) capture reflected solar spectral irradiance ($0.45\text{--}0.67\,\mu\text{m}$). InfraNova AI learns a cross-spectral mapping across spatially aligned, paired observations to synthesize 3-channel true color optical RGB imagery from 2-channel thermal radiance inputs.
+Thermal infrared sensors (Landsat 9 TIRS-2) measure terrestrial surface brightness temperature and radiated thermal energy ($10.60$--$12.51\,\mu\text{m}$), while optical sensors (Landsat 9 OLI-2) capture reflected solar spectral irradiance ($0.45$--$0.67\,\mu\text{m}$). InfraNova AI learns a cross-spectral mapping across spatially aligned, paired observations to synthesize 3-channel true color optical RGB imagery from 2-channel thermal radiance inputs.
+
+---
+
+## 🚦 Production Checkpoint
+
+The active production serving model is **Exp9**:
+
+- **Active Production Checkpoint**: [`outputs/best/pix2pix_landsat_best.pth`](outputs/best/pix2pix_landsat_best.pth)
+- **Checkpoint SHA-256**: `71bbda3f31b85e7e741b26d5ce0ff398a0394c7dd4ef6ff5452f31f7e0400382`
+- **Generator Architecture**: `Pix2PixHDGlobalResNetGenerator`
+- **Active Generator Parameters**: **11,369,795**
+- **Parameter Reduction vs. Legacy**: Reduced by **10,013,443 parameters (46.83%)** compared to the previous 21,383,238-parameter generator.
+- **Rollback Safety**: The previous production checkpoint is preserved at `outputs/best/pix2pix_landsat_backup_20260912_231938.pth` (SHA-256: `4604d36d07a0fb4c0696a53040c17004084068c51cc745a23f69b76c8baf6aa8`), with full provenance recorded in [`outputs/best/rollback_metadata.json`](outputs/best/rollback_metadata.json).
 
 ---
 
 ## 🏗️ Active Architecture
 
-The active model consists of a **21.38M parameter multi-scale residual generator** coupled with a **5.53M parameter multi-scale PatchGAN discriminator**:
+The production architecture employs a **Pix2PixHD-style Global ResNet Generator** (11.37M parameters) paired with a **MultiScaleDiscriminator** (5.53M parameters):
 
 ```
                   ┌────────────────────────────────────────────────────────┐
@@ -20,208 +33,356 @@ The active model consists of a **21.38M parameter multi-scale residual generator
                   │   Band 10 (100m, 128×128) + Band 11 (100m, 128×128)   │
                   └──────────────────────────┬─────────────────────────────┘
                                              │
-                       ┌─────────────────────┴─────────────────────┐
-                       │                                           │
-                       ▼ (2× AvgPool)                              ▼ (Full Res)
-        ┌─────────────────────────────┐             ┌─────────────────────────────┐
-        │      Global Generator       │             │       Local Enhancer        │
-                                                    └──────────────┬──────────────┘
-                                                                   │
-                                             ┌─────────────────────┴─────────────────────┐
-                                             │                                           │
-                                             ▼ (Scale 0: 128×128)                        ▼ (Scale 1: 64×64)
-                              ┌─────────────────────────────┐             ┌─────────────────────────────┐
-                              │     PatchDiscriminator 0    │             │     PatchDiscriminator 1    │
-                              │    SpectralNorm Conv 70×70  │             │    SpectralNorm Conv 70×70  │
-                              └─────────────────────────────┘             └─────────────────────────────┘
+                                             ▼ (7×7 Conv, ReflectionPad, 64ch)
+                                  [Initial Convolution]
+                                             │
+                                             ▼ (Stride 2 Conv, 128ch, 64×64)
+                                    [Downsampling Stage 1]
+                                             │
+                                             ▼ (Stride 2 Conv, 256ch, 32×32)
+                                    [Downsampling Stage 2]
+                                             │
+                                             ▼ (9 Residual Blocks, 256ch, 32×32)
+                                   [ResNet Bottleneck 9×]
+                                             │
+                                             ▼ (Stride 2 TransposedConv, 128ch, 64×64)
+                                     [Upsampling Stage 1]
+                                             │
+                                             ▼ (Stride 2 TransposedConv, 64ch, 128×128)
+                                     [Upsampling Stage 2]
+                                             │
+                                             ▼ (7×7 Conv, ReflectionPad, 3ch)
+                                    [Output Convolution]
+                                             │
+                                             ▼ (Tanh Activation)
+                                  [Synthesized Optical RGB]
+                                             │
+                        ┌────────────────────┴────────────────────┐
+                        │                                         │
+                        ▼ (Scale 0: 128×128)                      ▼ (Scale 1: 64×64)
+         ┌─────────────────────────────┐           ┌─────────────────────────────┐
+         │    PatchDiscriminator 0     │           │    PatchDiscriminator 1     │
+         │   SpectralNorm Conv 70×70   │           │   SpectralNorm Conv 70×70   │
+         └─────────────────────────────┘           └─────────────────────────────┘
 ```
 
 ### Key Architectural Characteristics
-- **Generator (`Pix2PixHDGenerator`, 21.38M params)**: Coarse global U-Net ($64\times 64$) coupled to a fine local enhancer ($128\times 128$) via $1\times 1$ feature projection and bilinear upsampling (eliminating checkerboard artifacts).
-- **Discriminator (`MultiScaleDiscriminator`, 5.53M params)**: 2 independent PatchGAN branches operating at $128\times 128$ and $64\times 64$ with `SpectralNorm` on all convolutional layers and **no InstanceNorm** (preserving strict Lipschitz continuity).
-- **Multi-Term Loss Objective**:
-  $$\mathcal{L}_{\text{total}} = 1.0\mathcal{L}_{\text{adv}} + 10.0\mathcal{L}_{L1} + 10.0\mathcal{L}_{\text{perc}} + 5.0\mathcal{L}_{\text{ssim}} + 2.0\mathcal{L}_{\text{chroma}} + 5.0\mathcal{L}_{\text{feat}}$$
+
+- **Generator (`Pix2PixHDGlobalResNetGenerator`, 11,369,795 params)**:
+  - Input: 2 channels (Landsat 9 B10 + B11 thermal radiance)
+  - Output: 3 channels (visible optical RGB)
+  - $7\times 7$ reflection-padded input convolution
+  - 2 strided downsampling stages reaching $256$ feature channels at $32\times 32$
+  - 9 residual bottleneck blocks with reflection padding, instance normalization, and ReLU
+  - 2 strided upsampling stages with transposed convolutions
+  - $7\times 7$ reflection-padded output convolution with $\text{Tanh}$ activation mapping to $[-1.0, 1.0]$
+- **Discriminator (`MultiScaleDiscriminator`, 5.53M params)**: 2 independent PatchGAN branches operating at $128\times 128$ and $64\times 64$ with `SpectralNorm` on all convolutional layers and no `InstanceNorm` (preserving strict Lipschitz continuity).
+- **Adversarial Formulation**: Least Squares GAN (**LSGAN** MSE loss).
+- **Multi-Term Production Loss Objective**:
+  $$\mathcal{L}_{\text{total}} = 1.0\,\mathcal{L}_{\text{adv}} + 10.0\,\mathcal{L}_{L1} + 5.0\,\mathcal{L}_{\text{perc}} + 5.0\,\mathcal{L}_{\text{ssim}} + 2.0\,\mathcal{L}_{\text{chroma}} + 0.05\,\mathcal{L}_{\text{sat}}$$
+  *(Feature-matching loss is strictly disabled with $\lambda_{\text{feat}} = 0.0$.)*
 
 ---
 
-## 📊 Validation Model Selection & Unbiased Test Evaluation
+## 🔬 Scientific Research History & Ablation Suite
 
-### 1. Checkpoint Provenance & Validation Selection Heuristic
-Candidate checkpoints were checkpointed during the 250-epoch dual-band training run (linear learning-rate decay phase, Epochs 101–250). To ensure strict separation of splits and prevent test-set data leakage, the production checkpoint was selected **strictly on the 1,432-sample validation split** (`data/landsat9_b10_b11/splits/val/`) using a composite selection heuristic defined *a priori*:
-- **Primary Objective**: $\text{SSIM}_{\text{val}}$ (structural preservation)
-- **Secondary Objectives**: $\text{PSNR}_{\text{val}}$ (pixel fidelity), $\text{CIE }\Delta E^*_{ab}$ (perceptual color error), $\text{SAM}_{\text{val}}$ (spectral angle)
-- **Feasibility Constraint**: Optical saturation error $|\text{SatRatio} - 1.0| \le 0.20$
-$$\text{Score}_{\text{val}} = (10.0 \cdot \text{SSIM}_{\text{val}}) + (0.5 \cdot \text{PSNR}_{\text{val}}) - (0.1 \cdot \text{CIE }\Delta E^*_{ab}) - (2.0 \cdot \text{SAM}_{\text{val}})$$
+Across the research cycle, nine hypothesis-driven experiments were executed:
 
-| Candidate Checkpoint | Saved Epoch | Val SSIM (Global / Windowed) $\uparrow$ | Val PSNR (dB) $\uparrow$ | Val CIE Lab $\downarrow$ | Val SAM (rad) $\downarrow$ | Val Sat Error $\downarrow$ | Composite Score | Selection Decision |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`best_ssim.pth`** | **Epoch 223** | **0.3257** / **0.2410** | **11.599 dB** | 28.720 | 0.2216 rad ($12.7^\circ$) | 0.1048 (Ratio: 1.105) | **5.741** | **SELECTED & FROZEN** |
-| **`best_psnr.pth`** | **Epoch 223** | **0.3257** / **0.2410** | **11.599 dB** | 28.720 | 0.2216 rad ($12.7^\circ$) | 0.1048 (Ratio: 1.105) | **5.741** | Alternative Serializer |
-| **`best_lab.pth`** | Epoch 225 | 0.3156 / 0.2384 | 11.573 dB | **28.450** | **0.2155 rad ($12.3^\circ$)** | **0.0149 (Ratio: 0.985)** | 5.666 | Admissible (Rank 2) |
-| **`best_sam.pth`** | Epoch 225 | 0.3156 / 0.2384 | 11.573 dB | **28.450** | **0.2155 rad ($12.3^\circ$)** | **0.0149 (Ratio: 0.985)** | 5.666 | Admissible (Rank 2) |
-| **`epoch_250.pth`** | Epoch 250 | 0.3155 / 0.2372 | 11.494 dB | 29.267 | 0.2257 rad ($12.9^\circ$) | 0.1706 (Ratio: 1.171) | 5.524 | Admissible (Rank 3) |
-| **`best_sat_ratio.pth`** | Epoch 218 | 0.3110 / 0.2321 | 11.426 dB | 30.030 | 0.2388 rad ($13.7^\circ$) | 0.2889 (Ratio: 1.289) | 5.342 | Excluded (Sat Error $>0.20$) |
+1. **Exp1 — Perceptual Loss Recovery**: Re-enabled VGG-19 perceptual loss ($\lambda_{\text{perc}} = 5.0$) after catastrophic blur with L1-only loss.
+2. **Exp2 — Feature-Matching Ablation**: Set $\lambda_{\text{feat}} = 0.0$, eliminating generator multi-scale intermediate layer matching with no regression.
+3. **Exp3 — Chroma Penalty Increase**: Evaluated $\lambda_{\text{chroma}} = 4.0$ to mitigate false spectral casting.
+4. **Exp4 — Reduced Perceptual Weight**: Evaluated $\lambda_{\text{perc}} = 3.0$ for high-frequency detail balance.
+5. **Exp5 — Saturation Loss**: Introduced differentiable optical saturation regularization ($\lambda_{\text{sat}} = 0.05$) to eliminate low-saturation wash.
+6. **Exp6 — BCE $\to$ LSGAN Transition**: Replaced binary cross-entropy with Least Squares GAN loss to stabilize adversarial training dynamics.
+7. **Exp7 — LSGAN + Saturation Loss**: Unified LSGAN objective with saturation regularizer ($\lambda_{\text{sat}} = 0.05$).
+8. **Exp8 — Increased Saturation Penalty**: Evaluated $\lambda_{\text{sat}} = 0.10$ (over-saturated vegetation textures).
+9. **Exp9 — Global ResNet Generator**: Replaced multi-scale U-Net with compact Global ResNet generator ($11.37\text{M}$ params, `gan_mode = lsgan`, `lambda_sat = 0.05`), achieving state-of-the-art results across structural, pixel, and spectral metrics.
 
----
+**Conclusion**: **Exp9** proved the strongest candidate across the research cycle and was promoted to production.
 
-### 2. Single Unbiased Generalization Scorecard on Held-Out Test Split
-After freezing `best_ssim.pth` (Epoch 223) to [`outputs/best/pix2pix_landsat_best.pth`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/outputs/best/pix2pix_landsat_best.pth), a **single final evaluation** was performed on the 1,259 unseen held-out test samples (`data/landsat9_b10_b11/splits/test/`):
+### Training-Budget Study & Conclusion
 
-*Source: [`outputs/evaluation/unbiased_test_generalization_scorecard.json`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/outputs/evaluation/unbiased_test_generalization_scorecard.json)*
-
-| Metric | Single-Band Baseline (Ep 100) | **Frozen Application Model (`best_ssim.pth`, Ep 223)** | Generalization Delta | Status |
-| :--- | :---: | :---: | :---: | :---: |
-| **Test PSNR** $\uparrow$ | 10.820 dB | **11.714 dB** ($\pm 3.229\text{ dB}$) | **+0.894 dB** | **PASS** |
-| **Test SSIM (11×11 Gaussian Windowed)** $\uparrow$ | 0.1841 | **0.2347** ($\pm 0.1630$) | **+27.5%** | **PASS** |
-| **Test SSIM (Global Image-Level)** $\uparrow$ | — | **0.3254** ($\pm 0.3354$) | — | Reference |
-| **Test MAE** $\downarrow$ | 0.2512 | **0.2144** ($\pm 0.0774$) | **-14.6%** | **PASS** |
-| **Test RMSE** $\downarrow$ | 0.3120 | **0.2752** ($\pm 0.0842$) | **-11.8%** | **PASS** |
-| **CIE $\Delta E^*_{ab}$ Error** $\downarrow$ | 35.420 | **27.235** ($\pm 8.294$) | **-23.1%** | **PASS** |
-| **Spectral Angle (SAM)** $\downarrow$ | 0.2680 rad | **0.2187 rad ($12.53^\circ$)** | **-18.4%** | **PASS** |
-| **Saturation Ratio** (Target: 1.0) | 0.6023 (Err: 0.398) | **1.1993 (Err: 0.199)** | **-49.9% Error** | **PASS** |
-| **Color Histogram Distance** $\downarrow$ | 0.4840 | **0.3572** ($\pm 0.322$) | **-26.2%** | **PASS** |
-
-> **SSIM Mathematical Resolution**: The training telemetry used localized **$11\times 11$ Gaussian-windowed SSIM ($\sigma=1.5$)** evaluating local patch correlations, giving **0.2410** on validation and **0.2347** on test. When computed via whole-image global spatial pooling (Global SSIM), whole-image averages smooth high-frequency texture variation, producing **0.3257** and **0.3254**.
+- **Exp9 Baseline**: Trained with Adam ($	ext{lr}=2\times 10^{-4}, \beta_1=0.5, \beta_2=0.999$, batch size 64, image size 128, local normalization, `lambda_sat=0.05`). Optimal validation performance was reached at **Epoch 46**.
+- **Long Exp9 Continuation**: The training budget was expanded to 250 epochs with patience 100 on GPU. The run triggered early stopping at epoch 130 (84 non-improving epochs); evaluations showed degraded held-out test performance (PSNR: 13.584 dB, SSIM: 0.4493, Saturation ratio: 1.1805) due to late-stage spectral overfitting.
+- **Conclusion**: Long Exp9 was formally rejected. Further increases in training duration are exhausted and not part of the production configuration.
 
 ---
 
-### 3. Downstream Object Detection Evaluation (YOLOv8)
-Evaluating an off-the-shelf detector (YOLOv8) across 200 held-out test patches against Ground Truth Optical RGB demonstrated that:
-- The generated imagery **did not improve downstream object detection performance** under this evaluation protocol. Both raw thermal and synthesized RGB produced very low precision ($0.016$) and recall ($0.029$) because generic COCO detectors trigger spuriously on overhead satellite terrain features.
-- The terminal checkpoint (`epoch_250.pth`) produced **112 activations with 0.0% precision (100% false positives)** due to late-stage adversarial noise textures. The validation-selected checkpoint (`best_ssim.pth`, Epoch 223) suppressed these spurious activations by **42.9%** (64 activations), but retained the same baseline precision and recall.
+## 📊 Final Held-Out Test Evaluation
 
-### Full 250-Epoch Training Progression
-*Source: `outputs/final/master_summary_statistics.json` & `training_master_250epochs.csv` across 8.21 GPU hours on dual Tesla T4 GPUs:*
+Standardized evaluation across the **1,259 held-out test samples** (`data/landsat9_b10_b11/splits/test/`):
 
-| Metric | Single-Band Baseline (Ep 100) | Pre-Extension Peak (Ep 96) | **Final Model (Epoch 250)** | **All-Time Best Record** | Benchmark Status |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **PSNR** $\uparrow$ | 10.82 dB | 11.57 dB | **11.49 dB** | **11.75 dB** *(Ep 137)* | **PASS** *(+0.18 dB vs Benchmark)* |
-| **SSIM** $\uparrow$ | 0.1841 | 0.2514 | **0.2340** | **0.2522** *(Ep 68)* | **PASS** *(Peak 0.2522)* |
-| **MAE** $\downarrow$ | 0.2512 | 0.2205 | **0.2217** | **0.2183** *(Ep 67)* | **PASS** |
-| **RMSE** $\downarrow$ | 0.3120 | 0.2805 | **0.2810** | **0.2741** *(Ep 67)* | **PASS** |
-| **CIE $\Delta E^*_{ab}$ Error** $\downarrow$ | 35.42 | 28.73 | **29.87** | **27.61** *(Ep 40)* | **PASS** *(Peak 27.61)* |
-| **SAM (Spectral Angle)** $\downarrow$ | 0.2680 rad | 0.2091 rad | **0.2257 rad** | **0.2050 rad** *(Ep 127)* | **PASS** *(Peak 0.2050)* |
-| **Saturation Ratio Error vs 1.0** $\downarrow$ | 0.3977 | 0.0160 | **0.0965** | **0.0033** *(Ep 92, Ratio: 1.0033)* | **PASS** *(99.2% Error Reduction)* |
-| **10-Epoch Saturation $\sigma$** $\downarrow$ | 0.3632 | 0.1245 | **0.0386** | **0.0386** *(Ep 241–250)* | **PASS** *(10$\times$ Stability Gain)* |
-| **Histogram Wasserstein Dist** $\downarrow$ | 0.1840 | 0.1042 | **0.0929** | **0.0843** *(Ep 161)* | **PASS** *(Lowest Color Shift)* |
+| Metric | Previous Production | Exp9 (Active Production) | Status |
+| :--- | :---: | :---: | :---: |
+| **PSNR (dB)** $\uparrow$ | 11.7138 | **13.7447** | **+2.0309 dB** |
+| **SSIM** $\uparrow$ | 0.3254 | **0.4502** | **+38.35%** |
+| **MAE** $\downarrow$ | 0.2144 | **0.1723** | **-19.64%** |
+| **RMSE** $\downarrow$ | 0.2752 | **0.2217** | **-19.44%** |
+| **SAM (rad)** $\downarrow$ | 0.2187 | **0.1968** | **-10.01%** |
+| **SAM (degrees)** $\downarrow$ | 12.53° | **11.28°** | **-1.25°** |
+| **CIE Lab $\Delta E^*_{ab}$** $\downarrow$ | 27.2355 | **22.5706** | **-17.13%** |
+| **Saturation Ratio** (target 1.0) | 1.1993 | **0.9340** | **+66.88% closer** |
+| **Saturation Deviation** $|R - 1.0|$ $\downarrow$ | 0.1993 | **0.0660** | **-66.88%** |
+| **Histogram Distance** $\downarrow$ | **0.3572** | 0.4607 | Known trade-off (+0.1035) |
+
+> **Analysis**: Exp9 improves the principal structural, pixel, spectral, perceptual, and saturation metrics. Histogram distance remains worse than the previous production model.
 
 ---
 
-## 📁 Repository Layout
+## 🎯 Downstream Object Detection (YOLOv8) Evaluation
+
+Downstream object detection performance evaluated with YOLOv8 on the 1,259 held-out test set benchmark:
+
+| Metric | Previous Production | Exp9 (Active Production) | Delta |
+| :--- | :---: | :---: | :---: |
+| **F1 @ IoU 0.25** $\uparrow$ | 0.2992 | **0.3711** | **+0.0719** |
+| **F1 @ IoU 0.50** $\uparrow$ | 0.2835 | **0.3643** | **+0.0808** |
+| **Precision @ 0.25** $\uparrow$ | 0.4176 | **0.4219** | **+0.0043** |
+| **Recall @ 0.25** $\uparrow$ | 0.2331 | **0.3313** | **+0.0982** |
+| **Mean Matched IoU** $\uparrow$ | 0.9977 | **0.9980** | **+0.0003** |
+
+Exp9 improved downstream YOLO detection F1 scores across both IoU thresholds.
+
+---
+
+## 🚀 Production Inference Pipeline
+
+The deployment pipeline performs sliding-window inference across arbitrary-dimension satellite rasters:
+
+```
+Band 10 + Band 11 Dual Thermal Input
+                ↓
+    128×128 Overlapping Tiles
+                ↓
+   Exp9 ResNet Generator (11.37M)
+                ↓
+  2D Cosine / Hann Window Blending
+                ↓
+    Seamless Full Optical RGB
+```
+
+### Validated Whole-Raster Benchmark
+- **Input Scene**: $1002 \times 1001$ pixels dual-band GeoTIFF
+- **Tile Configuration**: $128 \times 128$ tile size, $32\text{ px}$ overlap, $96\text{ px}$ stride
+- **Total Tiles Processed**: 121 tiles
+- **End-to-End Latency**: **1.740 s**
+- **Throughput**: **69.5 tiles/sec**
+- **Peak GPU VRAM**: **263.39 MB**
+- **Boundary Quality**: Continuous, seam-free blending across all tile boundaries
+
+---
+
+## 🔌 API & Application Services
+
+### FastAPI Backend (`api/`)
+- **Lifecycle**: The production model is loaded once into memory on application startup.
+- **Header**: All `/colorize` responses include the telemetry header `X-Model: pix2pix-landsat-exp9-resnet`.
+- **Endpoints**:
+  - `GET  /health` — Service readiness, model status, and compute device
+  - `POST /colorize` — Full cross-spectral translation on uploaded image or raster
+  - `POST /thermal-preview` — False-color thermal visualization
+  - `POST /postprocess/clahe` — Adaptive contrast enhancement postprocessing
+
+### Interactive Web Dashboard (`web/`)
+Built with React + Vite:
+- Multi-format file ingestion: PNG/JPEG satellite images, dual-band `.npy` arrays, and GeoTIFF files
+- Preset validation scenes (Accra, Abu Dhabi, etc.)
+- Before/after comparison visual slider with synchronized zoom
+- Test-Time Augmentation (TTA) toggles (horizontal, vertical, rotation transforms)
+- Real-time inference latency and memory telemetry
+- CLAHE postprocessing controls and single-click high-resolution PNG export
+
+---
+
+## 📁 Repository Structure
 
 ```
 InfraNova-AI/
-├── api/                             # FastAPI REST Backend
-│   ├── main.py                      # Endpoints: /health, /colorize, /thermal-preview, /postprocess/clahe
-│   └── Dockerfile                   # Backend container definition
-├── configs/
-│   └── config.yaml                  # Default 2-channel Pix2PixHD configuration
-├── data/                            # Local dataset storage (splits: train, val, test)
-├── demo/                            # Inference engine & visualization helpers
-│   ├── inference.py                 # Core InferenceEngine class (used by API)
-│   └── utils.py                     # Image preprocessing & thermal colormap helpers
-├── docs/                            # Comprehensive Technical Documentation Suite
-│   ├── architecture/                # Model, System, Data Flow, & Legacy architecture specs
-│   ├── data/                        # Dataset extraction, patching, and normalization
-│   ├── deployment/                  # API, Web, Docker, and deployment workflows
-│   ├── evaluation/                  # Metrics formulations and benchmarking procedures
-│   ├── experiments/                 # Full experimental telemetry and 250-epoch results
-│   ├── inference/                   # Inference engines, TTA mechanics, and TIFF export
-│   ├── project/                     # AI Handover, Master Guide, Status, and Decisions
-│   └── training/                    # Loss functions, schedules, and memory management
-├── kaggle_kernel/                   # Kaggle training scripts & multi-segment execution logs
-│   ├── train_pix2pixhd_2channel.py  # Segmented training script with memory cleanup
-│   └── run_output/                  # Checkpoints and logs from completed training
-├── outputs/                         # Final staged checkpoints and master telemetry
-│   └── final/                       # epoch_250.pth, best_*.pth, training_master_250epochs.csv
-├── scripts/
-│   ├── download/                    # Google Earth Engine Landsat 9 download scripts
-│   ├── preprocessing/               # Patch generation, spatial splitting, normalization stats
-│   ├── evaluation/                  # Standalone CLI evaluation & benchmarking tools
-│   ├── deployment/                  # Model export (ONNX / TorchScript)
-│   └── pipeline/                    # End-to-end automation runners
-├── src/                             # Core Python Package
-│   ├── datasets/                    # Landsat9Dataset loader (2-channel, local/global norm)
-│   ├── inference/                   # LandsatColorizationInference production engine
-│   ├── models/pix2pix/              # Pix2PixHDGenerator, MultiScaleDiscriminator, Pix2Pix
-│   ├── training/                    # Trainer, CombinedLoss, LinearLRScheduler, Callbacks
-│   └── utils/                       # Checkpointing, image processing, logging, seeds
-├── tests/                           # Pytest test suite (46 passing tests)
-├── web/                             # React + Vite Interactive Frontend
-│   ├── src/                         # App.jsx, index.css, visual components
-│   └── Dockerfile                   # Frontend container definition
-├── docker-compose.yml               # Development & deployment multi-container configuration
-├── Dockerfile                       # Multi-stage production build (FastAPI + React dist)
-├── pyproject.toml                   # Build system and linter configurations
-└── requirements.txt                 # Python dependencies (PyTorch, OpenCV, FastAPI, etc.)
+├── api/             # FastAPI REST backend and container definitions
+├── configs/         # Experiment configurations (config.yaml, exp1–exp9)
+├── data/            # Landsat-9 dual-band dataset storage and spatial splits
+├── demo/            # InferenceEngine, CLI runners, and colormap helpers
+├── docs/            # Architecture, deployment, training, and evaluation documentation
+├── outputs/         # Staged production model, historical records, and reports
+│   ├── best/        # Active production checkpoint (pix2pix_landsat_best.pth) and rollback backup
+│   ├── exp1/ ... exp9/ # Historical scientific experiment outputs and checkpoints
+│   └── final/       # Historical reference checkpoints and master progression logs
+├── reports/         # Visual inspection panels and final adjudication reports
+├── scripts/         # Reusable evaluation, deployment, preprocessing, and download tools
+├── tests/           # Automated pytest test suite
+└── web/             # React + Vite interactive satellite colorization frontend
 ```
+
+*Note: Large model weights (`.pth`), checkpoints, and raw satellite datasets are excluded from Git tracking.*
 
 ---
 
 ## ⚡ Quick Start
 
-### 1. Environment Setup
+### Option A: macOS & Linux (Bash / Zsh)
 
-**Prerequisite**: Python 3.11.
+#### 1. Prerequisites & System Packages
 
-```powershell
-# Create and activate virtual environment
-python -m venv venv
-.\venv\Scripts\activate
+- **Python**: 3.11 (`python3 --version`)
+- **Node.js**: 18+ and npm (`node -v`, `npm -v`)
+- **Linux (Ubuntu/Debian)** system libraries:
+  ```bash
+  sudo apt update && sudo apt install -y python3-venv python3-pip libgl1 libglib2.0-0
+  ```
+- **macOS (Homebrew)**:
+  ```bash
+  brew install python@3.11 node
+  ```
 
-# Install dependencies
+#### 2. Environment Setup
+
+```bash
+git clone https://github.com/Soham-1009/InfraNova-AI.git
+cd InfraNova-AI
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2. Run Test Suite
+#### 3. Run Test Suite
 
-```powershell
-# Run the complete test suite (46 unit & integration tests)
+```bash
 pytest tests/ -v
 ```
 
-### 3. Launch Web Application & API
+#### 4. Launch Application
 
-```powershell
-# Option A: Run FastAPI backend with hot-reload
+```bash
+# Terminal 1: Run FastAPI backend with hot-reload (port 8000)
+source venv/bin/activate
 uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 
-# Option B: Run React frontend dev server
+# Terminal 2: Run React + Vite frontend development server (port 5173)
 cd web
 npm install
 npm run dev
 ```
 
-### 4. Run Model Evaluation
+#### 5. Run Model Evaluation
 
-```powershell
-# Evaluate validation split using the final 250-epoch checkpoint
-python scripts/evaluation/evaluate.py --split val --checkpoint outputs/final/epoch_250.pth --image-size 128 --generator-impl hd
+```bash
+# Run benchmark evaluation on production Exp9 ResNet checkpoint
+python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth --generator-impl resnet
 ```
 
 ---
 
-## 📦 Checkpoint Inventory
+### Option B: Windows (Command Prompt — `cmd.exe`)
 
-All checkpoints are verified and stored locally in [`outputs/final/`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/outputs/final):
+#### 1. Prerequisites
 
-| Checkpoint | File Size | Description | Key Metric |
-| :--- | :---: | :--- | :--- |
-| **`epoch_250.pth`** | 323.2 MB | Final weights at completion of 250-epoch schedule | PSNR: 11.49 dB, SSIM: 0.2340 |
-| **`best_checkpoint.pth`** | 323.2 MB | Multi-criteria optimal model weights | Balanced quality & stability |
-| **`best_ssim.pth`** | 323.2 MB | Optimal structural similarity checkpoint (Epoch 68) | **SSIM: 0.2522** |
-| **`best_psnr.pth`** | 323.2 MB | Optimal peak signal-to-noise checkpoint (Epoch 137) | **PSNR: 11.754 dB** |
-| **`best_lab.pth`** | 323.2 MB | Minimal perceptual color difference (Epoch 40) | **CIE $\Delta E^*_{ab}$: 27.61** |
-| **`best_sam.pth`** | 323.2 MB | Lowest spectral angle distortion (Epoch 127) | **SAM: 0.2050 rad** ($11.74^\circ$) |
-| **`best_sat_ratio.pth`** | 323.2 MB | Optimal optical color saturation ratio (Epoch 92) | **Sat Ratio: 1.0033** |
+- **Python**: 3.11 (`python --version`)
+- **Node.js**: 18+ and npm (`node -v`, `npm -v`)
+- **Git for Windows**
+
+#### 2. Environment Setup
+
+```cmd
+git clone https://github.com/Soham-1009/InfraNova-AI.git
+cd InfraNova-AI
+
+python -m venv venv
+venv\scripts\activate
+
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### 3. Run Test Suite
+
+```cmd
+pytest tests/ -v
+```
+
+#### 4. Launch Application
+
+```cmd
+:: Terminal 1: Run FastAPI backend with hot-reload (port 8000)
+venv\scripts\activate
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+
+:: Terminal 2: Run React + Vite frontend development server (port 5173)
+cd web
+npm install
+npm run dev
+```
+
+#### 5. Run Model Evaluation
+
+```cmd
+:: Run benchmark evaluation on production Exp9 ResNet checkpoint
+python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth --generator-impl resnet
+```
+
+---
+
+### Option C: Windows (PowerShell)
+
+#### 1. Environment Setup
+
+```powershell
+git clone https://github.com/Soham-1009/InfraNova-AI.git
+cd InfraNova-AI
+
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### 2. Run Test Suite
+
+```powershell
+pytest tests/ -v
+```
+
+#### 3. Launch Application
+
+```powershell
+# Terminal 1: Run FastAPI backend with hot-reload (port 8000)
+.\venv\Scripts\Activate.ps1
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
+
+# Terminal 2: Run React + Vite frontend development server (port 5173)
+cd web
+npm install
+npm run dev
+```
+
+---
+
+The web interface is served at `http://localhost:5173`, with interactive OpenAPI documentation at `http://localhost:8000/docs`.
 
 ---
 
 ## 📖 Documentation Directory
 
-- **AI Agent Onboarding**: [`docs/project/AI_HANDOVER.md`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/docs/project/AI_HANDOVER.md)
-- **Master Codebase Guide**: [`docs/project/MASTER_CODEBASE_GUIDE.md`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/docs/project/MASTER_CODEBASE_GUIDE.md)
-- **Current Project Status**: [`docs/project/CURRENT_STATUS.md`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/docs/project/CURRENT_STATUS.md)
-- **Implementation Status Matrix**: [`docs/project/IMPLEMENTATION_STATUS.md`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/docs/project/IMPLEMENTATION_STATUS.md)
-- **Model Architecture Deep-Dive**: [`docs/architecture/MODEL_ARCHITECTURE.md`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/docs/architecture/MODEL_ARCHITECTURE.md)
-- **Full 250-Epoch Results Report**: [`docs/experiments/EXPERIMENTS.md`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/docs/experiments/EXPERIMENTS.md)
+- **Current Project Status**: [`docs/project/CURRENT_STATUS.md`](docs/project/CURRENT_STATUS.md)
+- **Master Codebase Guide**: [`docs/project/MASTER_CODEBASE_GUIDE.md`](docs/project/MASTER_CODEBASE_GUIDE.md)
+- **AI Agent Onboarding**: [`docs/project/AI_HANDOVER.md`](docs/project/AI_HANDOVER.md)
+- **Model Architecture Deep-Dive**: [`docs/architecture/MODEL_ARCHITECTURE.md`](docs/architecture/MODEL_ARCHITECTURE.md)
+- **Full Experimental Telemetry**: [`docs/experiments/EXPERIMENTS.md`](docs/experiments/EXPERIMENTS.md)
+
+---
+
+## 🏁 Final Project Status
+
+```
+Research cycle: COMPLETE
+Model selection: COMPLETE
+Production promotion: COMPLETE
+Production model: Exp9
+Deployment validation: COMPLETE
+Long-training study: COMPLETE
+```
+
+**Exp9 is the active production model.**

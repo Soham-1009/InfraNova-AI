@@ -157,11 +157,13 @@ def _save_experiment_json(
 
     import yaml
 
-    experiment_id = cfg.get("project", {}).get("name", "InfraNova-AI").replace(" ", "_")
+    experiment_id = cfg.get("project", {}).get(
+        "name", "InfraNova-AI").replace(" ", "_")
 
     # Extract manifest if possible
     manifest_hash = "unknown"
-    manifest_path = Path(cfg.get("dataset", {}).get("root_dir", "")).parent / "dataset_manifest.json"
+    manifest_path = Path(cfg.get("dataset", {}).get(
+        "root_dir", "")).parent / "dataset_manifest.json"
     if manifest_path.exists():
         with open(manifest_path, "rb") as f:
             manifest_hash = hashlib.sha256(f.read()).hexdigest()[:12]
@@ -222,6 +224,7 @@ def _save_experiment_comparison(cfg: dict[str, Any], history: dict[str, list]) -
         "lambda_perc": loss_cfg.get("lambda_perc", 10.0),
         "lambda_ssim": loss_cfg.get("lambda_ssim", 5.0),
         "lambda_chroma": loss_cfg.get("lambda_chroma", 0.0),
+        "lambda_sat": loss_cfg.get("lambda_sat", 0.0),
         "lambda_feat": loss_cfg.get("lambda_feat", 0.0),
         "gan_mode": loss_cfg.get("gan_mode", "bce"),
         "scheduler_type": sched_cfg.get("type", "linear"),
@@ -233,7 +236,8 @@ def _save_experiment_comparison(cfg: dict[str, Any], history: dict[str, list]) -
         "batch_size": training_cfg.get("batch_size", 8),
     }
 
-    csv_path = Path(cfg.get("paths", {}).get("logs", "logs")) / "experiment_comparison.csv"
+    csv_path = Path(cfg.get("paths", {}).get("logs", "logs")) / \
+        "experiment_comparison.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = csv_path.exists()
 
@@ -276,20 +280,25 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
     Path(paths_cfg["logs"]).mkdir(parents=True, exist_ok=True)
     Path(paths_cfg["outputs"]).mkdir(parents=True, exist_ok=True)
     Path(paths_cfg["visualizations"]).mkdir(parents=True, exist_ok=True)
-    Path(Path(paths_cfg["checkpoints"]) / "best").mkdir(parents=True, exist_ok=True)
-    Path(Path(paths_cfg["checkpoints"]) / "latest").mkdir(parents=True, exist_ok=True)
-    Path(Path(paths_cfg["checkpoints"]) / "final").mkdir(parents=True, exist_ok=True)
+    Path(Path(paths_cfg["checkpoints"]) /
+         "best").mkdir(parents=True, exist_ok=True)
+    Path(Path(paths_cfg["checkpoints"]) /
+         "latest").mkdir(parents=True, exist_ok=True)
+    Path(Path(paths_cfg["checkpoints"]) /
+         "final").mkdir(parents=True, exist_ok=True)
 
     root_dir = Path(dataset_cfg["root_dir"])
     if not root_dir.exists():
-        raise FileNotFoundError(f"Landsat 9 dataset directory not found: {root_dir}")
+        raise FileNotFoundError(
+            f"Landsat 9 dataset directory not found: {root_dir}")
 
     train_loader, val_loader = build_dataloaders(cfg)
 
     # Multi-scale discriminator support
     model_cfg = cfg.get("model", {})
     multi_scale = bool(model_cfg.get("multi_scale_disc", False))
-    num_scales = int(model_cfg.get("discriminator", {}).get("num_scales", 2 if multi_scale else 1))
+    num_scales = int(model_cfg.get("discriminator", {}).get(
+        "num_scales", 2 if multi_scale else 1))
 
     model = Pix2Pix(
         device=device,
@@ -298,7 +307,8 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
         image_size=int(dataset_cfg.get("image_size", 128)),
         multi_scale=multi_scale,
         num_scales=num_scales,
-        generator_impl=model_cfg.get("generator", {}).get("implementation", "hd"),
+        generator_impl=model_cfg.get(
+            "generator", {}).get("implementation", "hd"),
     )
 
     trainer = Trainer(
@@ -358,8 +368,10 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
         start_epoch = int(checkpoint_epoch)
 
         if isinstance(checkpoint_metrics, dict):
-            best_val_ssim = float(checkpoint_metrics.get("val_ssim", best_val_ssim))
-            logger.info("Resumed epoch=%d, best_val_ssim=%.4f", start_epoch, best_val_ssim)
+            best_val_ssim = float(
+                checkpoint_metrics.get("val_ssim", best_val_ssim))
+            logger.info("Resumed epoch=%d, best_val_ssim=%.4f",
+                        start_epoch, best_val_ssim)
 
     history: dict[str, list] = {
         "g_loss": [],
@@ -421,11 +433,13 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                 "discriminator": scheduler_d,
             },
         )
-        _save_experiment_json(cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], Path(latest_path).parent)
+        _save_experiment_json(cfg, dataset_info, best_val_ssim,
+                              val_metrics["val_psnr"], Path(latest_path).parent)
 
         # Stage checkpoint (every 10 epochs)
         if (epoch + 1) % 10 == 0:
-            stage_dir = Path(paths_cfg["outputs"]) / "experiments" / "pix2pixhd_long_training" / f"epoch_{epoch + 1}"
+            stage_dir = Path(paths_cfg["outputs"]) / "experiments" / \
+                "pix2pixhd_long_training" / f"epoch_{epoch + 1}"
             stage_dir.mkdir(parents=True, exist_ok=True)
             stage_path = stage_dir / "checkpoint.pth"
             save_checkpoint(
@@ -443,7 +457,8 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                     "discriminator": scheduler_d,
                 },
             )
-            _save_experiment_json(cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], stage_dir)
+            _save_experiment_json(
+                cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], stage_dir)
 
         # Best checkpoint based on validation SSIM
         if val_metrics["val_ssim"] > best_val_ssim:
@@ -466,8 +481,10 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
                     "discriminator": scheduler_d,
                 },
             )
-            _save_experiment_json(cfg, dataset_info, best_val_ssim, val_metrics["val_psnr"], Path(best_path).parent)
-            logger.info("Epoch %d: new best val_ssim=%.4f", epoch + 1, best_val_ssim)
+            _save_experiment_json(cfg, dataset_info, best_val_ssim,
+                                  val_metrics["val_psnr"], Path(best_path).parent)
+            logger.info("Epoch %d: new best val_ssim=%.4f",
+                        epoch + 1, best_val_ssim)
         else:
             no_improve += 1
 
@@ -524,10 +541,46 @@ def run_training(cfg: dict[str, Any]) -> dict[str, list]:
 
 
 def main() -> None:
-    import sys
+    import argparse
 
-    config_path = sys.argv[1] if len(sys.argv) > 1 else "configs/config.yaml"
+    parser = argparse.ArgumentParser(
+        description="InfraNova-AI Landsat Training Pipeline")
+    parser.add_argument("config_pos", nargs="?", default=None,
+                        help="Path to config YAML (positional)")
+    parser.add_argument("--config", "-c", default=None,
+                        help="Path to config YAML")
+    parser.add_argument("--epochs", "-e", type=int,
+                        default=None, help="Override training epochs")
+    parser.add_argument("--patience", "-p", type=int,
+                        default=None, help="Override early stopping patience")
+    parser.add_argument("--decay-start-epoch", type=int,
+                        default=None, help="Override decay start epoch")
+    parser.add_argument("--output-dir", "-o", type=str,
+                        default=None, help="Override output directory")
+
+    args = parser.parse_args()
+
+    config_path = args.config or args.config_pos or "configs/config.yaml"
     cfg = load_config(config_path)
+
+    if args.epochs is not None:
+        cfg["training"]["epochs"] = args.epochs
+    if args.patience is not None:
+        cfg["training"]["patience"] = args.patience
+    if args.decay_start_epoch is not None:
+        cfg["training"]["decay_start_epoch"] = args.decay_start_epoch
+    if args.output_dir is not None:
+        out_dir = args.output_dir
+        cfg["paths"]["checkpoints"] = out_dir
+        cfg["paths"]["best_checkpoint"] = f"{out_dir}/best/pix2pix_landsat_best.pth"
+        cfg["paths"]["latest_checkpoint"] = f"{out_dir}/latest/pix2pix_landsat_latest.pth"
+        cfg["paths"]["final_checkpoint"] = f"{out_dir}/final/pix2pix_landsat_final.pth"
+        cfg["paths"]["logs"] = f"{out_dir}/logs"
+        cfg["paths"]["outputs"] = out_dir
+        cfg["paths"]["visualizations"] = f"{out_dir}/visualizations"
+        cfg["logging"]["csv_path"] = f"{out_dir}/logs/training.csv"
+        cfg["logging"]["tensorboard_dir"] = f"{out_dir}/logs/tensorboard"
+
     run_training(cfg)
 
 
