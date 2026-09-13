@@ -340,6 +340,7 @@ def main():
 
     plt.tight_layout()
     vis_fig_path = PROJECT_ROOT / "reports" / "figures" / "candidate_checkpoints_visual_comparison.png"
+    vis_fig_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(vis_fig_path, bbox_inches="tight")
     plt.close()
     logger.info(f"Saved candidate visual comparison figure to {vis_fig_path}")
