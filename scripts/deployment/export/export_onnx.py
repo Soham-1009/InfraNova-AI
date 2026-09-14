@@ -3,7 +3,7 @@ Export InfraNova AI generator to ONNX format for deployment.
 
 Usage:
     python export_onnx.py
-    python export_onnx.py --checkpoint checkpoints/best/pix2pix_landsat_best.pth --output model.onnx
+    python export_onnx.py --checkpoint outputs/best/pix2pix_landsat_best.pth --output model.onnx
     python export_onnx.py --opset 17 --input-size 256
     python export_onnx.py --help
 """
@@ -17,20 +17,19 @@ from pathlib import Path
 import torch
 
 # Make project root importable
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
 def export_to_onnx(
     checkpoint_path: str,
     output_path: str,
     opset_version: int = 17,
-    input_size: int = 256,
-    in_channels: int = 1,
+    input_size: int | None = None,
+    in_channels: int | None = None,
 ) -> None:
     """
     Export the generator from a Pix2Pix checkpoint to ONNX.
@@ -42,25 +41,17 @@ def export_to_onnx(
         input_size: Spatial size of the dummy input (square).
         in_channels: Number of input channels.
     """
-    if input_size < 256 or input_size % 256 != 0:
-        raise ValueError("input_size must be a multiple of 256 for this generator")
-
     print(f"Loading checkpoint: {checkpoint_path}")
-    ckpt = load_torch_checkpoint(checkpoint_path, map_location="cpu")
-
-    # Build model and load weights
-    model = Pix2Pix(device="cpu", in_channels=in_channels, out_channels=3)
-
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
-    elif "generator_state_dict" in ckpt:
-        model.generator.load_state_dict(ckpt["generator_state_dict"])
-    else:
-        # Try loading directly as a state dict
-        model.load_state_dict(ckpt, strict=False)
+    model, architecture = load_pix2pix_model(checkpoint_path, device="cpu")
+    expected_channels = int(architecture["input_channels"])
+    in_channels = expected_channels if in_channels is None else in_channels
+    input_size = int(architecture["image_size"]) if input_size is None else input_size
+    if input_size <= 0:
+        raise ValueError("input_size must be positive")
+    if in_channels != expected_channels:
+        raise ValueError(f"Checkpoint requires {expected_channels} input channels, got {in_channels}.")
 
     generator = model.generator
-    generator.eval()
 
     # Create dummy input
     dummy_input = torch.randn(1, in_channels, input_size, input_size)
@@ -100,7 +91,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export InfraNova AI generator to ONNX format.")
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default=str(PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth"),
         help="Path to model checkpoint.",
     )
     parser.add_argument(
@@ -117,14 +108,14 @@ def main() -> None:
     parser.add_argument(
         "--input-size",
         type=int,
-        default=256,
-        help="Spatial input size for the dummy tensor (default: 256).",
+        default=None,
+        help="Spatial input size for the dummy tensor (default: checkpoint image size).",
     )
     parser.add_argument(
         "--in-channels",
         type=int,
-        default=1,
-        help="Number of input channels (default: 1 for thermal).",
+        default=None,
+        help="Number of input channels (default: checkpoint architecture).",
     )
     args = parser.parse_args()
 

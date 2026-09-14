@@ -26,6 +26,7 @@ from ultralytics import YOLO
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
+from src.utils.checkpoint import load_pix2pix_model
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -144,36 +145,8 @@ def match_detections(pred_boxes: list[np.ndarray], gt_boxes: list[np.ndarray], i
 
 
 def load_model(ckpt_path: Path, device: torch.device) -> Pix2Pix:
-    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-    m = Pix2Pix(
-        device=device,
-        in_channels=2,
-        out_channels=3,
-        image_size=128,
-        generator_impl="hd",
-        multi_scale=True,
-        num_scales=2,
-    )
-    if isinstance(ckpt, dict) and "generator_state_dict" in ckpt:
-        state_dict = ckpt["generator_state_dict"]
-        clean = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        matched = {k: v for k, v in clean.items() if k in m.generator.state_dict()
-                   and v.shape == m.generator.state_dict()[k].shape}
-        m.generator.load_state_dict(matched, strict=False)
-    elif isinstance(ckpt, dict) and "model_state_dict" in ckpt:
-        state_dict = ckpt["model_state_dict"]
-        clean = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        matched = {k: v for k, v in clean.items() if k in m.state_dict()
-                   and v.shape == m.state_dict()[k].shape}
-        m.load_state_dict(matched, strict=False)
-    else:
-        state_dict = ckpt if isinstance(ckpt, dict) else {}
-        clean = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        matched = {k: v for k, v in clean.items() if k in m.state_dict()
-                   and v.shape == m.state_dict()[k].shape}
-        m.load_state_dict(matched, strict=False)
-    m.eval()
-    return m
+    model, _architecture = load_pix2pix_model(ckpt_path, device=device)
+    return model
 
 
 def run_gt(test_loader: DataLoader, device: torch.device, out_path: Path):

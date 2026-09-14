@@ -8,10 +8,15 @@ before any expensive GPU work begins.
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _is_finite_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
 
 
 def validate_config(cfg: dict[str, Any]) -> list[str]:
@@ -111,24 +116,24 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
             f"training.patience must be a positive integer, got {patience}")
 
     grad_clip = training.get("grad_clip")
-    if grad_clip is not None and (not isinstance(grad_clip, (int, float)) or grad_clip <= 0):
+    if grad_clip is not None and (not _is_finite_number(grad_clip) or grad_clip <= 0):
         errors.append(
             f"training.grad_clip must be a positive number, got {grad_clip}")
 
     # Optimizer
     optim = training.get("optimizer", {})
     lr = optim.get("lr", 2e-4)
-    if not isinstance(lr, (int, float)) or lr <= 0:
+    if not _is_finite_number(lr) or lr <= 0:
         errors.append(
             f"training.optimizer.lr must be a positive number, got {lr}")
 
     beta1 = optim.get("beta1", 0.5)
-    if not isinstance(beta1, (int, float)) or not (0.0 <= beta1 < 1.0):
+    if not _is_finite_number(beta1) or not (0.0 <= beta1 < 1.0):
         errors.append(
             f"training.optimizer.beta1 must be in [0, 1), got {beta1}")
 
     beta2 = optim.get("beta2", 0.999)
-    if not isinstance(beta2, (int, float)) or not (0.0 <= beta2 < 1.0):
+    if not _is_finite_number(beta2) or not (0.0 <= beta2 < 1.0):
         errors.append(
             f"training.optimizer.beta2 must be in [0, 1), got {beta2}")
 
@@ -144,7 +149,7 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
         "lambda_feat",
     ):
         val = loss_cfg.get(key)
-        if val is not None and (not isinstance(val, (int, float)) or val < 0):
+        if val is not None and (not _is_finite_number(val) or val < 0):
             errors.append(
                 f"loss.{key} must be a non-negative number, got {val}")
 
@@ -166,6 +171,8 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
         errors.append(
             f"model.generator.implementation must be 'hd' or 'resnet', got '{gen_impl}'"
         )
+    elif str(gen_impl).lower() == "hd" and image_size != 128:
+        errors.append("dataset.image_size must be 128 when model.generator.implementation is 'hd'.")
 
     # --- Paths ---
     paths = cfg.get("paths", {})

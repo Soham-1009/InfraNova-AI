@@ -80,6 +80,12 @@ class Pix2Pix(nn.Module):
         self.device = next(self.generator.parameters()).device
         return self
 
+    def _apply(self, fn, recurse: bool = True) -> Pix2Pix:
+        """Keep the public device cache correct for all PyTorch device-moving paths."""
+        super()._apply(fn, recurse=recurse)
+        self.device = next(self.generator.parameters()).device
+        return self
+
     def _model_device(self) -> torch.device:
         """Return the current generator device, including after `.cpu()` or `.cuda()`."""
         return next(self.generator.parameters()).device

@@ -4,7 +4,7 @@ Export InfraNova AI generator to ONNX and/or TorchScript format.
 Usage:
     python export_model.py
     python export_model.py --format both
-    python export_model.py --format torchscript --checkpoint checkpoints/best/pix2pix_landsat_best.pth
+    python export_model.py --format torchscript --checkpoint outputs/best/pix2pix_landsat_best.pth
     python export_model.py --format onnx --opset 17 --input-size 256
     python export_model.py --help
 """
@@ -18,29 +18,17 @@ from pathlib import Path
 import torch
 
 # Make project root importable
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
-def _load_generator(checkpoint_path: str, in_channels: int, device: str = "cpu"):
+def _load_generator(checkpoint_path: str, device: str = "cpu") -> tuple[torch.nn.Module, dict[str, object]]:
     """Load and return the generator from a checkpoint."""
-    ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-
-    model = Pix2Pix(device=device, in_channels=in_channels, out_channels=3)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
-    elif "generator_state_dict" in ckpt:
-        model.generator.load_state_dict(ckpt["generator_state_dict"])
-    else:
-        model.load_state_dict(ckpt, strict=False)
-
-    generator = model.generator
-    generator.eval()
-    return generator
+    model, architecture = load_pix2pix_model(checkpoint_path, device=device)
+    return model.generator, architecture
 
 
 def export_onnx(
@@ -50,10 +38,8 @@ def export_onnx(
     opset_version: int = 17,
 ) -> None:
     """Export generator to ONNX format."""
-    if dummy_input.shape[-2] < 256 or dummy_input.shape[-1] < 256:
-        raise ValueError("The generator requires input dimensions of at least 256 pixels")
-    if dummy_input.shape[-2] % 256 != 0 or dummy_input.shape[-1] % 256 != 0:
-        raise ValueError("The generator requires input dimensions that are multiples of 256")
+    if dummy_input.ndim != 4 or dummy_input.shape[-2] <= 0 or dummy_input.shape[-1] <= 0:
+        raise ValueError("dummy_input must have shape [B, C, H, W] with positive spatial dimensions")
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -111,7 +97,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export InfraNova AI generator to ONNX and/or TorchScript.")
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default=str(PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth"),
         help="Path to model checkpoint.",
     )
     parser.add_argument(
@@ -134,14 +120,14 @@ def main() -> None:
     parser.add_argument(
         "--input-size",
         type=int,
-        default=256,
-        help="Spatial input size (default: 256).",
+        default=None,
+        help="Spatial input size (default: checkpoint image size).",
     )
     parser.add_argument(
         "--in-channels",
         type=int,
-        default=1,
-        help="Number of input channels (default: 1).",
+        default=None,
+        help="Number of input channels (default: checkpoint architecture).",
     )
     args = parser.parse_args()
 
@@ -150,9 +136,17 @@ def main() -> None:
         sys.exit(1)
 
     print(f"Loading checkpoint: {args.checkpoint}")
-    generator = _load_generator(args.checkpoint, args.in_channels)
+    generator, architecture = _load_generator(args.checkpoint)
+    in_channels = int(architecture["input_channels"])
+    input_size = args.input_size or int(architecture["image_size"])
+    if input_size <= 0:
+        raise ValueError("input_size must be positive")
+    if args.in_channels is not None and args.in_channels != in_channels:
+        raise ValueError(
+            f"Checkpoint requires {in_channels} input channels, but --in-channels={args.in_channels} was requested."
+        )
 
-    dummy_input = torch.randn(1, args.in_channels, args.input_size, args.input_size)
+    dummy_input = torch.randn(1, in_channels, input_size, input_size)
     print(f"Input shape: {list(dummy_input.shape)}")
 
     output_dir = Path(args.output_dir)

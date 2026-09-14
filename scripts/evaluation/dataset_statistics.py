@@ -28,7 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-EXPECTED_FILES = ("tir_200m.npy", "tir_100m.npy", "rgb_100m.npy")
+EXPECTED_FILES = ("tir_200m.npy", "tir_100m.npy", "tir_b11_100m.npy", "rgb_100m.npy")
 
 
 def discover_samples(data_dir: Path) -> dict[str, list[Path]]:
@@ -86,7 +86,7 @@ def compute_band_stats(arrays: list[np.ndarray]) -> dict[str, Any]:
 
 
 def generate_statistics(
-    data_dir: str = str(PROJECT_ROOT / "data/landsat9/splits"),
+    data_dir: str = str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
     output_path: str = "dataset_statistics.json",
 ) -> dict[str, Any]:
     """Generate comprehensive dataset statistics."""
@@ -187,7 +187,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate aggregate dataset statistics.")
     parser.add_argument(
         "--dir",
-        default=str(PROJECT_ROOT / "data/landsat9/splits"),
+        default=str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
         help="Dataset directory to scan.",
     )
     parser.add_argument(

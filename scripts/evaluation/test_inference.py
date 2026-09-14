@@ -6,6 +6,7 @@ import yaml
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
+from src.utils.checkpoint import load_pix2pix_model
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +49,16 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     cfg = load_config(config_path)
 
+    # Build directly from checkpoint metadata/weights so an older training config cannot
+    # silently select a different generator implementation.
+    model_pass1, architecture = load_pix2pix_model(checkpoint_path, device=device)
+
     # 1. Prepare a single data sample deterministically
     dataset = Landsat9Dataset(
         root_dir=cfg["dataset"]["root_dir"],
         split="val",
         image_size=int(cfg["dataset"]["image_size"]),
+        input_channels=int(architecture["input_channels"]),
         augment=False,
         normalization=cfg["dataset"]["normalization"]["mode"],
     )
@@ -63,39 +69,12 @@ def test_inference_consistency(config_path: str, checkpoint_path: str):
 
     # 2. Build model and load checkpoint (PASS 1)
     logger.info("\n--- PASS 1: Loading Checkpoint ---")
-    multi_scale = bool(cfg.get("model", {}).get("multi_scale_disc", True))
-    model_pass1 = Pix2Pix(
-        device=device,
-        in_channels=int(cfg["dataset"]["input_channels"]),
-        out_channels=int(cfg["dataset"]["output_channels"]),
-        image_size=int(cfg["dataset"]["image_size"]),
-        multi_scale=multi_scale,
-        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "hd"),
-    )
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-
-    # Strip ".module." from state dict keys (caused by Kaggle multi-GPU training)
-    state_dict = checkpoint["model_state_dict"]
-    clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
-    model_pass1.load_state_dict(clean_state_dict)
-
     output_pass1 = run_inference_pass(model_pass1, ir_tensor)
     validate_tensor(output_pass1, "Output Pass 1")
 
     # 3. Build model and load checkpoint (PASS 2)
     logger.info("\n--- PASS 2: Reloading Checkpoint ---")
-    model_pass2 = Pix2Pix(
-        device=device,
-        in_channels=int(cfg["dataset"]["input_channels"]),
-        out_channels=int(cfg["dataset"]["output_channels"]),
-        image_size=int(cfg["dataset"]["image_size"]),
-        multi_scale=multi_scale,
-        generator_impl=cfg.get("model", {}).get("generator", {}).get("implementation", "hd"),
-    )
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    state_dict = checkpoint["model_state_dict"]
-    clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
-    model_pass2.load_state_dict(clean_state_dict)
+    model_pass2, _architecture = load_pix2pix_model(checkpoint_path, device=device)
 
     output_pass2 = run_inference_pass(model_pass2, ir_tensor)
     validate_tensor(output_pass2, "Output Pass 2")

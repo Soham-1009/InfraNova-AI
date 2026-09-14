@@ -6,7 +6,7 @@ a Hugging Face-style model card.
 
 Usage:
     python generate_model_card.py
-    python generate_model_card.py --checkpoint checkpoints/best/pix2pix_landsat_best.pth
+    python generate_model_card.py --checkpoint outputs/best/pix2pix_landsat_best.pth
     python generate_model_card.py --help
 """
 
@@ -77,10 +77,11 @@ def generate_model_card(
     )
     gen_params, disc_params, total_params = model.count_parameters()
 
-    # Training hyperparameters
-    training_hp = exp_info.get("training", {})
+    # Training hyperparameters can be stored as a full config under hyperparameters.
+    experiment_config = exp_info.get("hyperparameters", exp_info)
+    training_hp = experiment_config.get("training", {})
     optim_hp = training_hp.get("optimizer", {})
-    loss_hp = exp_info.get("loss", {})
+    loss_hp = experiment_config.get("loss", training_hp.get("loss", {}))
 
     # Best metrics
     metrics = ckpt_info.get("metrics", {})
@@ -103,13 +104,13 @@ tags:
 
 ## Model Description
 
-**InfraNova AI** is a Pix2PixHD GAN trained to synthesize plausible RGB-like optical images
+**InfraNova AI** is a Pix2Pix GAN trained to synthesize plausible RGB-like optical images
 from Landsat 9 Band 10 + Band 11 dual-band thermal infrared (TIR) data. The model takes
-2-channel thermal input and generates a 3-channel RGB visual interpretation at 128x128 resolution.
+{in_channels}-channel thermal input and generates a {out_channels}-channel RGB visual interpretation at {image_size}x{image_size} resolution.
 
 | Property | Value |
 |----------|-------|
-| Architecture | Pix2PixHD (GlobalGenerator + LocalEnhancer + MultiScaleDiscriminator) |
+| Architecture | Pix2Pix ({ckpt_info.get("generator_impl", "unknown")} generator + {ckpt_info.get("discriminator", "MultiScaleDiscriminator")}) |
 | Generator | {ckpt_info.get("generator", "Pix2PixHDGenerator")} |
 | Discriminator | {ckpt_info.get("discriminator", "MultiScaleDiscriminator")} |
 | Input | {in_channels} x {image_size} x {image_size} (Band 10 + Band 11 thermal) |
@@ -145,10 +146,10 @@ from Landsat 9 Band 10 + Band 11 dual-band thermal infrared (TIR) data. The mode
 
 ## Dataset
 
-- **Source**: Landsat 9 Level-2 Surface Temperature (Band 10)
+- **Source**: Landsat 9 Level-2 Surface Temperature (Band 10 + Band 11)
 - **Regions**: Multiple geographic regions
 - **Resolution**: TIR at 100m/pixel, RGB at 100m/pixel
-- **Preprocessing**: Percentile-based normalization, resized to 256x256
+- **Preprocessing**: Percentile-based normalization, resized to {image_size}x{image_size}
 
 ## Intended Use
 
@@ -164,7 +165,7 @@ This model is intended for:
 
 - Trained on a limited number of geographic regions
 - Performance may degrade on unseen terrain types
-- Single-band thermal input limits spectral information
+- Input data must provide the {in_channels} thermal channel(s) used by the checkpoint
 - Seasonal and atmospheric variations may affect quality
 
 ## Environment
@@ -200,12 +201,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Auto-generate MODEL_CARD.md for InfraNova AI.")
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default="outputs/best/pix2pix_landsat_best.pth",
         help="Model checkpoint path.",
     )
     parser.add_argument(
         "--experiment-json",
-        default="logs/experiment_info.json",
+        default="outputs/final/experiment.json",
         help="Experiment info JSON path.",
     )
     parser.add_argument(

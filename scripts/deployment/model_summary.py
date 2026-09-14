@@ -6,7 +6,7 @@ estimated FLOPs, and memory footprint.
 
 Usage:
     python model_summary.py
-    python model_summary.py --checkpoint checkpoints/best/pix2pix_landsat_best.pth
+    python model_summary.py --checkpoint outputs/best/pix2pix_landsat_best.pth
     python model_summary.py --output model_summary.txt
     python model_summary.py --help
 """
@@ -26,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.models.pix2pix.pix2pix import Pix2Pix
+from src.utils.checkpoint import load_pix2pix_model
 
 
 def count_parameters(model: torch.nn.Module) -> dict:
@@ -77,12 +78,29 @@ def estimate_flops(model: torch.nn.Module, input_size: tuple) -> str:
 
 
 def generate_summary(
-    in_channels: int = 1,
-    input_size: int = 256,
+    in_channels: int | None = None,
+    input_size: int | None = None,
     output_path: str = "model_summary.txt",
+    checkpoint_path: str | None = None,
 ) -> str:
     """Generate and return the full model summary text."""
-    model = Pix2Pix(in_channels=in_channels, out_channels=3)
+    if checkpoint_path is None:
+        in_channels = 1 if in_channels is None else in_channels
+        input_size = 256 if input_size is None else input_size
+        model = Pix2Pix(in_channels=in_channels, out_channels=3)
+    else:
+        model, architecture = load_pix2pix_model(checkpoint_path, device="cpu")
+        checkpoint_channels = int(architecture["input_channels"])
+        checkpoint_size = int(architecture["image_size"])
+        if in_channels is not None and in_channels != checkpoint_channels:
+            raise ValueError(
+                f"Checkpoint requires {checkpoint_channels} input channels, but {in_channels} was requested."
+            )
+        in_channels = checkpoint_channels
+        input_size = checkpoint_size if input_size is None else input_size
+
+    if input_size <= 0:
+        raise ValueError("input_size must be positive")
     model.eval()
 
     buf = StringIO()
@@ -150,7 +168,7 @@ def generate_summary(
 
     p("=" * 80)
     p(f"Input:  {in_channels} x {input_size} x {input_size}")
-    p(f"Output: 3 x {input_size} x {input_size}")
+    p(f"Output: {model.out_channels} x {input_size} x {input_size}")
     p("=" * 80)
 
     text = buf.getvalue()
@@ -168,6 +186,11 @@ def generate_summary(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate InfraNova AI model summary.")
     parser.add_argument(
+        "--checkpoint",
+        default=str(PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth"),
+        help="Checkpoint used to derive the model architecture.",
+    )
+    parser.add_argument(
         "--output",
         default="model_summary.txt",
         help="Output file path (default: model_summary.txt).",
@@ -175,14 +198,14 @@ def main() -> None:
     parser.add_argument(
         "--input-size",
         type=int,
-        default=128,
-        help="Input spatial size (default: 128).",
+        default=None,
+        help="Input spatial size (default: checkpoint image size).",
     )
     parser.add_argument(
         "--in-channels",
         type=int,
-        default=2,
-        help="Number of input channels (default: 2 for B10+B11).",
+        default=None,
+        help="Number of input channels (default: checkpoint architecture).",
     )
     args = parser.parse_args()
 
@@ -190,6 +213,7 @@ def main() -> None:
         in_channels=args.in_channels,
         input_size=args.input_size,
         output_path=args.output,
+        checkpoint_path=args.checkpoint,
     )
 
 

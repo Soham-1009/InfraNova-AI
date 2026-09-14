@@ -30,17 +30,9 @@ from src.datasets.landsat9_dataset import Landsat9Dataset
 
 def load_generator(checkpoint_path: str, device: str = "cpu"):
     """Load the generator from a checkpoint."""
-    from src.models.pix2pix.pix2pix import Pix2Pix
-    from src.utils.checkpoint import load_torch_checkpoint
+    from src.utils.checkpoint import load_pix2pix_model
 
-    ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-    model = Pix2Pix(device=device, in_channels=1, out_channels=3)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
-    else:
-        model.load_state_dict(ckpt, strict=False)
-    model.to(device)
-    model.eval()
+    model, _architecture = load_pix2pix_model(checkpoint_path, device=device)
     return model
 
 
@@ -59,15 +51,24 @@ def to_display_rgb(tensor: torch.Tensor) -> np.ndarray:
 @torch.inference_mode()
 def visualize(
     split: str = "test",
-    data_root: str = str(PROJECT_ROOT / "data/landsat9/splits"),
-    checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
+    data_root: str = str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
+    checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
     num_samples: int = 6,
     output_dir: str = "outputs/visualizations",
     use_model: bool = True,
-    image_size: int = 256,
+    image_size: int = 128,
 ) -> None:
     """Generate visualization grids."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    model = None
+    input_channels = 2
+    if use_model and Path(checkpoint_path).exists():
+        print(f"Loading model: {checkpoint_path}")
+        model = load_generator(checkpoint_path, device)
+        input_channels = model.in_channels
+    elif use_model:
+        print(f"Checkpoint not found: {checkpoint_path}. Skipping model predictions.")
 
     # Load dataset
     print(f"Loading {split} split from {data_root}")
@@ -75,6 +76,7 @@ def visualize(
         root_dir=data_root,
         split=split,
         image_size=image_size,
+        input_channels=input_channels,
         augment=False,
     )
 
@@ -82,14 +84,6 @@ def visualize(
         raise ValueError("num_samples must be at least 1")
     num_samples = min(num_samples, len(dataset))
     print(f"Visualizing {num_samples} samples")
-
-    # Load model if requested
-    model = None
-    if use_model and Path(checkpoint_path).exists():
-        print(f"Loading model: {checkpoint_path}")
-        model = load_generator(checkpoint_path, device)
-    elif use_model:
-        print(f"Checkpoint not found: {checkpoint_path}. Skipping model predictions.")
 
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -119,7 +113,7 @@ def visualize(
         rgb = sample["rgb"]  # (3, H, W)
 
         # Thermal image (squeeze to 2D for display)
-        thermal_np = ((ir.squeeze(0).cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
+        thermal_np = ((ir[0].cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
         axes[row, 0].imshow(thermal_np, cmap="inferno")
         axes[row, 0].set_title(f"Sample {int(idx)}" if row == 0 else "")
         axes[row, 0].axis("off")
@@ -164,7 +158,7 @@ def visualize(
 
         _fig_single, ax_row = plt.subplots(1, ncols, figsize=(ncols * 4, 4), squeeze=False)
 
-        thermal_np = ((ir.squeeze(0).cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
+        thermal_np = ((ir[0].cpu().clamp(-1.0, 1.0) + 1.0) / 2.0).numpy()
         ax_row[0, 0].imshow(thermal_np, cmap="inferno")
         ax_row[0, 0].set_title("Thermal")
         ax_row[0, 0].axis("off")
@@ -206,12 +200,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--data-root",
-        default=str(PROJECT_ROOT / "data/landsat9/splits"),
+        default=str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
         help="Dataset root directory.",
     )
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default="outputs/best/pix2pix_landsat_best.pth",
         help="Model checkpoint path.",
     )
     parser.add_argument(
@@ -233,8 +227,8 @@ def main() -> None:
     parser.add_argument(
         "--image-size",
         type=int,
-        default=256,
-        help="Image size (default: 256).",
+        default=128,
+        help="Image size (default: 128).",
     )
     args = parser.parse_args()
 

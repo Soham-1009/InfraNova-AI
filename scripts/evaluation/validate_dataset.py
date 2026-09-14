@@ -28,10 +28,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
-EXPECTED_FILES = ("tir_200m.npy", "tir_100m.npy", "rgb_100m.npy")
+EXPECTED_FILES = ("tir_200m.npy", "tir_100m.npy", "tir_b11_100m.npy", "rgb_100m.npy")
 EXPECTED_SHAPES = {
     "tir_200m.npy": (64, 64),
     "tir_100m.npy": (128, 128),
+    "tir_b11_100m.npy": (128, 128),
     "rgb_100m.npy": (3, 128, 128),
 }
 
@@ -39,6 +40,7 @@ EXPECTED_SHAPES = {
 VALUE_RANGES = {
     "tir_200m.npy": (-50.0, 100.0),  # Surface temperature in °C-ish
     "tir_100m.npy": (-50.0, 100.0),
+    "tir_b11_100m.npy": (-50.0, 100.0),
     "rgb_100m.npy": (0.0, 1.0),  # Normalized reflectance
 }
 
@@ -236,10 +238,7 @@ def print_summary_stats(hashes_by_sample: dict[str, dict[str, str]], data_dir: P
     for filename in EXPECTED_FILES:
         all_values = []
         for sample_key in hashes_by_sample:
-            filepath = data_dir
-            # Reconstruct path
-            for part in sample_key.split("\\"):
-                filepath = filepath / part
+            filepath = data_dir / Path(sample_key)
             npy_path = filepath / filename
             if npy_path.exists():
                 try:
@@ -272,12 +271,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Validate Landsat 9 dataset patches for training readiness.")
     parser.add_argument(
         "--dir",
-        default="data/landsat9/patches",
+        default="data/landsat9_b10_b11/splits",
         help="Directory containing dataset samples to validate.",
     )
     parser.add_argument(
         "--check-splits",
-        default=str(PROJECT_ROOT / "data/landsat9/splits"),
+        default=str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
         help="Directory containing train/val/test splits (for leakage check).",
     )
     parser.add_argument(

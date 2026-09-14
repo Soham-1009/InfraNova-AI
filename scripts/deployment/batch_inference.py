@@ -48,12 +48,33 @@ def discover_images(input_path: Path, recursive: bool = False) -> list[Path]:
     return sorted(set(files))
 
 
+def build_output_stems(image_paths: list[Path], input_path: Path) -> dict[Path, Path]:
+    """Preserve recursive input paths and disambiguate otherwise colliding output names."""
+    stems: dict[Path, Path] = {}
+    used: set[str] = set()
+    root = input_path if input_path.is_dir() else input_path.parent
+
+    for image_path in image_paths:
+        relative = image_path.relative_to(root) if image_path.is_relative_to(root) else Path(image_path.name)
+        stem = relative.with_suffix("")
+        candidate = stem
+        suffix = 1
+        while str(candidate).casefold() in used:
+            candidate = stem.with_name(f"{stem.name}_{image_path.suffix.lstrip('.').casefold()}_{suffix}")
+            suffix += 1
+        used.add(str(candidate).casefold())
+        stems[image_path] = candidate
+
+    return stems
+
+
 def process_single_image(
     engine: InferenceEngine,
     image_path: Path,
     output_dir: Path,
     tta: bool,
     output_format: str,
+    output_stem: Path | None = None,
 ) -> tuple[bool, str, float]:
     """
     Process one image. Returns (success, message, time_seconds).
@@ -73,10 +94,12 @@ def process_single_image(
         result = engine.predict(image, use_tta=tta)
         elapsed = time.perf_counter() - start
 
-        stem = image_path.stem
+        stem = output_stem or Path(image_path.stem)
+        output_base = output_dir / stem
+        output_base.parent.mkdir(parents=True, exist_ok=True)
 
         if output_format in ("png", "both"):
-            result.save(output_dir / f"{stem}_rgb.png")
+            result.save(output_base.with_name(f"{output_base.name}_rgb.png"))
 
         if output_format in ("tiff", "both"):
             arr = np.array(result)
@@ -96,7 +119,7 @@ def process_single_image(
                             height=arr.shape[0],
                             transform=from_bounds(*src.bounds, arr.shape[1], arr.shape[0]),
                         )
-                        out_path = output_dir / f"{stem}_rgb.tif"
+                        out_path = output_base.with_name(f"{output_base.name}_rgb.tif")
                         with rasterio.open(str(out_path), "w", **profile) as dst:
                             for band_idx in range(3):
                                 dst.write(arr[:, :, band_idx], band_idx + 1)
@@ -105,16 +128,16 @@ def process_single_image(
                     try:
                         import tifffile
 
-                        tifffile.imwrite(str(output_dir / f"{stem}_rgb.tif"), arr)
+                        tifffile.imwrite(str(output_base.with_name(f"{output_base.name}_rgb.tif")), arr)
                     except ImportError:
-                        result.save(output_dir / f"{stem}_rgb.tiff")
+                        result.save(output_base.with_name(f"{output_base.name}_rgb.tiff"))
             except ImportError:
                 try:
                     import tifffile
 
-                    tifffile.imwrite(str(output_dir / f"{stem}_rgb.tif"), arr)
+                    tifffile.imwrite(str(output_base.with_name(f"{output_base.name}_rgb.tif")), arr)
                 except ImportError:
-                    result.save(output_dir / f"{stem}_rgb.tiff")
+                    result.save(output_base.with_name(f"{output_base.name}_rgb.tiff"))
 
         return True, f"{image_path.name}", elapsed
 
@@ -136,7 +159,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default="outputs/best/pix2pix_landsat_best.pth",
         help="Path to model checkpoint.",
     )
     parser.add_argument(
@@ -192,6 +215,7 @@ def main() -> None:
     print("Loading model...", end=" ", flush=True)
     try:
         engine = InferenceEngine(str(checkpoint))
+        engine.load_model()
     except Exception as exc:
         print(f"FAILED: {exc}")
         sys.exit(1)
@@ -200,6 +224,7 @@ def main() -> None:
     total_time = 0.0
     success = 0
     failed = 0
+    output_stems = build_output_stems(image_paths, input_path)
 
     if args.workers <= 1:
         # Sequential mode
@@ -211,7 +236,9 @@ def main() -> None:
             iterator = image_paths
 
         for image_path in iterator:
-            ok, msg, elapsed = process_single_image(engine, image_path, output_dir, args.tta, args.format)
+            ok, msg, elapsed = process_single_image(
+                engine, image_path, output_dir, args.tta, args.format, output_stems[image_path]
+            )
             if ok:
                 success += 1
                 total_time += elapsed
@@ -222,7 +249,8 @@ def main() -> None:
         # Parallel mode
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futures = {
-                pool.submit(process_single_image, engine, p, output_dir, args.tta, args.format): p for p in image_paths
+                pool.submit(process_single_image, engine, p, output_dir, args.tta, args.format, output_stems[p]): p
+                for p in image_paths
             }
             for future in as_completed(futures):
                 ok, msg, elapsed = future.result()

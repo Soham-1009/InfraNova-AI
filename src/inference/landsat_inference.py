@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 import cv2
@@ -10,7 +11,7 @@ import torch
 from PIL import Image
 
 from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 from src.utils.image_processing import DEFAULT_PERCENTILE_HIGH, DEFAULT_PERCENTILE_LOW
 
 try:
@@ -44,7 +45,7 @@ class LandsatColorizationInference:
 
     def __init__(
         self,
-        checkpoint_path: str = "checkpoints/best/pix2pix_landsat_best.pth",
+        checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
         device: str | None = None,
         image_size: int = 128,
         percentile_low: float = DEFAULT_PERCENTILE_LOW,
@@ -59,7 +60,9 @@ class LandsatColorizationInference:
             raise ValueError("image_size must be a multiple of 128 for this generator")
         if not 0.0 <= self.percentile_low < self.percentile_high <= 100.0:
             raise ValueError("percentile_low and percentile_high must satisfy 0 <= low < high <= 100")
+        self.in_channels = 2
         self.model: Pix2Pix | None = None
+        self._load_lock = RLock()
 
     def load_model(self) -> Pix2Pix:
         """
@@ -68,47 +71,17 @@ class LandsatColorizationInference:
         if self.model is not None:
             return self.model
 
-        if not self.checkpoint_path.exists():
-            raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
+        with self._load_lock:
+            if self.model is not None:
+                return self.model
+            if not self.checkpoint_path.exists():
+                raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
-        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
-
-        # Default fallback
-        gen_impl = "hd"
-        num_scales = 2
-        in_channels = 2
-
-        if isinstance(checkpoint, dict) and "arch_info" in checkpoint:
-            arch_info = checkpoint["arch_info"]
-            gen_impl = arch_info.get("generator_impl", "hd")
-            num_scales = int(arch_info.get("discriminator_scales", 2))
-            in_channels = int(arch_info.get("input_channels", arch_info.get("in_channels", 2)))
-
-        model = Pix2Pix(
-            device=self.device,
-            in_channels=in_channels,
-            out_channels=3,
-            generator_impl=gen_impl,
-            num_scales=num_scales,
-        )
-
-        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-            state_dict = checkpoint["model_state_dict"]
-        elif isinstance(checkpoint, dict) and "generator_state_dict" in checkpoint:
-            # Fallback for generator-only checkpoints
-            model.generator.load_state_dict(checkpoint["generator_state_dict"], strict=True)
-            model.eval()
+            model, architecture = load_pix2pix_model(self.checkpoint_path, device=self.device)
+            self.in_channels = int(architecture["input_channels"])
             self.model = model
+            logger.info("Loaded model from %s on %s", self.checkpoint_path, self.device)
             return self.model
-        else:
-            state_dict = checkpoint
-
-        clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
-        model.load_state_dict(clean_state_dict, strict=True)
-        model.eval()
-        self.model = model
-        logger.info("Loaded model from %s on %s", self.checkpoint_path, self.device)
-        return self.model
 
     @staticmethod
     def _to_grayscale_array(image: Image.Image | np.ndarray) -> np.ndarray:
@@ -148,35 +121,54 @@ class LandsatColorizationInference:
 
         raise TypeError("Input must be PIL.Image.Image or numpy.ndarray")
 
-    def preprocess(self, image: Image.Image | np.ndarray) -> torch.Tensor:
-        """
-        Resize to 256x256 and normalize TIR with percentile stretching.
-        """
-        arr = self._to_grayscale_array(image).astype(np.float32)
+    def _to_thermal_bands(self, image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]) -> list[np.ndarray]:
+        """Extract model input bands while preserving a single-band compatibility path."""
+        if (isinstance(image, tuple) and len(image) == 2) or (
+            isinstance(image, np.ndarray) and image.ndim == 3 and image.shape[0] == 2
+        ):
+            bands = [self._to_grayscale_array(image[0]), self._to_grayscale_array(image[1])]
+        elif isinstance(image, np.ndarray) and image.ndim == 3 and image.shape[-1] == 2:
+            bands = [self._to_grayscale_array(image[..., 0]), self._to_grayscale_array(image[..., 1])]
+        else:
+            bands = [self._to_grayscale_array(image)]
 
+        if len(bands) == 1 and self.in_channels > 1:
+            bands = bands * self.in_channels
+        if len(bands) < self.in_channels:
+            raise ValueError(f"Model requires {self.in_channels} thermal bands, but input provides {len(bands)}.")
+
+        selected = bands[: self.in_channels]
+        if any(band.shape != selected[0].shape for band in selected[1:]):
+            raise ValueError("All thermal bands must have the same spatial shape before inference.")
+        return [np.asarray(band, dtype=np.float32) for band in selected]
+
+    def _normalize_thermal_band(self, arr: np.ndarray) -> np.ndarray:
+        """Normalize one thermal band with the existing per-image percentile policy."""
         finite = np.isfinite(arr)
         if not finite.any():
             raise ValueError("Input image contains no finite pixel values.")
         if not finite.all():
             arr = np.where(finite, arr, np.median(arr[finite])).astype(np.float32)
 
-        # Percentile stretching per-image for thermal contrast normalization
         lo = np.percentile(arr, self.percentile_low)
         hi = np.percentile(arr, self.percentile_high)
-
         if hi - lo < 1e-6:
             logger.warning("Flat input image detected; returning zeros after normalization.")
-            arr = np.zeros_like(arr, dtype=np.float32)
+            normalized = np.zeros_like(arr, dtype=np.float32)
         else:
-            arr = np.clip(arr, lo, hi)
-            arr = (arr - lo) / (hi - lo)
+            normalized = np.clip(arr, lo, hi)
+            normalized = (normalized - lo) / (hi - lo)
 
-        arr = cv2.resize(arr, (self.image_size, self.image_size), interpolation=cv2.INTER_CUBIC)
-        arr = np.clip(arr, 0.0, 1.0)
-        arr = arr * 2.0 - 1.0  # [-1, 1]
+        normalized = cv2.resize(normalized, (self.image_size, self.image_size), interpolation=cv2.INTER_CUBIC)
+        return np.clip(normalized, 0.0, 1.0).astype(np.float32) * 2.0 - 1.0
 
-        tensor = torch.from_numpy(arr).float().unsqueeze(0).unsqueeze(0)  # [1, 1, H, W]
-        return tensor
+    def preprocess(self, image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]) -> torch.Tensor:
+        """
+        Resize thermal input bands and normalize each independently with percentile stretching.
+        """
+        bands = self._to_thermal_bands(image)
+        normalized = np.stack([self._normalize_thermal_band(band) for band in bands], axis=0)
+        return torch.from_numpy(np.ascontiguousarray(normalized)).unsqueeze(0)
 
     @staticmethod
     def _denormalize_rgb(tensor: torch.Tensor) -> np.ndarray:
@@ -222,7 +214,7 @@ class LandsatColorizationInference:
     @torch.inference_mode()
     def predict(
         self,
-        image: Image.Image | np.ndarray,
+        image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray],
         use_tta: bool = False,
     ) -> dict[str, Any]:
         """

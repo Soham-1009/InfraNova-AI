@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from threading import RLock
 
 import numpy as np
 import torch
@@ -15,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from demo.utils import postprocess_output, preprocess_ir_image
 from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
 class InferenceEngine:
@@ -44,7 +45,9 @@ class InferenceEngine:
         if self.image_size < 128 or self.image_size % 128 != 0:
             raise ValueError("image_size must be a multiple of 128 for this generator")
         self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
+        self.in_channels = 2
         self.model: Pix2Pix | None = None
+        self._load_lock = RLock()
 
     def load_model(self) -> Pix2Pix:
         """
@@ -56,68 +59,16 @@ class InferenceEngine:
         if self.model is not None:
             return self.model
 
-        if not self.checkpoint_path.exists():
-            raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
+        with self._load_lock:
+            if self.model is not None:
+                return self.model
+            if not self.checkpoint_path.exists():
+                raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
 
-        checkpoint = load_torch_checkpoint(self.checkpoint_path, map_location=self.device)
-
-        gen_impl = "dynamic"
-        num_scales = 1
-        in_channels = 1
-
-        state = {}
-        if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-            state = checkpoint["model_state_dict"]
-        elif isinstance(checkpoint, dict) and "generator_state_dict" in checkpoint:
-            state = checkpoint["generator_state_dict"]
-        elif isinstance(checkpoint, dict):
-            state = checkpoint
-
-        for k, v in state.items():
-            if "global_gen" in k or "local_enhancer" in k or "global_generator" in k:
-                gen_impl = "hd"
-                num_scales = 2
-            if (
-                "global_gen.downs.0.block.0.weight" in k
-                or "global_generator.model.0.weight" in k
-                or "down1.model.0.weight" in k
-                or "generator.down1.model.0.weight" in k
-                or "generator.model.1.weight" in k
-            ):
-                in_channels = v.shape[1]
-
-        if isinstance(checkpoint, dict) and "arch_info" in checkpoint:
-            arch_info = checkpoint["arch_info"]
-            gen_impl = arch_info.get("generator_impl", gen_impl)
-            num_scales = arch_info.get("discriminator_scales", num_scales)
-            in_channels = arch_info.get("input_channels", arch_info.get("in_channels", in_channels))
-
-        self.in_channels = in_channels
-
-        # Create model on selected device
-        model = Pix2Pix(
-            device=self.device,
-            in_channels=in_channels,
-            out_channels=3,
-            generator_impl=gen_impl,
-            image_size=self.image_size,
-            num_scales=num_scales,
-        )
-
-        if isinstance(checkpoint, dict) and "generator_state_dict" in checkpoint:
-            clean_gen = {k.replace("module.", ""): v for k, v in checkpoint["generator_state_dict"].items()}
-            model.generator.load_state_dict(clean_gen, strict=True)
-            self.model = model.eval()
+            model, architecture = load_pix2pix_model(self.checkpoint_path, device=self.device)
+            self.in_channels = int(architecture["input_channels"])
+            self.model = model
             return self.model
-
-        clean_state_dict = {k.replace(".module.", ".").replace("module.", ""): v for k, v in state.items()}
-        model_dict = model.state_dict()
-        matched = {k: v for k, v in clean_state_dict.items() if k in model_dict and v.shape == model_dict[k].shape}
-        model.load_state_dict(matched, strict=False)
-        model.eval()
-
-        self.model = model
-        return self.model
 
     @staticmethod
     def _to_pil_or_array(image: Image.Image | np.ndarray) -> Image.Image:

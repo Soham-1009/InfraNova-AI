@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -26,7 +25,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -127,33 +126,7 @@ def compute_batch_metrics(pred: torch.Tensor, target: torch.Tensor) -> dict[str,
 
 def load_candidate_model(checkpoint_path: Path, device: torch.device) -> Pix2Pix:
     logger.info(f"Loading checkpoint: {checkpoint_path.name}")
-    ckpt = load_torch_checkpoint(str(checkpoint_path), map_location=device)
-
-    model = Pix2Pix(
-        device=device,
-        in_channels=2,
-        out_channels=3,
-        image_size=128,
-        generator_impl="hd",
-        multi_scale=True,
-        num_scales=2,
-    )
-
-    if isinstance(ckpt, dict) and "generator_state_dict" in ckpt:
-        clean_gen = {k.replace("module.", ""): v for k, v in ckpt["generator_state_dict"].items()}
-        model.generator.load_state_dict(clean_gen, strict=True)
-        model.eval()
-        return model
-    elif isinstance(ckpt, dict) and "model_state_dict" in ckpt:
-        state_dict = ckpt["model_state_dict"]
-    else:
-        state_dict = ckpt
-
-    clean_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-    model_dict = model.state_dict()
-    matched_dict = {k: v for k, v in clean_state_dict.items() if k in model_dict and v.shape == model_dict[k].shape}
-    model.load_state_dict(matched_dict, strict=False)
-    model.eval()
+    model, _architecture = load_pix2pix_model(checkpoint_path, device=device)
     return model
 
 
@@ -344,11 +317,6 @@ def main():
     plt.savefig(vis_fig_path, bbox_inches="tight")
     plt.close()
     logger.info(f"Saved candidate visual comparison figure to {vis_fig_path}")
-
-    # Copy to artifact directory
-    artifact_dir = Path(r"C:\Users\soham\.gemini\antigravity-ide\brain\302d9574-41d4-46f0-9917-57def66f3c33")
-    if artifact_dir.exists():
-        shutil.copy(vis_fig_path, artifact_dir / "candidate_checkpoints_visual_comparison.png")
 
     # =========================================================================
     # Phase 3: Downstream YOLO Object & Feature Extraction Objective

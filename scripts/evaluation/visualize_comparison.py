@@ -9,7 +9,7 @@ Generates publication-quality panels showing:
 - Saturation map (per-pixel channel std)
 
 Usage:
-    python visualize_comparison.py --checkpoint checkpoints/best/pix2pix_landsat_best.pth
+    python visualize_comparison.py --checkpoint outputs/best/pix2pix_landsat_best.pth
     python visualize_comparison.py --samples 8
     python visualize_comparison.py --split val --output outputs/comparison
     python visualize_comparison.py --help
@@ -30,8 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
-from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
 def _to_01(tensor: torch.Tensor) -> torch.Tensor:
@@ -43,8 +42,8 @@ def _to_01(tensor: torch.Tensor) -> torch.Tensor:
 def generate_comparison(
     checkpoint_path: str,
     split: str = "val",
-    data_root: str = str(PROJECT_ROOT / "data/landsat9/splits"),
-    image_size: int = 256,
+    data_root: str = str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
+    image_size: int = 128,
     num_samples: int = 4,
     output_dir: str = "outputs/comparison",
 ) -> None:
@@ -59,33 +58,15 @@ def generate_comparison(
 
     # Load model
     print(f"Loading checkpoint: {checkpoint_path}")
-    ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-    arch_info = ckpt.get("arch_info", {}) if isinstance(ckpt, dict) else {}
-    in_channels = int(arch_info.get("input_channels", arch_info.get("in_channels", 2)))
-    gen_impl = arch_info.get("generator_impl", "hd")
-    num_scales = int(arch_info.get("discriminator_scales", 2))
-
-    model = Pix2Pix(
-        device=device,
-        in_channels=in_channels,
-        out_channels=3,
-        generator_impl=gen_impl,
-        image_size=image_size,
-        num_scales=num_scales,
-    )
-    if "model_state_dict" in ckpt:
-        clean_state = {k.replace(".module.", "."): v for k, v in ckpt["model_state_dict"].items()}
-        model.load_state_dict(clean_state, strict=False)
-    else:
-        clean_state = {k.replace(".module.", "."): v for k, v in ckpt.items()}
-        model.load_state_dict(clean_state, strict=False)
-    model.eval()
+    model, architecture = load_pix2pix_model(checkpoint_path, device=device)
+    in_channels = int(architecture["input_channels"])
 
     # Load dataset
     dataset = Landsat9Dataset(
         root_dir=data_root,
         split=split,
         image_size=image_size,
+        input_channels=in_channels,
         augment=False,
     )
     print(f"Samples available: {len(dataset)}")
@@ -200,10 +181,10 @@ def generate_comparison(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate visual comparison panels for InfraNova AI.")
-    parser.add_argument("--checkpoint", default="checkpoints/best/pix2pix_landsat_best.pth")
+    parser.add_argument("--checkpoint", default="outputs/best/pix2pix_landsat_best.pth")
     parser.add_argument("--split", default="val", choices=["train", "val", "test"])
-    parser.add_argument("--data-root", default=str(PROJECT_ROOT / "data/landsat9/splits"))
-    parser.add_argument("--image-size", type=int, default=256)
+    parser.add_argument("--data-root", default=str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"))
+    parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--samples", type=int, default=4)
     parser.add_argument("--output", default="outputs/comparison")
     args = parser.parse_args()

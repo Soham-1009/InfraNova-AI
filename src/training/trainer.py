@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,10 @@ class Trainer:
         self.lr = float(optim_cfg.get("lr", 2e-4))
         self.beta1 = float(optim_cfg.get("beta1", 0.5))
         self.beta2 = float(optim_cfg.get("beta2", 0.999))
-        self.grad_clip = float(training_cfg.get("grad_clip", 1.0))
+        raw_grad_clip = training_cfg.get("grad_clip", 1.0)
+        self.grad_clip = None if raw_grad_clip is None else float(raw_grad_clip)
+        if self.grad_clip is not None and (not math.isfinite(self.grad_clip) or self.grad_clip <= 0):
+            raise ValueError("training.grad_clip must be a finite positive number or None.")
         self.sample_every = int(training_cfg.get("sample_every", 5))
         self.total_epochs = int(training_cfg.get("epochs", 150))
 
@@ -185,6 +189,22 @@ class Trainer:
         )
         return ssim.mean()
 
+    def _clip_gradients(self, parameters) -> torch.Tensor:
+        max_norm = float("inf") if self.grad_clip is None else self.grad_clip
+        return torch.nn.utils.clip_grad_norm_(parameters, max_norm)
+
+    @staticmethod
+    def _is_finite(value: torch.Tensor) -> bool:
+        return bool(torch.isfinite(value).all().item())
+
+    @classmethod
+    def _losses_are_finite(cls, losses: dict[str, torch.Tensor]) -> bool:
+        return all(cls._is_finite(value) for value in losses.values())
+
+    @classmethod
+    def _metric_value(cls, value: torch.Tensor) -> float:
+        return float(value.detach().item()) if cls._is_finite(value) else 0.0
+
     # ------------------------------------------------------------------
     # Discriminator helpers for single-scale and multi-scale
     # ------------------------------------------------------------------
@@ -290,21 +310,26 @@ class Trainer:
                 d_loss = self._disc_loss_multi_scale(
                     ir, rgb, fake_rgb, noise_std)
 
-            self.scaler.scale(d_loss).backward()
-            self.scaler.unscale_(self.optimizer_d)
-            d_grad_norm = torch.nn.utils.clip_grad_norm_(
-                self.model.discriminator.parameters(), self.grad_clip)
-
-            # NaN/inf protection for discriminator
-            if not torch.isfinite(d_loss) or not torch.isfinite(torch.as_tensor(d_grad_norm)):
+            if not self._is_finite(d_loss):
                 logger.warning(
-                    "Non-finite discriminator loss or grad norm at batch %d, skipping D step.", batch_idx)
+                    "Non-finite discriminator loss at batch %d, skipping D backward and step.", batch_idx)
                 self.optimizer_d.zero_grad(set_to_none=True)
+                d_grad_norm = torch.zeros((), device=self.device)
+                d_loss_last = torch.zeros((), device=self.device)
             else:
-                self.scaler.step(self.optimizer_d)
+                self.scaler.scale(d_loss).backward()
+                self.scaler.unscale_(self.optimizer_d)
+                d_grad_norm = self._clip_gradients(self.model.discriminator.parameters())
 
-            self.scaler.update()
-            d_loss_last = d_loss.detach()
+                if not self._is_finite(d_grad_norm):
+                    logger.warning(
+                        "Non-finite discriminator gradient norm at batch %d, skipping D step.", batch_idx)
+                    self.optimizer_d.zero_grad(set_to_none=True)
+                else:
+                    self.scaler.step(self.optimizer_d)
+
+                self.scaler.update()
+                d_loss_last = d_loss.detach()
 
             # ---- Train Generator ----
             self.optimizer_g.zero_grad(set_to_none=True)
@@ -340,32 +365,36 @@ class Trainer:
                     )
                     g_loss = losses["total"]
 
-                self.scaler.scale(g_loss).backward()
-                self.scaler.unscale_(self.optimizer_g)
-                g_grad_norm = torch.nn.utils.clip_grad_norm_(
-                    self.model.generator.parameters(), self.grad_clip)
-
-                # NaN/inf protection for generator
-                if not torch.isfinite(g_loss) or not torch.isfinite(torch.as_tensor(g_grad_norm)):
+                if not self._losses_are_finite(losses):
                     logger.warning(
-                        "Non-finite generator loss or grad norm at batch %d, skipping G step.", batch_idx)
+                        "Non-finite generator loss at batch %d, skipping G backward and step.", batch_idx)
                     self.optimizer_g.zero_grad(set_to_none=True)
+                    g_grad_norm = torch.zeros((), device=self.device)
                 else:
-                    self.scaler.step(self.optimizer_g)
+                    self.scaler.scale(g_loss).backward()
+                    self.scaler.unscale_(self.optimizer_g)
+                    g_grad_norm = self._clip_gradients(self.model.generator.parameters())
 
-                self.scaler.update()
+                    if not self._is_finite(g_grad_norm):
+                        logger.warning(
+                            "Non-finite generator gradient norm at batch %d, skipping G step.", batch_idx)
+                        self.optimizer_g.zero_grad(set_to_none=True)
+                    else:
+                        self.scaler.step(self.optimizer_g)
+
+                    self.scaler.update()
             finally:
                 self.model.discriminator.requires_grad_(True)
 
-            running["g_loss"] += float(g_loss.detach().item())
-            running["d_loss"] += float(d_loss_last.item())
-            running["l1"] += float(losses["l1"].detach().item())
-            running["adv"] += float(losses["adv"].detach().item())
-            running["perc"] += float(losses["perc"].detach().item())
-            running["ssim"] += float(losses["ssim"].detach().item())
-            running["chroma"] += float(losses["chroma"].detach().item())
-            running["sat"] += float(losses["sat"].detach().item())
-            running["feat"] += float(losses["feat"].detach().item())
+            running["g_loss"] += self._metric_value(g_loss)
+            running["d_loss"] += self._metric_value(d_loss_last)
+            running["l1"] += self._metric_value(losses["l1"])
+            running["adv"] += self._metric_value(losses["adv"])
+            running["perc"] += self._metric_value(losses["perc"])
+            running["ssim"] += self._metric_value(losses["ssim"])
+            running["chroma"] += self._metric_value(losses["chroma"])
+            running["sat"] += self._metric_value(losses["sat"])
+            running["feat"] += self._metric_value(losses["feat"])
             running["grad_norm_g"] += float(g_grad_norm)
             running["grad_norm_d"] += float(d_grad_norm)
 

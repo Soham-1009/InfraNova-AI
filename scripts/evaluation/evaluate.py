@@ -8,7 +8,7 @@ histogram distance, Lab color error).
 Usage:
     python evaluate.py
     python evaluate.py --split test
-    python evaluate.py --split val --checkpoint checkpoints/best/pix2pix_landsat_best.pth
+    python evaluate.py --split val --checkpoint outputs/best/pix2pix_landsat_best.pth
     python evaluate.py --help
 """
 
@@ -29,8 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
-from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
 def compute_psnr(pred: np.ndarray, target: np.ndarray, max_val: float = 1.0) -> float:
@@ -196,30 +195,13 @@ def evaluate(
 
     # Load model
     print(f"Loading checkpoint: {checkpoint_path}")
-    ckpt = load_torch_checkpoint(checkpoint_path, map_location=device)
-
-    # Extract architecture metadata if present
-    arch_info = ckpt.get("arch_info", {})
-    impl = generator_impl if generator_impl is not None else arch_info.get("generator_impl", "hd")
-    in_channels = int(arch_info.get("input_channels", arch_info.get("in_channels", 2)))
-    multi_scale = bool(arch_info.get("multi_scale_disc", True))
-    num_scales = int(arch_info.get("discriminator_scales", 2))
-
-    model = Pix2Pix(
-        device=device,
-        in_channels=in_channels,
-        out_channels=3,
-        image_size=image_size,
-        generator_impl=impl,
-        multi_scale=multi_scale,
-        num_scales=num_scales,
-    )
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"], strict=False)
-    else:
-        model.load_state_dict(ckpt, strict=False)
-    model.to(device)
-    model.eval()
+    model, architecture = load_pix2pix_model(checkpoint_path, device=device)
+    checkpoint_impl = str(architecture["generator_impl"])
+    if generator_impl is not None and generator_impl.lower() != checkpoint_impl:
+        raise ValueError(
+            f"Checkpoint uses generator_impl={checkpoint_impl}, but --generator-impl={generator_impl} was requested."
+        )
+    in_channels = int(architecture["input_channels"])
 
     # Load dataset
     print(f"Loading {split} split from {data_root}")
@@ -227,6 +209,7 @@ def evaluate(
         root_dir=data_root,
         split=split,
         image_size=image_size,
+        input_channels=in_channels,
         augment=False,
     )
     print(f"Samples: {len(dataset)}")
@@ -369,19 +352,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default="outputs/best/pix2pix_landsat_best.pth",
         help="Path to model checkpoint.",
     )
     parser.add_argument(
         "--data-root",
-        default=str(PROJECT_ROOT / "data/landsat9/splits"),
+        default=str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
         help="Root directory for dataset splits.",
     )
     parser.add_argument(
         "--image-size",
         type=int,
-        default=256,
-        help="Image size for evaluation (default: 256).",
+        default=128,
+        help="Image size for evaluation (default: 128).",
     )
     parser.add_argument(
         "--output",

@@ -5,7 +5,7 @@ Measures CPU FPS, GPU FPS, average inference time, peak RAM, and peak VRAM.
 
 Usage:
     python benchmark.py
-    python benchmark.py --checkpoint checkpoints/best/pix2pix_landsat_best.pth
+    python benchmark.py --checkpoint outputs/best/pix2pix_landsat_best.pth
     python benchmark.py --warmup 5 --iterations 50 --input-size 256
     python benchmark.py --help
 """
@@ -26,8 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
 def get_peak_ram_mb() -> float:
@@ -63,6 +62,10 @@ def benchmark_device(
     iterations: int,
 ) -> dict[str, float]:
     """Run benchmark on a specific device."""
+    if warmup < 0:
+        raise ValueError("warmup must be non-negative")
+    if iterations <= 0:
+        raise ValueError("iterations must be positive")
     generator = generator.to(device)
     generator.eval()
 
@@ -112,7 +115,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark InfraNova AI inference performance.")
     parser.add_argument(
         "--checkpoint",
-        default="checkpoints/best/pix2pix_landsat_best.pth",
+        default="outputs/best/pix2pix_landsat_best.pth",
         help="Path to model checkpoint.",
     )
     parser.add_argument(
@@ -130,14 +133,14 @@ def main() -> None:
     parser.add_argument(
         "--input-size",
         type=int,
-        default=256,
-        help="Input spatial size (default: 256).",
+        default=None,
+        help="Input spatial size (default: checkpoint image size).",
     )
     parser.add_argument(
         "--in-channels",
         type=int,
-        default=1,
-        help="Number of input channels (default: 1).",
+        default=None,
+        help="Number of input channels (default: checkpoint architecture).",
     )
     args = parser.parse_args()
 
@@ -149,7 +152,6 @@ def main() -> None:
     print("InfraNova AI — Inference Benchmark")
     print("=" * 60)
     print(f"Checkpoint:  {args.checkpoint}")
-    print(f"Input size:  {args.in_channels} x {args.input_size} x {args.input_size}")
     print(f"Warmup:      {args.warmup} iterations")
     print(f"Timed:       {args.iterations} iterations")
     print(f"PyTorch:     {torch.__version__}")
@@ -160,23 +162,27 @@ def main() -> None:
 
     # Load model
     print("Loading model...", end=" ", flush=True)
-    ckpt = load_torch_checkpoint(args.checkpoint, map_location="cpu")
-    model = Pix2Pix(in_channels=args.in_channels, out_channels=3)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"])
-    else:
-        model.load_state_dict(ckpt, strict=False)
+    model, architecture = load_pix2pix_model(args.checkpoint, device="cpu")
+    in_channels = int(architecture["input_channels"])
+    input_size = args.input_size or int(architecture["image_size"])
+    if input_size <= 0:
+        raise ValueError("input_size must be positive")
+    if args.in_channels is not None and args.in_channels != in_channels:
+        raise ValueError(
+            f"Checkpoint requires {in_channels} input channels, but --in-channels={args.in_channels} was requested."
+        )
     generator = model.generator
     generator.eval()
     print("done.\n")
+    print(f"Input size:  {in_channels} x {input_size} x {input_size}")
 
     # CPU benchmark
     print("Benchmarking CPU...")
     cpu_results = benchmark_device(
         generator,
         "cpu",
-        args.input_size,
-        args.in_channels,
+        input_size,
+        in_channels,
         args.warmup,
         args.iterations,
     )
@@ -190,8 +196,8 @@ def main() -> None:
         gpu_results = benchmark_device(
             generator,
             "cuda",
-            args.input_size,
-            args.in_channels,
+            input_size,
+            in_channels,
             args.warmup,
             args.iterations,
         )

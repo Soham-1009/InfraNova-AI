@@ -28,7 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.datasets.landsat9_dataset import Landsat9Dataset
 from src.models.pix2pix.pix2pix import Pix2Pix
-from src.utils.checkpoint import load_torch_checkpoint
+from src.utils.checkpoint import load_pix2pix_model
 
 
 def _to_01(t: torch.Tensor) -> torch.Tensor:
@@ -57,13 +57,7 @@ def _ssim_np(pred: np.ndarray, target: np.ndarray) -> float:
 
 def load_model(ckpt_path: str, device: str) -> Pix2Pix:
     """Load a Pix2Pix model from a checkpoint."""
-    ckpt = load_torch_checkpoint(ckpt_path, map_location=device)
-    model = Pix2Pix(device=device, in_channels=1, out_channels=3)
-    if "model_state_dict" in ckpt:
-        model.load_state_dict(ckpt["model_state_dict"], strict=False)
-    else:
-        model.load_state_dict(ckpt, strict=False)
-    model.eval()
+    model, _architecture = load_pix2pix_model(ckpt_path, device=device)
     return model
 
 
@@ -71,9 +65,9 @@ def load_model(ckpt_path: str, device: str) -> Pix2Pix:
 def compare_models(
     ckpt_a_path: str,
     ckpt_b_path: str,
-    data_root: str = str(PROJECT_ROOT / "data/landsat9/splits"),
+    data_root: str = str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"),
     split: str = "val",
-    image_size: int = 256,
+    image_size: int = 128,
     num_samples: int = 8,
     output_dir: str = "outputs/model_comparison",
     name_a: str = "Model A",
@@ -93,12 +87,18 @@ def compare_models(
     model_a = load_model(ckpt_a_path, device)
     print(f"Loading {name_b}: {ckpt_b_path}")
     model_b = load_model(ckpt_b_path, device)
+    if model_a.in_channels != model_b.in_channels:
+        raise ValueError(
+            "Cannot compare checkpoints with different input-channel counts: "
+            f"{name_a}={model_a.in_channels}, {name_b}={model_b.in_channels}."
+        )
 
     # Load dataset
     dataset = Landsat9Dataset(
         root_dir=data_root,
         split=split,
         image_size=image_size,
+        input_channels=model_a.in_channels,
         augment=False,
     )
     print(f"Samples: {len(dataset)}")
@@ -202,9 +202,9 @@ def main() -> None:
     parser.add_argument("--ckpt-b", required=True, help="Path to second checkpoint.")
     parser.add_argument("--name-a", default="Model A", help="Name for first model.")
     parser.add_argument("--name-b", default="Model B", help="Name for second model.")
-    parser.add_argument("--data-root", default=str(PROJECT_ROOT / "data/landsat9/splits"))
+    parser.add_argument("--data-root", default=str(PROJECT_ROOT / "data/landsat9_b10_b11/splits"))
     parser.add_argument("--split", default="val", choices=["train", "val", "test"])
-    parser.add_argument("--image-size", type=int, default=256)
+    parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--samples", type=int, default=8)
     parser.add_argument("--output", default="outputs/model_comparison")
     args = parser.parse_args()

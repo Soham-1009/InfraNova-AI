@@ -7,9 +7,11 @@ Serves the Pix2Pix colorization model via a REST API.
 from __future__ import annotations
 
 import io
+import math
 import sys
 import time
 from pathlib import Path
+from threading import RLock
 
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -66,17 +68,23 @@ if FRONTEND_DIR.is_dir():
 
 # Lazy-loaded inference engine (loaded on first request)
 engine: InferenceEngine | None = None
+_engine_lock = RLock()
 
 
 def get_engine() -> InferenceEngine:
     """Get or create the inference engine singleton."""
     global engine
-    if engine is None:
-        engine = InferenceEngine(
-            checkpoint_path=str(CHECKPOINT_PATH),
-            image_size=IMAGE_SIZE,
-        )
-        engine.load_model()
+    if engine is not None:
+        return engine
+
+    with _engine_lock:
+        if engine is None:
+            candidate = InferenceEngine(
+                checkpoint_path=str(CHECKPOINT_PATH),
+                image_size=IMAGE_SIZE,
+            )
+            candidate.load_model()
+            engine = candidate
     return engine
 
 
@@ -227,6 +235,11 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
     """
     try:
         import cv2
+
+        if not math.isfinite(clip_limit) or clip_limit < 0:
+            raise HTTPException(400, "clip_limit must be a finite value greater than or equal to zero.")
+        if grid_size <= 0:
+            raise HTTPException(400, "grid_size must be a positive integer.")
 
         raw_bytes = await file.read()
         if len(raw_bytes) == 0:
