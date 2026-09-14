@@ -1,7 +1,7 @@
 # Deployment & Serving Documentation — InfraNova AI
 
-**Document Version:** 2.0  
-**Date:** 2026-08-26  
+**Document Version:** 3.0 (Exp9 Production Deployment)  
+**Date:** 2026-09-13  
 **Modules**: `api/`, `web/`, `Dockerfile`, `docker-compose.yml`  
 
 ---

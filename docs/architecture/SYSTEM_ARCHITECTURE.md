@@ -29,8 +29,8 @@ InfraNova AI is structured into four decoupled subsystems:
 |                                             |                                      |
 |                                             v                                      |
 |                                    Trainer (Dual T4 GPU DataParallel)              |
-|                                    ├── Pix2PixHDGenerator (Prod, 21.38M)           |
-|                                    └── GlobalResNetGenerator (Exp9, 11.37M)        |
+|                                    ├── GlobalResNetGenerator (Active Prod, 11.37M) |
+|                                    └── Pix2PixHDGenerator (Legacy Baseline, 21.38M)|
 |                                             |                                      |
 |                                             v                                      |
 |                                    outputs/ (checkpoints & logs)                   |
@@ -61,12 +61,10 @@ InfraNova AI is structured into four decoupled subsystems:
 ## 2. Component Interoperability & Contracts
 
 ### 2.1. Checkpoint & Architecture Compatibility
-- When training under `nn.DataParallel`, PyTorch prefixes all module keys with `.module.`.
-- `src/utils/checkpoint.py`, `demo/inference.py`, and `src/inference/landsat_inference.py` strip this prefix dynamically upon loading:
-  ```python
-  clean_state_dict = {k.replace(".module.", "."): v for k, v in state_dict.items()}
-  ```
-- **Auto-Detection**: The inference engine detects whether a `.pth` checkpoint was trained with `Pix2PixHDGenerator` (checks for `downsample_local`) or `Pix2PixHDGlobalResNetGenerator` (checks for `res_blocks`), instantiating the appropriate architecture seamlessly.
+- When training under `nn.DataParallel`, PyTorch prefixes module keys with `.module.`.
+- `src/utils/checkpoint.py` provides the canonical `load_pix2pix_model()` utility, which strips `.module.` prefixes and infers model specifications (`resnet` vs `hd`, input channels, output channels, scales) directly from checkpoint weights and architecture metadata.
+- **Strict Loading Guarantee**: All inference engines and evaluation scripts use strict shape validation (`strict=True`), rejecting incomplete or incompatible state dicts rather than silently leaving randomly initialized layers.
+- **Thread Safety**: Serving engines (`api/main.py` and `demo/inference.py`) encapsulate checkpoint initialization with re-entrant thread locks (`threading.RLock`) to guarantee single-instance initialization under concurrent requests.
 
 ### 2.2. Production Containerization (`Dockerfile`)
 - **Stage 1 (`frontend-build`)**: Installs Node.js dependencies and executes `npm run build` to generate optimized production assets in `/web/dist`.

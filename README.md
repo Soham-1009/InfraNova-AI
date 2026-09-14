@@ -247,7 +247,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-#### 3. Run Test Suite
+#### 3. Run Test Suite (85 Tests)
 
 ```bash
 pytest tests/ -v
@@ -269,8 +269,8 @@ npm run dev
 #### 5. Run Model Evaluation
 
 ```bash
-# Run benchmark evaluation on production Exp9 ResNet checkpoint
-python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth --generator-impl resnet
+# Run benchmark evaluation on active production Exp9 ResNet checkpoint
+python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth
 ```
 
 ---
@@ -296,7 +296,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-#### 3. Run Test Suite
+#### 3. Run Test Suite (85 Tests)
 
 ```cmd
 pytest tests/ -v
@@ -318,8 +318,8 @@ npm run dev
 #### 5. Run Model Evaluation
 
 ```cmd
-:: Run benchmark evaluation on production Exp9 ResNet checkpoint
-python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth --generator-impl resnet
+:: Run benchmark evaluation on active production Exp9 ResNet checkpoint
+python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth
 ```
 
 ---
@@ -339,7 +339,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-#### 2. Run Test Suite
+#### 2. Run Test Suite (85 Tests)
 
 ```powershell
 pytest tests/ -v
@@ -356,6 +356,13 @@ uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 cd web
 npm install
 npm run dev
+```
+
+#### 4. Run Model Evaluation
+
+```powershell
+# Run benchmark evaluation on active production Exp9 ResNet checkpoint
+python scripts/evaluation/run_single_candidate.py --checkpoint outputs/best/pix2pix_landsat_best.pth
 ```
 
 ---

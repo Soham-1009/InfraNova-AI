@@ -146,7 +146,7 @@ function App() {
     if (!file) return
 
     setLoading(true)
-    setLoadingMessage('Colorizing satellite imagery with Pix2PixHD…')
+    setLoadingMessage('Synthesizing optical RGB with Exp9 ResNet…')
     setError(null)
     setClaheApplied(false)
 
@@ -305,7 +305,7 @@ function App() {
         <div className="container navbar__inner">
           <div className="navbar__brand">
             <span className="navbar__title">InfraNova AI</span>
-            <span className="navbar__tag">v2.1</span>
+            <span className="navbar__tag">v3.0</span>
             <span className={`status-dot status-dot--${apiStatus}`} title={`API ${apiStatus}`} />
           </div>
           <ul className="navbar__links">
@@ -327,7 +327,7 @@ function App() {
             <div className="hero fade-in-up">
               <div className="hero__badge">
                 <span className="dot" />
-                Pix2PixHD · Landsat-9 Dual-Band (B10+B11) · Epoch 223 Frozen
+                Exp9 Global ResNet · Landsat-9 Dual-Band (B10+B11) · Active Production
               </div>
               <h1 className="hero__title">
                 <span className="gradient-thermal">Thermal</span> to <span className="gradient-rgb">True Color</span>
@@ -384,19 +384,19 @@ function App() {
               <h2 className="section-title">Production Model Architecture & Performance</h2>
               <div className="metrics-grid">
                 <div className="metric-card">
-                  <span className="metric-card__value">11.71 dB</span>
+                  <span className="metric-card__value">13.75 dB</span>
                   <span className="metric-card__label">Test Peak PSNR</span>
                 </div>
                 <div className="metric-card">
-                  <span className="metric-card__value">0.235</span>
+                  <span className="metric-card__value">0.450</span>
                   <span className="metric-card__label">Windowed SSIM</span>
                 </div>
                 <div className="metric-card">
-                  <span className="metric-card__value">0.219 rad</span>
+                  <span className="metric-card__value">0.197 rad</span>
                   <span className="metric-card__label">Spectral Angle (SAM)</span>
                 </div>
                 <div className="metric-card">
-                  <span className="metric-card__value">26.91M</span>
+                  <span className="metric-card__value">11.37M</span>
                   <span className="metric-card__label">Total Parameters</span>
                 </div>
               </div>
@@ -515,7 +515,7 @@ function App() {
               <div className="stats-bar fade-in-up">
                 <div className="stat-pill"><span className="stat-pill__label">Resolution</span><span className="stat-pill__value">128×128</span></div>
                 <div className="stat-pill"><span className="stat-pill__label">Inference</span><span className="stat-pill__value">{inferenceTime ? `${inferenceTime.toFixed(3)}s` : '—'}</span></div>
-                <div className="stat-pill"><span className="stat-pill__label">Architecture</span><span className="stat-pill__value">Pix2PixHD</span></div>
+                <div className="stat-pill"><span className="stat-pill__label">Architecture</span><span className="stat-pill__value">Exp9 ResNet</span></div>
                 <div className="stat-pill"><span className="stat-pill__label">TTA</span><span className="stat-pill__value">{useTTA ? 'On' : 'Off'}</span></div>
                 <div className="stat-pill"><span className="stat-pill__label">CLAHE</span><span className="stat-pill__value">{claheApplied ? 'On' : 'Off'}</span></div>
               </div>
@@ -523,18 +523,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="footer">
-        <div className="container footer__inner">
-          <p>© 2026 InfraNova AI · Thermal to RGB Colorization · Landsat 9 Pix2PixHD</p>
-          <div className="footer__links">
-            <a href="https://github.com/Soham-1009/InfraNova-AI" target="_blank" rel="noreferrer">GitHub</a>
-            <span className="footer__divider">·</span>
-            <a href="/docs" target="_blank" rel="noreferrer">REST API</a>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

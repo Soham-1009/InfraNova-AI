@@ -12,7 +12,8 @@ This is the React frontend for InfraNova AI, built with Vite. It provides a poli
 
 ## Tech Stack
 
-- **Framework:** React 18 + Vite
+- **Framework:** React 19 + Vite 6
+- **Themes:** Tailored Dark Cosmic and High-Contrast Light modes
 - **Styling:** Vanilla CSS (custom design system and tokens in `index.css`)
 - **No Heavy CSS Frameworks:** Strict adherence to pure CSS to keep the application lightning-fast and perfectly tailored to the project's unique aesthetic.
 

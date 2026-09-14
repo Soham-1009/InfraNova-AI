@@ -46,12 +46,19 @@ To ensure strict scientific validity and prevent test-set contamination:
 2. Candidates were ranked using a multi-metric composite optimization heuristic defined *a priori*:
    $$\text{Score}_{\text{val}} = (10.0 \cdot \text{SSIM}_{\text{val}}) + (0.5 \cdot \text{PSNR}_{\text{val}}) - (0.1 \cdot \text{CIE }\Delta E^*_{ab}) - (2.0 \cdot \text{SAM}_{\text{val}})$$
    *Subject to the optical saturation constraint: $|\text{SatRatio} - 1.0| \le 0.20$.*
-3. **`best_ssim.pth`** (saved at **Epoch 223**, SHA256: `4604d36d07a0fb4c...8baf6aa8`) achieved the top composite score (**5.741**, Val SSIM: 0.3257 / 0.2410 windowed, Val PSNR: 11.599 dB, Sat Error: 0.1048) and was frozen as the official application model [`outputs/best/pix2pix_landsat_best.pth`](file:///c:/Users/soham/Desktop/Soham/InfraNova-AI/outputs/best/pix2pix_landsat_best.pth).
+3. **`best_ssim.pth`** (saved at **Epoch 223**, SHA256: `4604d36d07a0fb4c...8baf6aa8`) achieved the top initial composite score (**5.741**, Val SSIM: 0.3257, Val PSNR: 11.599 dB) and served as the legacy baseline.
+
+### 2.2. Final Production Promotion: Exp9
+Following the conclusion of the scientific experiment cycle (Exp1 through Exp9), candidate **Exp9** decisively outperformed all configurations on validation and held-out test splits. On 2026-09-12, Exp9 was formally promoted to production:
+- **Active Production Checkpoint**: [`outputs/best/pix2pix_landsat_best.pth`](outputs/best/pix2pix_landsat_best.pth) (SHA-256: `71bbda3f31b85e7e741b26d5ce0ff398a0394c7dd4ef6ff5452f31f7e0400382`)
+- **Archived Baseline Backup**: `outputs/best/pix2pix_landsat_backup_20260912_231938.pth` (SHA-256: `4604d36d07a0fb4c0696a53040c17004084068c51cc745a23f69b76c8baf6aa8`)
+- **Rollback Metadata**: Maintained in `outputs/best/rollback_metadata.json` for verified rollback safety.
+
 ### 2.3. Standardized Five-Way Evaluation Benchmark (1,259 Held-Out Test Samples)
 
 To evaluate architectural and loss advancements across iterations, all major candidates were benchmarked under identical standardized conditions on the 1,259-sample test split:
 
-| Metric | Production *(Frozen)* | Exp6 | Exp7 | Long Exp7 | Exp9 ResNet *(Audited Candidate)* | Exp9 Advantage |
+| Metric | Legacy Baseline *(Backup)* | Exp6 | Exp7 | Long Exp7 | Exp9 ResNet *(Promoted Production)* | Exp9 Advantage |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Generator Architecture** | Custom U-Net + Local | Custom U-Net + Local | Custom U-Net + Local | Custom U-Net + Local | **Global ResNet (9 Blocks)** | — |
 | **Generator Parameters** | 21,383,238 | 21,383,238 | 21,383,238 | 21,383,238 | **11,369,795** | **-46.83% (-10.01M)** |
