@@ -1,39 +1,49 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-.pytest_cache/
+# ==============================================================================
+# InfraNova AI — Git Ignore Rules
+# ==============================================================================
 
-# Virtual environment
-venv/
-env/
-.venv/
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (CRITICAL: Never commit credentials)
+# ------------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+!.env.example
 
-# Node
-web/node_modules/
-web/dist/
-
-# Ruff
-.ruff_cache/
-
-# Large files - NEVER commit
+# ------------------------------------------------------------------------------
+# Model Checkpoints & Large Artifacts (NEVER commit model weights)
+# ------------------------------------------------------------------------------
 *.pth
 *.pt
 *.ckpt
-*.npy
-*.zip
-*.tar.gz
-*.arrow
-*.parquet
+*.onnx
+*.engine
+*.safetensors
+outputs/
+weights/
+checkpoints/
+
+# ------------------------------------------------------------------------------
+# Large Data Files & Raster Imagery (NEVER commit raw imagery/binaries)
+# ------------------------------------------------------------------------------
 *.tif
 *.tiff
+*.npy
+*.npz
 *.h5
+*.hdf5
 *.pkl
+*.pickle
+*.parquet
+*.arrow
+*.zip
+*.tar
+*.tar.gz
+*.tgz
 
-# Landsat 9 data
+# ------------------------------------------------------------------------------
+# Landsat 9 Dataset Directories
+# ------------------------------------------------------------------------------
 data/landsat9/raw/
 data/landsat9/patches/
 data/landsat9/splits/
@@ -41,32 +51,91 @@ data/landsat9_b10_b11/raw/
 data/landsat9_b10_b11/patches/
 data/landsat9_b10_b11/splits/
 
-# Training outputs / logs
-logs/
-outputs/latest/
+# ------------------------------------------------------------------------------
+# Python & Bytecode
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+*.egg
 
-# IDE / OS
+# ------------------------------------------------------------------------------
+# Virtual Environments
+# ------------------------------------------------------------------------------
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ------------------------------------------------------------------------------
+# Testing, Coverage & Linters
+# ------------------------------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+htmlcov/
+.cache/
+
+# ------------------------------------------------------------------------------
+# Node & Frontend
+# ------------------------------------------------------------------------------
+node_modules/
+web/node_modules/
+web/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# ------------------------------------------------------------------------------
+# Logs, Experiment Tracking & Pipeline State
+# ------------------------------------------------------------------------------
+logs/
+*.log
+wandb/
+quarantine_log.txt
+
+# ------------------------------------------------------------------------------
+# IDE, Editor & OS Artifacts
+# ------------------------------------------------------------------------------
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
-
-# Jupyter
+ehthumbs.db
+Desktop.ini
+.directory
 .ipynb_checkpoints/
 
-# Earth Engine cache
+# ------------------------------------------------------------------------------
+# Cloud, Docker & Local Maintenance Archives
+# ------------------------------------------------------------------------------
 .config/earthengine/
-
-# Local maintenance archives
+docker-compose.override.yml
 archive/
 scratch/
-
-# Pipeline state
-quarantine_log.txt
-
-# Internal project documentation
 docs/project/
-
-# Outputs
-outputs/
