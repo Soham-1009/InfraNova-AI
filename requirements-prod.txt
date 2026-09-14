@@ -1,0 +1,19 @@
+# InfraNova AI — Production Runtime Dependencies
+# Lightweight dependency specification for FastAPI inference serving container.
+
+# Deep Learning Core (PyTorch CPU wheel specified in Dockerfile via --index-url)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Scientific & Image Processing
+numpy>=1.24.0,<2.0.0
+scipy>=1.11.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+tifffile>=2023.7.0
+PyYAML>=6.0
+
+# REST API & Serving
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9

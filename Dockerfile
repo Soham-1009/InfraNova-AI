@@ -4,7 +4,7 @@
 #
 # Usage:
 #   docker build -t infranova-ai .
-#   docker run -p 8000:8000 -v ./outputs:/app/outputs infranova-ai
+#   docker run -p 8000:8000 -v ./outputs:/app/outputs:ro infranova-ai
 #
 # For CUDA support, override the build arg:
 #   docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121 -t infranova-ai .
@@ -13,12 +13,15 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build the React frontend
 # ---------------------------------------------------------------------------
-FROM node:18-alpine AS frontend-build
+FROM node:20-alpine AS frontend-build
+
+ARG VITE_API_URL=""
+ENV VITE_API_URL=${VITE_API_URL}
 
 WORKDIR /web
 
 COPY web/package.json web/package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 COPY web/ .
 RUN npm run build
@@ -32,39 +35,43 @@ ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8000 \
+    HOST=0.0.0.0
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV and image processing
+# Install minimal system dependencies for OpenCV and healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
     curl \
     libgl1 \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better layer caching
-COPY requirements.txt /app/requirements.txt
+# Copy production requirements first for optimal layer caching
+COPY requirements-prod.txt /app/requirements-prod.txt
 
-# Install PyTorch (CPU by default), then remaining dependencies
+# Install PyTorch (CPU by default), then production runtime dependencies
 RUN python -m pip install --upgrade pip && \
-    python -m pip install torch torchvision torchaudio --index-url ${TORCH_INDEX_URL} && \
-    python -m pip install -r /app/requirements.txt
+    python -m pip install torch torchvision --index-url ${TORCH_INDEX_URL} && \
+    python -m pip install -r /app/requirements-prod.txt
 
-# Copy entire project source
+# Copy application source (excluding files in .dockerignore)
 COPY . /app
 
-# Copy built React assets into a static directory served by FastAPI
+# Copy built React assets from Stage 1 into static directory served by FastAPI
 COPY --from=frontend-build /web/dist /app/web/dist
+
+# Ensure outputs directory structure exists and configure non-root user
+RUN mkdir -p /app/outputs/best && \
+    useradd -u 1000 -m -s /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

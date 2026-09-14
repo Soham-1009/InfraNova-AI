@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,8 +32,18 @@ from demo.utils import visualize_tir_as_thermal
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-CHECKPOINT_PATH = PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth"
-IMAGE_SIZE = 128
+CHECKPOINT_PATH = Path(
+    os.getenv(
+        "INFRANOVA_CHECKPOINT",
+        os.getenv("CHECKPOINT_PATH", str(PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth")),
+    )
+)
+DEVICE = os.getenv("INFRANOVA_DEVICE", os.getenv("DEVICE", None))
+IMAGE_SIZE = int(os.getenv("INFRANOVA_IMAGE_SIZE", "128"))
+CORS_ORIGINS_RAW = os.getenv("INFRANOVA_CORS_ORIGINS", "*")
+CORS_ORIGINS = [orig.strip() for orig in CORS_ORIGINS_RAW.split(",") if orig.strip()]
+if not CORS_ORIGINS:
+    CORS_ORIGINS = ["*"]
 
 # ---------------------------------------------------------------------------
 # Serve built React frontend (production Docker build)
@@ -51,19 +62,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Inference-Time", "X-Model"],
 )
-
-if FRONTEND_DIR.is_dir():
-    from starlette.responses import FileResponse
-
-    @app.get("/", include_in_schema=False)
-    async def serve_index():
-        return FileResponse(FRONTEND_DIR / "index.html")
 
 
 # Lazy-loaded inference engine (loaded on first request)
@@ -81,6 +85,7 @@ def get_engine() -> InferenceEngine:
         if engine is None:
             candidate = InferenceEngine(
                 checkpoint_path=str(CHECKPOINT_PATH),
+                device=DEVICE,
                 image_size=IMAGE_SIZE,
             )
             candidate.load_model()

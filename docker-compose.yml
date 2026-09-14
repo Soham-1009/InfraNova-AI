@@ -1,35 +1,34 @@
+# ==============================================================================
+# InfraNova AI — Production Docker Compose
+# Serves FastAPI backend + React frontend with read-only private checkpoint mount.
+#
+# Usage:
+#   docker compose up --build
+# ==============================================================================
+
 services:
-  api:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+    container_name: infranova-ai
     ports:
-      - "8000:8000"
+      # Bind strictly to loopback so external internet cannot bypass UFW firewall
+      - "127.0.0.1:${PORT:-8000}:8000"
     volumes:
-      - .:/app
+      # Mount private Exp9 model weights read-only into the container
+      - ./outputs:/app/outputs:ro
     environment:
       - PYTHONUNBUFFERED=1
+      - INFRANOVA_CHECKPOINT=${INFRANOVA_CHECKPOINT:-/app/outputs/best/pix2pix_landsat_best.pth}
+      - INFRANOVA_DEVICE=${INFRANOVA_DEVICE:-}
+      - INFRANOVA_CORS_ORIGINS=${INFRANOVA_CORS_ORIGINS:-*}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      start_period: 15s
+      start_period: 20s
       retries: 3
-
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./web:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    depends_on:
-      - api
-    restart: unless-stopped

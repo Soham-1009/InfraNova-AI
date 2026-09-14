@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import './App.css'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL || ''
 
 const PRESETS = [
   { id: 'accra', name: 'Accra', label: '🌊 Coastal Urban', file: 'accra_thermal.tif' },
