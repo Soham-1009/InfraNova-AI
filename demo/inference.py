@@ -38,9 +38,13 @@ class InferenceEngine:
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
         if not self.checkpoint_path.exists():
-            alt_path = Path("checkpoints/best/pix2pix_landsat_best.pth")
-            if alt_path.exists():
-                self.checkpoint_path = alt_path
+            root_candidate = Path(__file__).resolve().parent.parent / self.checkpoint_path
+            if root_candidate.exists():
+                self.checkpoint_path = root_candidate
+            else:
+                alt_path = Path("checkpoints/best/pix2pix_landsat_best.pth")
+                if alt_path.exists():
+                    self.checkpoint_path = alt_path
         self.image_size = int(image_size)
         if self.image_size < 128 or self.image_size % 128 != 0:
             raise ValueError("image_size must be a multiple of 128 for this generator")

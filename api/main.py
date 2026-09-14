@@ -175,6 +175,8 @@ async def colorize(
         )
     except HTTPException:
         raise
+    except FileNotFoundError as exc:
+        raise HTTPException(503, f"Model checkpoint unavailable: {exc}") from exc
     except (OSError, ValueError, TypeError) as exc:
         raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:

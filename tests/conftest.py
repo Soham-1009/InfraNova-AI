@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import sys
 from pathlib import Path
 
@@ -95,3 +96,50 @@ def tmp_dataset_dir(tmp_path):
         np.save(sample_dir / "rgb_100m.npy", np.random.rand(3, 128, 128).astype(np.float32))
 
     return tmp_path / "splits"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_production_checkpoint():
+    """Ensure a valid checkpoint exists at outputs/best/pix2pix_landsat_best.pth during tests.
+
+    In local development, the trained production checkpoint is preserved and unchanged.
+    In CI or headless environments where model weights are not checked into git,
+    synthesizes a lightweight checkpoint so integration and endpoint tests
+    can run deterministically without downloading external weights.
+    """
+    ckpt_path = PROJECT_ROOT / "outputs" / "best" / "pix2pix_landsat_best.pth"
+    created = False
+    if not ckpt_path.exists():
+        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        from src.models.pix2pix.pix2pix import Pix2Pix
+
+        model = Pix2Pix(
+            in_channels=2,
+            out_channels=3,
+            image_size=128,
+            num_scales=2,
+            generator_impl="resnet",
+        )
+        checkpoint = {
+            "epoch": 9,
+            "metrics": {"val_ssim": 0.450, "val_psnr": 13.75},
+            "model_state_dict": model.state_dict(),
+            "arch_info": {
+                "model": "Pix2Pix",
+                "generator": "GlobalGenerator",
+                "discriminator": "MultiScaleDiscriminator",
+                "generator_impl": "resnet",
+                "input_channels": 2,
+                "output_channels": 3,
+                "image_size": 128,
+                "discriminator_scales": 2,
+            },
+        }
+        torch.save(checkpoint, ckpt_path)
+        created = True
+
+    yield ckpt_path
+
+    if created and ckpt_path.exists():
+        with contextlib.suppress(OSError):
+            ckpt_path.unlink()
