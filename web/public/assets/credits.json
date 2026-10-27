@@ -1,0 +1,24 @@
+[
+ {
+  "file": "web/public/assets/elephant-island-by-landsat-8.jpg",
+  "media": "image",
+  "ref": "commons:101274476",
+  "title": "Elephant Island by Landsat 8",
+  "creator": "NASA Earth Observatory image by Joshua Stevens, using Landsat data from the U.S. Geological Survey. Story by Kasha Patel.",
+  "creatorUrl": null,
+  "date": "2020-12-13",
+  "license": "public domain",
+  "licenseCode": "pd",
+  "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+  "creditRequired": false,
+  "page": "https://commons.wikimedia.org/wiki/File:Elephant_Island_by_Landsat_8.jpeg",
+  "via": "Wikimedia Commons",
+  "image": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/Elephant_Island_by_Landsat_8.jpeg/1920px-Elephant_Island_by_Landsat_8.jpeg",
+  "width": 1920,
+  "height": 1366,
+  "bytes": 321614,
+  "credit": "\"Elephant Island by Landsat 8\" by NASA Earth Observatory image by Joshua Stevens, using Lands…, public domain, via Wikimedia Commons",
+  "notes": [],
+  "saved": "2026-10-27T14:43:52.957Z"
+ }
+]

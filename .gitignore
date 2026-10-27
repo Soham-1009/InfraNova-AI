@@ -28,6 +28,7 @@ checkpoints/
 # ------------------------------------------------------------------------------
 *.tif
 *.tiff
+!web/public/samples/*.tif
 *.npy
 *.npz
 *.h5
@@ -139,5 +140,12 @@ docker-compose.override.yml
 archive/
 scratch/
 docs/project/
+
+# ------------------------------------------------------------------------------
+# Design, Benchmarks & Document Drafts
+# ------------------------------------------------------------------------------
+.taste-skill/
+*.docx
+*.doc
 
 ssh-key-2026-09-15.key
