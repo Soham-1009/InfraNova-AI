@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
+const BASE = import.meta.env.BASE_URL
 
 const PRESETS = [
   {
@@ -8,24 +9,24 @@ const PRESETS = [
     name: 'Accra',
     descriptor: 'Coastal Urban',
     file: 'accra_thermal.tif',
-    thermalImg: '/samples/accra_thermal.png',
-    opticalImg: '/samples/accra_optical.png',
+    thermalImg: `${BASE}samples/accra_thermal.png`,
+    opticalImg: `${BASE}samples/accra_optical.png`,
   },
   {
     id: 'adilabad',
     name: 'Adilabad',
     descriptor: 'River Basin',
     file: 'adilabad_thermal.tif',
-    thermalImg: '/samples/adilabad_thermal.png',
-    opticalImg: '/samples/adilabad_optical.png',
+    thermalImg: `${BASE}samples/adilabad_thermal.png`,
+    opticalImg: `${BASE}samples/adilabad_optical.png`,
   },
   {
     id: 'abuja',
     name: 'Abuja',
     descriptor: 'Urban Plateau',
     file: 'abuja_thermal.tif',
-    thermalImg: '/samples/abuja_thermal.png',
-    opticalImg: '/samples/abuja_optical.png',
+    thermalImg: `${BASE}samples/abuja_thermal.png`,
+    opticalImg: `${BASE}samples/abuja_optical.png`,
   },
 ]
 
@@ -49,6 +50,7 @@ function App() {
   const fileInputRef = useRef(null)
   const sliderContainerRef = useRef(null)
   const isDraggingSlider = useRef(false)
+  const loadIdRef = useRef(0)
 
   // Track blob URLs for proper cleanup
   const blobUrlsRef = useRef([])
@@ -130,6 +132,8 @@ function App() {
   )
 
   const loadPreset = async (preset) => {
+    cleanupBlobUrls()
+    const currentId = ++loadIdRef.current
     try {
       setLoading(true)
       setLoadingMessage(`Loading ${preset.name} scene...`)
@@ -145,17 +149,22 @@ function App() {
       setInferenceTime(0.048)
 
       // Also fetch the true TIFF sample file for active file state
-      const res = await fetch(`/samples/${preset.file}`)
-      if (res.ok) {
-        const blob = await res.blob()
-        const sampleFile = new File([blob], preset.file, { type: 'image/tiff' })
-        setFile(sampleFile)
-      }
+      const res = await fetch(`${BASE}samples/${preset.file}`)
+      if (!res.ok) throw new Error(`Could not download ${preset.file} (${res.status})`)
+      if (currentId !== loadIdRef.current) return
+
+      const blob = await res.blob()
+      const sampleFile = new File([blob], preset.file, { type: 'image/tiff' })
+      setFile(sampleFile)
     } catch (err) {
-      setError(`Failed to load preset: ${err.message}`)
+      if (currentId === loadIdRef.current) {
+        setError(`Failed to load preset: ${err.message}`)
+      }
     } finally {
-      setLoading(false)
-      setLoadingMessage('')
+      if (currentId === loadIdRef.current) {
+        setLoading(false)
+        setLoadingMessage('')
+      }
     }
   }
 
@@ -236,7 +245,9 @@ function App() {
     setLoadingMessage('Applying CIELAB CLAHE enhancement...')
 
     try {
-      const originalBlob = await fetch(outputImage).then((r) => r.blob())
+      const imgRes = await fetch(outputImage)
+      if (!imgRes.ok) throw new Error('Source image not accessible')
+      const originalBlob = await imgRes.blob()
       const formData = new FormData()
       formData.append('file', originalBlob, 'output.png')
 
@@ -572,7 +583,9 @@ function App() {
                 </span>
                 <span className="telemetry-item">
                   <span className="telemetry-label">Spatial Grid:</span>
-                  <span className="telemetry-value">128 x 128 px (100m)</span>
+                  <span className="telemetry-value">
+                    {activePreset ? '1002 x 1001 px (Scene)' : '128 x 128 px (100m)'}
+                  </span>
                 </span>
               </div>
 
@@ -658,7 +671,7 @@ function App() {
           <div className="showcase-mosaic">
             <div className="mosaic-card">
               <img
-                src="/assets/figure6_visual_inspection_panel.png"
+                src={`${BASE}assets/figure6_visual_inspection_panel.png`}
                 alt="Visual inspection panel comparing thermal input, ground truth RGB, legacy production U-Net, and active Exp9 ResNet across 4 global terrain biomes"
                 className="mosaic-image"
                 loading="lazy"
@@ -674,7 +687,7 @@ function App() {
 
             <div className="mosaic-card">
               <img
-                src="/assets/elephant-island-by-landsat-8.jpg"
+                src={`${BASE}assets/elephant-island-by-landsat-8.jpg`}
                 alt="Elephant Island Antarctica captured by Landsat observatory in polar sea ice"
                 className="mosaic-image"
                 loading="lazy"
@@ -704,7 +717,7 @@ function App() {
             <div className="architecture-column">
               <div className="arch-visual-box">
                 <img
-                  src="/assets/figure1_cross_modal_decoupling.png"
+                  src={`${BASE}assets/figure1_cross_modal_decoupling.png`}
                   alt="Cross-modal translation diagram between thermal infrared radiance and optical surface reflectance"
                   className="arch-diagram"
                   loading="lazy"
@@ -722,7 +735,7 @@ function App() {
             <div className="architecture-column">
               <div className="arch-visual-box">
                 <img
-                  src="/assets/figure8_seamless_tiling_reconstruction.png"
+                  src={`${BASE}assets/figure8_seamless_tiling_reconstruction.png`}
                   alt="2D Hann window sliding reconstruction across large satellite rasters"
                   className="arch-diagram"
                   loading="lazy"
