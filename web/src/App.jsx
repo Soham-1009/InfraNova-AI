@@ -585,17 +585,19 @@ function App() {
               </div>
 
               <div className="execution-controls">
-                {file && (
-                  <label className="checkbox-control" title="Test-Time Augmentation ensemble">
-                    <input
-                      type="checkbox"
-                      checked={useTTA}
-                      onChange={(e) => setUseTTA(e.target.checked)}
-                      id="tta-toggle"
-                    />
-                    <span className="checkbox-label">4-Fold TTA</span>
-                  </label>
-                )}
+                <label
+                  className={`checkbox-control ${activePreset ? 'checkbox-control--disabled' : ''}`}
+                  title={activePreset ? "Preset scenes are precomputed offline" : "4-fold dihedral group Test-Time Augmentation (Identity, H-flip, V-flip, rot180)"}
+                >
+                  <input
+                    type="checkbox"
+                    checked={useTTA}
+                    onChange={(e) => setUseTTA(e.target.checked)}
+                    disabled={!!activePreset}
+                    id="tta-toggle"
+                  />
+                  <span className="checkbox-label">4-Fold TTA</span>
+                </label>
 
                 {file && (
                   <button
