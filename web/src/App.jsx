@@ -131,41 +131,22 @@ function App() {
     [cleanupBlobUrls, trackBlobUrl]
   )
 
-  const loadPreset = async (preset) => {
+  const loadPreset = (preset) => {
     cleanupBlobUrls()
-    const currentId = ++loadIdRef.current
-    try {
-      setLoading(true)
-      setLoadingMessage(`Loading ${preset.name} scene...`)
-      setError(null)
-      setActivePreset(preset)
-      setClaheApplied(false)
-      setSliderPos(50)
+    setFile(null)
+    setActivePreset(preset)
+    setError(null)
+    setClaheApplied(false)
+    setSliderPos(50)
+    setInputPreview(null)
 
-      // Pre-set real precomputed previews so comparison works instantly
-      setThermalPreview(preset.thermalImg)
-      setOutputImage(preset.opticalImg)
-      setDisplayImage(preset.opticalImg)
-      setInferenceTime(0.048)
+    // Set precomputed validation images for instant comparison
+    setThermalPreview(preset.thermalImg)
+    setOutputImage(preset.opticalImg)
+    setDisplayImage(preset.opticalImg)
+    setInferenceTime(0.048)
 
-      // Also fetch the true TIFF sample file for active file state
-      const res = await fetch(`${BASE}samples/${preset.file}`)
-      if (!res.ok) throw new Error(`Could not download ${preset.file} (${res.status})`)
-      if (currentId !== loadIdRef.current) return
-
-      const blob = await res.blob()
-      const sampleFile = new File([blob], preset.file, { type: 'image/tiff' })
-      setFile(sampleFile)
-    } catch (err) {
-      if (currentId === loadIdRef.current) {
-        setError(`Failed to load preset: ${err.message}`)
-      }
-    } finally {
-      if (currentId === loadIdRef.current) {
-        setLoading(false)
-        setLoadingMessage('')
-      }
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleDrop = useCallback(
@@ -434,6 +415,16 @@ function App() {
               </div>
 
               <div className="file-actions">
+                {activePreset && (
+                  <a
+                    href={`${BASE}samples/${activePreset.file}`}
+                    download={activePreset.file}
+                    className="sample-download-link"
+                    title={`Download raw ${activePreset.file} Landsat 9 GeoTIFF`}
+                  >
+                    Download Scene GeoTIFF
+                  </a>
+                )}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -584,21 +575,28 @@ function App() {
                 <span className="telemetry-item">
                   <span className="telemetry-label">Spatial Grid:</span>
                   <span className="telemetry-value">
-                    {activePreset ? '1002 x 1001 px (Scene)' : '128 x 128 px (100m)'}
+                    {activePreset ? '1002 x 1001 px (Scene)' : file ? 'Full Raster (Auto-Tiled)' : '128 x 128 px (100m)'}
                   </span>
                 </span>
+                {activePreset && (
+                  <span className="telemetry-item">
+                    <span className="badge-benchmark">Precomputed Benchmark</span>
+                  </span>
+                )}
               </div>
 
               <div className="execution-controls">
-                <label className="checkbox-control" title="Test-Time Augmentation ensemble">
-                  <input
-                    type="checkbox"
-                    checked={useTTA}
-                    onChange={(e) => setUseTTA(e.target.checked)}
-                    id="tta-toggle"
-                  />
-                  <span className="checkbox-label">4-Fold TTA</span>
-                </label>
+                {file && (
+                  <label className="checkbox-control" title="Test-Time Augmentation ensemble">
+                    <input
+                      type="checkbox"
+                      checked={useTTA}
+                      onChange={(e) => setUseTTA(e.target.checked)}
+                      id="tta-toggle"
+                    />
+                    <span className="checkbox-label">4-Fold TTA</span>
+                  </label>
+                )}
 
                 {file && (
                   <button
@@ -607,7 +605,7 @@ function App() {
                     onClick={runColorization}
                     disabled={loading}
                   >
-                    Colorize
+                    Colorize Scene
                   </button>
                 )}
 
@@ -641,6 +639,17 @@ function App() {
                       Export RGB
                     </button>
                   </>
+                )}
+
+                {(displayImage || file || activePreset) && (
+                  <button
+                    type="button"
+                    className="action-btn action-btn--ghost"
+                    onClick={resetAll}
+                    title="Clear current scene and reset"
+                  >
+                    Reset
+                  </button>
                 )}
 
                 {(file || displayImage) && (

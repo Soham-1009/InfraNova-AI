@@ -27,7 +27,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from demo.inference import InferenceEngine
-from demo.utils import visualize_tir_as_thermal
+from demo.utils import to_single_band_array, visualize_tir_as_thermal
+from src.inference.tiled_inference import TiledRasterInference
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -66,13 +67,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Inference-Time", "X-Model"],
+    expose_headers=["X-Inference-Time", "X-Model", "X-Spatial-Grid", "X-Tiles-Processed"],
 )
 
 
-# Lazy-loaded inference engine (loaded on first request)
+# Lazy-loaded inference engines (loaded on first request)
 engine: InferenceEngine | None = None
 _engine_lock = RLock()
+tiled_engine: TiledRasterInference | None = None
+_tiled_lock = RLock()
 
 
 def get_engine() -> InferenceEngine:
@@ -91,6 +94,24 @@ def get_engine() -> InferenceEngine:
             candidate.load_model()
             engine = candidate
     return engine
+
+
+def get_tiled_engine() -> TiledRasterInference:
+    """Get or create the tiled raster inference engine singleton."""
+    global tiled_engine
+    if tiled_engine is not None:
+        return tiled_engine
+
+    with _tiled_lock:
+        if tiled_engine is None:
+            eng = get_engine()
+            tiled_engine = TiledRasterInference(
+                checkpoint_path=str(CHECKPOINT_PATH),
+                tile_size=IMAGE_SIZE,
+                device=DEVICE,
+                engine=eng,
+            )
+    return tiled_engine
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +183,44 @@ async def colorize(
 
         eng = get_engine()
         start = time.perf_counter()
-        result = eng.predict(image_input, use_tta=tta)
+
+        # Check spatial dimensions to decide between tiled vs single-patch inference
+        b10_arr = None
+        b11_arr = None
+        H, W = IMAGE_SIZE, IMAGE_SIZE
+
+        if isinstance(image_input, (tuple, list)) and len(image_input) == 2:
+            b10_arr = to_single_band_array(image_input[0])
+            b11_arr = to_single_band_array(image_input[1])
+            H, W = b10_arr.shape
+        elif isinstance(image_input, np.ndarray):
+            if image_input.ndim == 2:
+                H, W = image_input.shape
+                b10_arr = b11_arr = image_input
+            elif image_input.ndim == 3 and image_input.shape[0] == 2:
+                b10_arr, b11_arr = image_input[0], image_input[1]
+                H, W = b10_arr.shape
+            elif image_input.ndim == 3 and image_input.shape[2] == 2:
+                b10_arr, b11_arr = image_input[:, :, 0], image_input[:, :, 1]
+                H, W = b10_arr.shape
+            else:
+                b10_arr = to_single_band_array(image_input)
+                b11_arr = b10_arr
+                H, W = b10_arr.shape
+        elif isinstance(image_input, Image.Image):
+            W, H = image_input.size
+            b10_arr = to_single_band_array(np.array(image_input))
+            b11_arr = b10_arr
+
+        tiles_processed = 1
+        if (H > IMAGE_SIZE or W > IMAGE_SIZE) and b10_arr is not None and b11_arr is not None:
+            tiler = get_tiled_engine()
+            tiled_out = tiler.predict_scene(b10_arr, b11_arr, use_tta=tta)
+            result = Image.fromarray(tiled_out["rgb_uint8"])
+            tiles_processed = tiled_out.get("tiles_processed", 1)
+        else:
+            result = eng.predict(image_input, use_tta=tta)
+
         elapsed = time.perf_counter() - start
 
         # Encode result as PNG
@@ -176,6 +234,8 @@ async def colorize(
             headers={
                 "X-Inference-Time": f"{elapsed:.3f}",
                 "X-Model": "pix2pix-landsat-exp9-resnet",
+                "X-Spatial-Grid": f"{W}x{H}",
+                "X-Tiles-Processed": str(tiles_processed),
             },
         )
     except HTTPException:

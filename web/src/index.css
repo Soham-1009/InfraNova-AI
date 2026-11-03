@@ -331,6 +331,24 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sample-download-link {
+  font-family: var(--font-sans);
+  font-size: var(--step-caption);
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  background-color: var(--surface);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.sample-download-link:hover {
+  color: var(--ink);
+  background-color: var(--surface-hover);
 }
 
 .upload-trigger-btn {
@@ -404,12 +422,16 @@ body {
 .slider-stage {
   position: relative;
   width: 100%;
-  height: 520px;
+  max-width: 520px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  margin: 0 auto;
   overflow: hidden;
   user-select: none;
   touch-action: pan-y;
   cursor: ew-resize;
   background-color: var(--bg);
+  border-radius: 4px;
 }
 
 .slider-layer {
@@ -418,7 +440,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   pointer-events: none;
 }
 
@@ -593,6 +615,20 @@ body {
   font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+.badge-benchmark {
+  font-size: var(--step-caption);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  display: inline-flex;
+  align-items: center;
 }
 
 .execution-controls {

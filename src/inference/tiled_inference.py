@@ -69,6 +69,7 @@ class TiledRasterInference:
         window_type: str = "cosine",
         percentile_low: float = DEFAULT_PERCENTILE_LOW,
         percentile_high: float = DEFAULT_PERCENTILE_HIGH,
+        engine: InferenceEngine | None = None,
     ) -> None:
         self.tile_size = int(tile_size)
         self.overlap = int(overlap)
@@ -82,12 +83,16 @@ class TiledRasterInference:
         self.percentile_low = float(percentile_low)
         self.percentile_high = float(percentile_high)
 
-        self.engine = InferenceEngine(
-            checkpoint_path=checkpoint_path,
-            image_size=self.tile_size,
-            device=device,
-        )
-        self.engine.load_model()
+        if engine is not None:
+            self.engine = engine
+            self.engine.load_model()
+        else:
+            self.engine = InferenceEngine(
+                checkpoint_path=checkpoint_path,
+                image_size=self.tile_size,
+                device=device,
+            )
+            self.engine.load_model()
         self.device = self.engine.device
 
     @staticmethod
@@ -211,6 +216,7 @@ class TiledRasterInference:
         tile_coords: list[tuple[int, int]] = []
         tile_tensors: list[torch.Tensor] = []
 
+        target_channels = getattr(self.engine, "in_channels", 2)
         for y in y_starts:
             for x in x_starts:
                 patch = scene_normalized[:, y : y + self.tile_size, x : x + self.tile_size]
@@ -220,6 +226,7 @@ class TiledRasterInference:
                     pad_w = self.tile_size - patch.shape[2]
                     patch = np.pad(patch, ((0, 0), (0, pad_h), (0, pad_w)), mode="reflect")
 
+                patch = patch[:target_channels]
                 tile_coords.append((y, x))
                 tile_tensors.append(torch.from_numpy(patch))
 
