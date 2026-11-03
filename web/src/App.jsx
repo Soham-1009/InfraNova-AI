@@ -181,7 +181,7 @@ function App() {
     if (!file) return
 
     setLoading(true)
-    setLoadingMessage('Synthesizing optical RGB with Exp9 ResNet...')
+    setLoadingMessage('Synthesizing optical RGB with Pix2Pix ResNet...')
     setError(null)
     setClaheApplied(false)
 
@@ -209,7 +209,7 @@ function App() {
     } catch (err) {
       // If backend is offline but a preset was selected, show friendly note
       if (activePreset) {
-        setError(`Backend is offline (${err.message}). Displaying precomputed Exp9 validation output for ${activePreset.name}.`)
+        setError(`Backend is offline (${err.message}). Displaying precomputed validation output for ${activePreset.name}.`)
       } else {
         setError(err.message)
       }
@@ -354,7 +354,7 @@ function App() {
         <div className="header-inner">
           <div className="brand-block">
             <span className="brand-wordmark">InfraNova AI</span>
-            <span className="version-tag">Exp9 Production</span>
+            <span className="version-tag">Production</span>
             <span className={`status-pill status-pill--${apiStatus}`}>
               API {apiStatus}
             </span>
@@ -388,7 +388,7 @@ function App() {
           <div className="hero-lead">
             <h1 className="hero-headline">Thermal to True Color</h1>
             <p className="hero-standfirst">
-              Exp9 Global ResNet translates raw Landsat 9 split-window thermal infrared emissions into
+              Global ResNet translates raw Landsat 9 split-window thermal infrared emissions into
               calibrated optical surface reflectance in real time.
             </p>
           </div>
@@ -666,53 +666,7 @@ function App() {
           </div>
         </section>
 
-        {/* SECTION 2: CROSS-SPECTRAL VISUAL SHOWCASE */}
-        <section className="showcase-section">
-          <div className="section-header">
-            <h2 className="section-title">Cross-Spectral Optical Synthesis</h2>
-            <p className="section-intro">
-              Direct comparisons across global satellite acquisitions prove that the 9-block ResNet
-              bottleneck eliminates the chromatic aberrations of direct skip connections, reliably
-              reconstructing optical surface features.
-            </p>
-          </div>
-
-          <div className="showcase-mosaic">
-            <div className="mosaic-card">
-              <img
-                src={`${BASE}assets/figure6_visual_inspection_panel.png`}
-                alt="Visual inspection panel comparing thermal input, ground truth RGB, legacy production U-Net, and active Exp9 ResNet across 4 global terrain biomes"
-                className="mosaic-image"
-                loading="lazy"
-              />
-              <div className="mosaic-caption">
-                <span className="caption-bold">Quad-Biome Benchmark Panel</span>
-                <span className="caption-text">
-                  Columns: [1] Raw Thermal B10/B11; [2] Ground Truth Optical RGB; [3] Legacy U-Net
-                  Baseline (severe chromatic noise); [4] Exp9 ResNet (our active production deployment).
-                </span>
-              </div>
-            </div>
-
-            <div className="mosaic-card">
-              <img
-                src={`${BASE}assets/elephant-island-by-landsat-8.jpg`}
-                alt="Elephant Island Antarctica captured by Landsat observatory in polar sea ice"
-                className="mosaic-image"
-                loading="lazy"
-              />
-              <div className="mosaic-caption">
-                <span className="caption-bold">Polar and Cryosphere Generalization</span>
-                <span className="caption-text">
-                  Extreme thermal contrast validation across ice-shelf margins and polar maritime
-                  surfaces from the Landsat Earth observation archive.
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 3: HOW IT WORKS / RADIATIVE TRANSFER */}
+        {/* SECTION 2: HOW IT WORKS / RADIATIVE TRANSFER */}
         <section className="architecture-section">
           <div className="section-header">
             <h2 className="section-title">Split-Window Radiative Transfer</h2>
@@ -829,60 +783,6 @@ function App() {
           </div>
         </section>
       </main>
-
-      {/* SECTION 5: FOOTER / DESIGNED CLOSE */}
-      <footer className="footer-frame">
-        <div className="footer-tiles">
-          <div className="footer-tile footer-tile--statement">
-            <span className="footer-wordmark">InfraNova AI</span>
-            <p className="footer-statement-text">
-              Real-time cross-spectral optical translation for operational satellite earth observation.
-            </p>
-            <span className="footer-subtext">Research & Engineering Project</span>
-          </div>
-
-          <div className="footer-tile footer-tile--deployment">
-            <span className="tile-header">Deployment</span>
-            <p className="tile-body">
-              Live on Oracle Cloud Infrastructure (OCI) Ampere A1 ARM64 instance.
-            </p>
-            <a
-              href="https://infranovaai.duckdns.org"
-              target="_blank"
-              rel="noreferrer"
-              className="tile-link"
-            >
-              infranovaai.duckdns.org
-            </a>
-          </div>
-
-          <div className="footer-tile footer-tile--provenance">
-            <span className="tile-header">Data Provenance</span>
-            <p className="tile-body">
-              Landsat 9 thermal infrared and optical surface reflectance data courtesy of the
-              U.S. Geological Survey (USGS) and NASA Earth Observatory.
-            </p>
-            <span className="footer-license-note">
-              Elephant Island photo by Joshua Stevens / NASA, public domain via Wikimedia Commons.
-            </span>
-          </div>
-
-          <div className="footer-tile footer-tile--repo">
-            <span className="tile-header">Code & Models</span>
-            <p className="tile-body">
-              Explore the complete training pipeline, loss derivations, and benchmark logs.
-            </p>
-            <a
-              href="https://github.com/Soham-1009/InfraNova-AI"
-              target="_blank"
-              rel="noreferrer"
-              className="tile-action-link"
-            >
-              GitHub Repository
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
