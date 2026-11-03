@@ -199,9 +199,10 @@ body {
   width: calc(100% - (var(--page-margin) * 2));
   max-width: var(--page-max-width);
   margin-inline: auto;
-  padding: 0 0 clamp(16px, 2.5vh, 28px);
+  padding: 0 0 clamp(24px, 3vh, 40px);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: var(--section-gap);
   box-sizing: border-box;
 }
@@ -253,11 +254,11 @@ body {
 /* Instrument Shell (data-ui) */
 .instrument-shell {
   background-color: var(--surface);
-  border-radius: 8px;
-  padding: clamp(10px, 1.3vh, 14px) clamp(12px, 1.5vw, 18px);
+  border-radius: 10px;
+  padding: clamp(14px, 1.6vh, 20px) clamp(16px, 1.8vw, 24px);
   display: flex;
   flex-direction: column;
-  gap: clamp(8px, 1.1vh, 12px);
+  gap: clamp(10px, 1.4vh, 16px);
   width: 100%;
 }
 
@@ -422,8 +423,8 @@ body {
 .slider-stage {
   position: relative;
   width: 100%;
-  max-width: clamp(240px, 30vh, 340px);
-  height: clamp(240px, 30vh, 340px);
+  max-width: clamp(260px, 34vh, 400px);
+  height: clamp(260px, 34vh, 400px);
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   overflow: hidden;
@@ -431,7 +432,7 @@ body {
   touch-action: pan-y;
   cursor: ew-resize;
   background-color: var(--bg);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .slider-layer {
@@ -503,7 +504,7 @@ body {
 /* Static Thermal Preview */
 .thermal-preview-stage {
   width: 100%;
-  height: clamp(190px, 25vh, 270px);
+  height: clamp(260px, 34vh, 400px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -513,7 +514,7 @@ body {
 
 .preview-raster {
   max-width: 100%;
-  max-height: clamp(170px, 22vh, 230px);
+  max-height: clamp(240px, 30vh, 360px);
   object-fit: contain;
 }
 
@@ -537,15 +538,16 @@ body {
 /* Dropzone Stage */
 .dropzone-stage {
   width: 100%;
-  height: clamp(210px, 25vh, 290px);
+  height: clamp(240px, 30vh, 360px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 16px;
+  gap: 12px;
+  padding: 24px;
   cursor: pointer;
   background-color: var(--bg);
+  border-radius: 6px;
   transition: background-color 0.15s ease;
 }
 
@@ -775,7 +777,7 @@ body {
 .stats-section {
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 0.9vh, 10px);
+  gap: clamp(10px, 1.4vh, 16px);
   width: 100%;
 }
 
@@ -804,7 +806,7 @@ body {
 .ledger-table {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: clamp(10px, 1.2vw, 16px);
+  gap: clamp(12px, 1.4vw, 18px);
   width: 100%;
   background: transparent;
   padding: 0;
@@ -814,11 +816,11 @@ body {
 .ledger-row {
   background-color: var(--surface);
   border-radius: 8px;
-  padding: clamp(14px, 1.6vh, 18px) clamp(12px, 1.2vw, 18px);
+  padding: clamp(16px, 2vh, 22px) clamp(14px, 1.4vw, 20px);
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   transition: background-color 0.15s ease, transform 0.15s ease;
 }
@@ -844,7 +846,7 @@ body {
 }
 
 .ledger-num-whole {
-  font-size: clamp(1.6rem, 1.35rem + 0.6vw, 2.1rem);
+  font-size: clamp(1.8rem, 1.5rem + 0.7vw, 2.4rem);
   font-weight: 800;
   line-height: 1;
   color: var(--ink);
@@ -852,7 +854,7 @@ body {
 }
 
 .ledger-num-decimal {
-  font-size: clamp(1.6rem, 1.35rem + 0.6vw, 2.1rem);
+  font-size: clamp(1.8rem, 1.5rem + 0.7vw, 2.4rem);
   font-weight: 800;
   line-height: 1;
   color: var(--accent);
@@ -893,6 +895,7 @@ body {
 
   .content-flow {
     padding: 0 0 24px;
+    justify-content: flex-start;
   }
 
   .slider-stage,
