@@ -343,11 +343,11 @@ class SSIMLoss(nn.Module):
         c2 = 0.03**2
 
         channel = img1.size(1)
-        # This is the fix: we make sure the 'dtype' matches so it doesn't crash
         if channel != self.channel or self.window.device != img1.device or self.window.dtype != img1.dtype:
             window = self._create_window(self.window_size, self.sigma, channel).to(
                 device=img1.device, dtype=img1.dtype)
             self.window = window
+            self.channel = channel
         else:
             window = self.window
 

@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+import tifffile
 
 # Make project root importable
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -64,7 +65,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False if ("*" in CORS_ORIGINS or CORS_ORIGINS == ["*"]) else True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Inference-Time", "X-Model", "X-Spatial-Grid", "X-Tiles-Processed"],
@@ -120,12 +121,18 @@ def get_tiled_engine() -> TiledRasterInference:
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    eng = get_engine()
-    return {
-        "status": "ok",
-        "model_loaded": eng.model is not None,
-        "device": str(eng.device),
-    }
+    try:
+        eng = get_engine()
+        return {
+            "status": "ok",
+            "model_loaded": eng.model is not None,
+            "device": str(eng.device),
+        }
+    except (FileNotFoundError, OSError):
+        return {
+            "status": "degraded",
+            "model_loaded": False,
+        }
 
 
 @app.post("/colorize")
@@ -155,16 +162,22 @@ async def colorize(
             raw_b11 = await band11.read()
             if len(raw_b10) == 0 or len(raw_b11) == 0:
                 raise HTTPException(400, "Uploaded band10 or band11 file is empty (0 bytes).")
-            b10_arr = (
-                np.load(io.BytesIO(raw_b10))
-                if (band10.filename or "").endswith(".npy")
-                else np.array(Image.open(io.BytesIO(raw_b10)))
-            )
-            b11_arr = (
-                np.load(io.BytesIO(raw_b11))
-                if (band11.filename or "").endswith(".npy")
-                else np.array(Image.open(io.BytesIO(raw_b11)))
-            )
+            b10_fn = (band10.filename or "").lower()
+            b11_fn = (band11.filename or "").lower()
+            if b10_fn.endswith(".npy"):
+                b10_arr = np.load(io.BytesIO(raw_b10))
+            elif b10_fn.endswith((".tif", ".tiff")):
+                b10_arr = tifffile.imread(io.BytesIO(raw_b10))
+            else:
+                b10_arr = np.array(Image.open(io.BytesIO(raw_b10)))
+
+            if b11_fn.endswith(".npy"):
+                b11_arr = np.load(io.BytesIO(raw_b11))
+            elif b11_fn.endswith((".tif", ".tiff")):
+                b11_arr = tifffile.imread(io.BytesIO(raw_b11))
+            else:
+                b11_arr = np.array(Image.open(io.BytesIO(raw_b11)))
+
             image_input = (b10_arr, b11_arr)
         else:
             assert file is not None
@@ -179,6 +192,8 @@ async def colorize(
 
             if suffix == ".npy":
                 image_input = np.load(io.BytesIO(raw_bytes))
+            elif suffix in {".tif", ".tiff"}:
+                image_input = tifffile.imread(io.BytesIO(raw_bytes))
             else:
                 image_input = Image.open(io.BytesIO(raw_bytes))
 
@@ -198,10 +213,10 @@ async def colorize(
             if image_input.ndim == 2:
                 H, W = image_input.shape
                 b10_arr = b11_arr = image_input
-            elif image_input.ndim == 3 and image_input.shape[0] == 2:
+            elif image_input.ndim == 3 and image_input.shape[0] >= 2 and (image_input.shape[0] < image_input.shape[1] or image_input.shape[2] > 4):
                 b10_arr, b11_arr = image_input[0], image_input[1]
                 H, W = b10_arr.shape
-            elif image_input.ndim == 3 and image_input.shape[2] == 2:
+            elif image_input.ndim == 3 and image_input.shape[2] >= 2:
                 b10_arr, b11_arr = image_input[:, :, 0], image_input[:, :, 1]
                 H, W = b10_arr.shape
             else:
@@ -220,7 +235,8 @@ async def colorize(
             result = Image.fromarray(tiled_out["rgb_uint8"])
             tiles_processed = tiled_out.get("tiles_processed", 1)
         else:
-            result = eng.predict(image_input, use_tta=tta)
+            inference_input = (b10_arr, b11_arr) if (b10_arr is not None and b11_arr is not None) else image_input
+            result = eng.predict(inference_input, use_tta=tta)
 
         elapsed = time.perf_counter() - start
 
@@ -269,6 +285,8 @@ async def thermal_preview(file: UploadFile = File(...)):
         if suffix == ".npy":
             arr = np.load(io.BytesIO(raw_bytes))
             image_input = arr
+        elif suffix in {".tif", ".tiff"}:
+            image_input = tifffile.imread(io.BytesIO(raw_bytes))
         else:
             image_input = Image.open(io.BytesIO(raw_bytes))
 

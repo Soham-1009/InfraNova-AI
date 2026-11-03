@@ -37,3 +37,7 @@ notebooks/
 # Build artefacts
 *.log
 *.tmp
+
+# Secrets and keys
+*.key
+*.pem

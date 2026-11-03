@@ -60,6 +60,17 @@ function App() {
     return url
   }, [])
 
+  const revokeBlobUrl = useCallback((url) => {
+    if (url && url.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(url)
+      } catch {
+        /* ignore */
+      }
+      blobUrlsRef.current = blobUrlsRef.current.filter((u) => u !== url)
+    }
+  }, [])
+
   const cleanupBlobUrls = useCallback(() => {
     blobUrlsRef.current.forEach((url) => {
       try {
@@ -223,6 +234,8 @@ function App() {
       if (time) setInferenceTime(parseFloat(time))
 
       const blob = await res.blob()
+      if (outputImage) revokeBlobUrl(outputImage)
+      if (displayImage && displayImage !== outputImage) revokeBlobUrl(displayImage)
       const url = trackBlobUrl(URL.createObjectURL(blob))
       setOutputImage(url)
       setDisplayImage(url)
@@ -259,6 +272,9 @@ function App() {
       if (!res.ok) throw new Error('CLAHE request failed')
 
       const blob = await res.blob()
+      if (claheApplied && displayImage && displayImage !== outputImage) {
+        revokeBlobUrl(displayImage)
+      }
       const url = trackBlobUrl(URL.createObjectURL(blob))
       setDisplayImage(url)
       setClaheApplied(true)
@@ -271,6 +287,9 @@ function App() {
   }
 
   const removeCLAHE = () => {
+    if (displayImage && displayImage !== outputImage) {
+      revokeBlobUrl(displayImage)
+    }
     setDisplayImage(outputImage)
     setClaheApplied(false)
   }

@@ -9,6 +9,8 @@
 .env.local
 .env.*.local
 !.env.example
+*.key
+*.pem
 
 # ------------------------------------------------------------------------------
 # Model Checkpoints & Large Artifacts (NEVER commit model weights)

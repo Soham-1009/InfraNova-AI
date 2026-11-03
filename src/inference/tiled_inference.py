@@ -224,7 +224,8 @@ class TiledRasterInference:
                 if patch.shape[1] < self.tile_size or patch.shape[2] < self.tile_size:
                     pad_h = self.tile_size - patch.shape[1]
                     pad_w = self.tile_size - patch.shape[2]
-                    patch = np.pad(patch, ((0, 0), (0, pad_h), (0, pad_w)), mode="reflect")
+                    pad_mode = "edge" if (pad_h >= patch.shape[1] or pad_w >= patch.shape[2]) else "reflect"
+                    patch = np.pad(patch, ((0, 0), (0, pad_h), (0, pad_w)), mode=pad_mode)
 
                 patch = patch[:target_channels]
                 tile_coords.append((y, x))

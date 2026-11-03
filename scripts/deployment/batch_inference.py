@@ -28,6 +28,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from demo.inference import InferenceEngine
 
+try:
+    import tifffile
+except ImportError:
+    tifffile = None
+
 SUPPORTED_EXTENSIONS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
 
 
@@ -80,19 +85,65 @@ def process_single_image(
     Process one image. Returns (success, message, time_seconds).
     """
     try:
-        with Image.open(image_path) as source:
-            image = source.copy()
+        is_tiff = image_path.suffix.lower() in (".tif", ".tiff")
+        b10_arr = None
+        b11_arr = None
+        if is_tiff and tifffile is not None:
+            try:
+                raw_arr = tifffile.imread(image_path)
+                if raw_arr.ndim == 3 and raw_arr.shape[0] >= 2 and (raw_arr.shape[0] < raw_arr.shape[1] or raw_arr.shape[2] > 4):
+                    b10_arr, b11_arr = raw_arr[0], raw_arr[1]
+                elif raw_arr.ndim == 3 and raw_arr.shape[2] >= 2:
+                    b10_arr, b11_arr = raw_arr[:, :, 0], raw_arr[:, :, 1]
+                elif raw_arr.ndim == 2:
+                    b10_arr = b11_arr = raw_arr
+            except Exception:
+                b10_arr = b11_arr = None
 
-        # Convert palette to grayscale
-        if image.mode == "P":
-            image = image.convert("L")
+        if b10_arr is not None and b11_arr is not None:
+            height, width = b10_arr.shape
+            tile_size = getattr(engine, "image_size", 128)
+            start = time.perf_counter()
+            if width > tile_size or height > tile_size:
+                from src.inference.tiled_inference import TiledRasterInference
 
-        if image.mode in ("RGB", "RGBA"):
-            return False, f"Skipped {image_path.name}: RGB image", 0.0
+                tiler = TiledRasterInference(
+                    tile_size=tile_size,
+                    engine=engine,
+                    device=getattr(engine, "device", None),
+                )
+                tiled_out = tiler.predict_scene(b10_arr, b11_arr, use_tta=tta)
+                result = Image.fromarray(tiled_out["rgb_uint8"])
+            else:
+                result = engine.predict((b10_arr, b11_arr), use_tta=tta)
+            elapsed = time.perf_counter() - start
+        else:
+            with Image.open(image_path) as source:
+                image = source.copy()
 
-        start = time.perf_counter()
-        result = engine.predict(image, use_tta=tta)
-        elapsed = time.perf_counter() - start
+            # Convert palette to grayscale
+            if image.mode == "P":
+                image = image.convert("L")
+
+            if image.mode in ("RGB", "RGBA"):
+                return False, f"Skipped {image_path.name}: RGB image", 0.0
+
+            start = time.perf_counter()
+            tile_size = getattr(engine, "image_size", 128)
+            if image.width > tile_size or image.height > tile_size:
+                from src.inference.tiled_inference import TiledRasterInference
+
+                tiler = TiledRasterInference(
+                    tile_size=tile_size,
+                    engine=engine,
+                    device=getattr(engine, "device", None),
+                )
+                arr_in = np.array(image)
+                tiled_out = tiler.predict_scene(arr_in, arr_in, use_tta=tta)
+                result = Image.fromarray(tiled_out["rgb_uint8"])
+            else:
+                result = engine.predict(image, use_tta=tta)
+            elapsed = time.perf_counter() - start
 
         stem = output_stem or Path(image_path.stem)
         output_base = output_dir / stem

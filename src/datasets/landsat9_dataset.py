@@ -217,25 +217,6 @@ class Landsat9Dataset(Dataset):
             x = np.rot90(x, k=k, axes=(-2, -1)).copy()
             y = np.rot90(y, k=k, axes=(-2, -1)).copy()
 
-        # --- Radiometric: paired brightness shift ---
-        if np.random.rand() < 0.3:
-            factor = 1.0 + np.random.uniform(-0.1, 0.1)
-            x = x * factor
-            y = y * factor
-
-        # --- Radiometric: paired contrast adjustment ---
-        if np.random.rand() < 0.3:
-            factor = 1.0 + np.random.uniform(-0.1, 0.1)
-            x_mean = np.mean(x)
-            y_mean = np.mean(y)
-            x = (x - x_mean) * factor + x_mean
-            y = (y - y_mean) * factor + y_mean
-
-        # --- Input-only: Gaussian noise on TIR (simulate sensor noise) ---
-        if np.random.rand() < 0.3:
-            noise = np.random.normal(0, 0.02, size=x.shape).astype(x.dtype)
-            x = x + noise
-
         return x, y
 
     # ------------------------------------------------------------------
@@ -342,6 +323,22 @@ class Landsat9Dataset(Dataset):
             else:
                 target_arr = self._normalize_tir(target_arr[0])[np.newaxis, ...]
             target_tensor = torch.from_numpy(target_arr).float()
+
+        if self.augment:
+            # Radiometric brightness adjustment in normalized [-1.0, 1.0] space
+            if np.random.rand() < 0.3:
+                shift = float(np.random.uniform(-0.1, 0.1))
+                input_tensor = torch.clamp(input_tensor + shift, -1.0, 1.0)
+
+            # Radiometric contrast adjustment in normalized [-1.0, 1.0] space
+            if np.random.rand() < 0.3:
+                factor = float(1.0 + np.random.uniform(-0.1, 0.1))
+                input_tensor = torch.clamp(input_tensor * factor, -1.0, 1.0)
+
+            # Input-only Gaussian noise on TIR in normalized [-1.0, 1.0] space (simulate sensor noise)
+            if np.random.rand() < 0.3:
+                noise = torch.randn_like(input_tensor) * 0.02
+                input_tensor = torch.clamp(input_tensor + noise, -1.0, 1.0)
 
         return {
             "ir": input_tensor,

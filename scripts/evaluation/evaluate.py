@@ -42,24 +42,35 @@ def compute_psnr(pred: np.ndarray, target: np.ndarray, max_val: float = 1.0) -> 
 
 def compute_ssim_simple(pred: np.ndarray, target: np.ndarray) -> float:
     """
-    Compute a simple SSIM approximation.
-
-    For a more accurate implementation, use torchmetrics or skimage.
-    This serves as a fallback when those are unavailable.
+    Compute localized windowed SSIM without global scalar approximation.
     """
-    C1 = (0.01) ** 2
-    C2 = (0.03) ** 2
+    p = np.asarray(pred, dtype=np.float32)
+    t = np.asarray(target, dtype=np.float32)
+    h, w = p.shape[:2] if p.ndim >= 2 else (p.shape[0], p.shape[0])
+    win_size = min(11, h, w)
+    if win_size % 2 == 0:
+        win_size -= 1
+    win_size = max(win_size, 3)
 
-    mu_pred = np.mean(pred)
-    mu_target = np.mean(target)
-    sigma_pred = np.std(pred)
-    sigma_target = np.std(target)
-    sigma_cross = np.mean((pred - mu_pred) * (target - mu_target))
+    try:
+        from skimage.metrics import structural_similarity
 
-    numerator = (2 * mu_pred * mu_target + C1) * (2 * sigma_cross + C2)
-    denominator = (mu_pred**2 + mu_target**2 + C1) * (sigma_pred**2 + sigma_target**2 + C2)
+        ch_axis = -1 if p.ndim == 3 else None
+        return float(structural_similarity(p, t, channel_axis=ch_axis, data_range=1.0, win_size=win_size))
+    except (ImportError, Exception):
+        from src.training.losses import SSIMLoss
 
-    return float(numerator / denominator)
+        ssim_loss = SSIMLoss(window_size=win_size)
+        pt = torch.from_numpy(p).float()
+        tt = torch.from_numpy(t).float()
+        if pt.ndim == 3:
+            pt = pt.permute(2, 0, 1).unsqueeze(0)
+            tt = tt.permute(2, 0, 1).unsqueeze(0)
+        elif pt.ndim == 2:
+            pt = pt.unsqueeze(0).unsqueeze(0)
+            tt = tt.unsqueeze(0).unsqueeze(0)
+        with torch.no_grad():
+            return float(1.0 - ssim_loss(pt, tt).item())
 
 
 def compute_mae(pred: np.ndarray, target: np.ndarray) -> float:

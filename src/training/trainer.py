@@ -328,7 +328,6 @@ class Trainer:
                 else:
                     self.scaler.step(self.optimizer_d)
 
-                self.scaler.update()
                 d_loss_last = d_loss.detach()
 
             # ---- Train Generator ----
@@ -381,10 +380,10 @@ class Trainer:
                         self.optimizer_g.zero_grad(set_to_none=True)
                     else:
                         self.scaler.step(self.optimizer_g)
-
-                    self.scaler.update()
             finally:
                 self.model.discriminator.requires_grad_(True)
+
+            self.scaler.update()
 
             running["g_loss"] += self._metric_value(g_loss)
             running["d_loss"] += self._metric_value(d_loss_last)

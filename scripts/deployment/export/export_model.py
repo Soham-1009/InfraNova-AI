@@ -51,7 +51,7 @@ def export_onnx(
         opset_version=opset_version,
         input_names=["thermal_input"],
         output_names=["rgb_output"],
-        dynamic_axes={"thermal_input": {0: "batch_size"}, "rgb_output": {0: "batch_size"}},
+        dynamic_axes={"thermal_input": {0: "batch", 2: "height", 3: "width"}, "rgb_output": {0: "batch", 2: "height", 3: "width"}},
     )
 
     file_size_mb = Path(output_path).stat().st_size / (1024 * 1024)

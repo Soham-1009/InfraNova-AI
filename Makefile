@@ -8,7 +8,7 @@ preprocess:
 	python scripts/preprocessing/split_patches.py
 
 train:
-	python scripts/training/run_ablation_study.py
+	python -m src.training.train_landsat --config configs/exp9_resnet_generator.yaml
 
 evaluate:
 	python scripts/evaluation/evaluate.py

@@ -8,10 +8,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def run_stage(stage, command):
     print(f"\n{'=' * 50}\n🚀 Running stage: {stage.upper()}\n{'=' * 50}")
-    result = subprocess.run(command, cwd=PROJECT_ROOT)
-    if result.returncode != 0:
-        print(f"❌ Stage {stage} failed with code {result.returncode}")
-        sys.exit(result.returncode)
+    commands = command if (isinstance(command, list) and command and isinstance(command[0], list)) else [command]
+    for cmd in commands:
+        result = subprocess.run(cmd, cwd=PROJECT_ROOT)
+        if result.returncode != 0:
+            print(f"❌ Stage {stage} failed with code {result.returncode}")
+            sys.exit(result.returncode)
     print(f"✅ Stage {stage} completed successfully.\n")
 
 
@@ -24,8 +26,17 @@ def main():
 
     stages = {
         "download": [sys.executable, "scripts/download/download_landsat9.py"],
-        "preprocess": [sys.executable, "scripts/preprocessing/split_patches.py"],
-        "train": [sys.executable, "-m", "src.training.train_landsat", "--config", "configs/config.yaml"],
+        "preprocess": [
+            [sys.executable, "scripts/preprocessing/process_landsat_patches.py"],
+            [sys.executable, "scripts/preprocessing/split_patches.py"],
+        ],
+        "train": [
+            sys.executable,
+            "-m",
+            "src.training.train_landsat",
+            "--config",
+            "configs/exp9_resnet_generator.yaml",
+        ],
         "evaluate": [sys.executable, "scripts/evaluation/evaluate.py"],
     }
 

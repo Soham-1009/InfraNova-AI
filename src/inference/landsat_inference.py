@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -46,12 +47,24 @@ class LandsatColorizationInference:
     def __init__(
         self,
         checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
-        device: str | None = None,
+        device: str | torch.device | None = None,
         image_size: int = 128,
         percentile_low: float = DEFAULT_PERCENTILE_LOW,
         percentile_high: float = DEFAULT_PERCENTILE_HIGH,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
+        if not self.checkpoint_path.exists():
+            candidate = Path(__file__).resolve().parents[2] / self.checkpoint_path
+            if candidate.exists():
+                self.checkpoint_path = candidate
+            else:
+                alt = Path("checkpoints/best/pix2pix_landsat_best.pth")
+                if alt.exists():
+                    self.checkpoint_path = alt
+                else:
+                    alt_root = Path(__file__).resolve().parents[2] / "checkpoints/best/pix2pix_landsat_best.pth"
+                    if alt_root.exists():
+                        self.checkpoint_path = alt_root
         self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
         self.image_size = int(image_size)
         self.percentile_low = float(percentile_low)
@@ -121,13 +134,17 @@ class LandsatColorizationInference:
 
         raise TypeError("Input must be PIL.Image.Image or numpy.ndarray")
 
-    def _to_thermal_bands(self, image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]) -> list[np.ndarray]:
+    def _to_thermal_bands(self, image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray] | list[np.ndarray]) -> list[np.ndarray]:
         """Extract model input bands while preserving a single-band compatibility path."""
-        if (isinstance(image, tuple) and len(image) == 2) or (
+        if (isinstance(image, (tuple, list)) and len(image) == 2) or (
             isinstance(image, np.ndarray) and image.ndim == 3 and image.shape[0] == 2
         ):
             bands = [self._to_grayscale_array(image[0]), self._to_grayscale_array(image[1])]
         elif isinstance(image, np.ndarray) and image.ndim == 3 and image.shape[-1] == 2:
+            bands = [self._to_grayscale_array(image[..., 0]), self._to_grayscale_array(image[..., 1])]
+        elif isinstance(image, np.ndarray) and image.ndim == 3 and image.shape[0] > 2 and image.shape[0] < image.shape[1]:
+            bands = [self._to_grayscale_array(image[0]), self._to_grayscale_array(image[1])]
+        elif isinstance(image, np.ndarray) and image.ndim == 3 and image.shape[-1] > 2:
             bands = [self._to_grayscale_array(image[..., 0]), self._to_grayscale_array(image[..., 1])]
         else:
             bands = [self._to_grayscale_array(image)]
@@ -146,7 +163,8 @@ class LandsatColorizationInference:
         """Normalize one thermal band with the existing per-image percentile policy."""
         finite = np.isfinite(arr)
         if not finite.any():
-            raise ValueError("Input image contains no finite pixel values.")
+            logger.warning("Input array contains no finite values; returning zeros after normalization.")
+            return np.zeros((self.image_size, self.image_size), dtype=np.float32)
         if not finite.all():
             arr = np.where(finite, arr, np.median(arr[finite])).astype(np.float32)
 
@@ -266,28 +284,29 @@ class LandsatColorizationInference:
             confidence = self._confidence_from_tta(preds_np)
 
         pil_rgb = Image.fromarray(rgb)
-        bgr_for_tiff = rgb[:, :, ::-1].copy()  # Layer 1=B, Layer 2=G, Layer 3=R
+        rgb_for_tiff = rgb.copy()  # Layer 1=R, Layer 2=G, Layer 3=B
 
         return {
             "rgb": pil_rgb,
             "rgb_array": rgb,
-            "tiff_bgr": bgr_for_tiff,
+            "tiff_rgb": rgb_for_tiff,
+            "tiff_bgr": rgb_for_tiff,  # Kept for backward compatibility
             "confidence": confidence,
         }
 
     @staticmethod
-    def save_tiff(bgr_array: np.ndarray, output_path: str) -> str:
+    def save_tiff(rgb_array: np.ndarray, output_path: str) -> str:
         """
-        Save a 3-band TIFF with band order B, G, R (Layer 1, 2, 3).
+        Save a 3-band TIFF with standard RGB band order (Layer 1=Red, Layer 2=Green, Layer 3=Blue).
         """
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        if bgr_array.ndim != 3 or bgr_array.shape[2] != 3:
-            raise ValueError(f"Expected HxWx3 array, got {bgr_array.shape}")
+        if rgb_array.ndim != 3 or rgb_array.shape[2] != 3:
+            raise ValueError(f"Expected HxWx3 array, got {rgb_array.shape}")
 
         if rasterio is not None:
-            height, width, _ = bgr_array.shape
+            height, width, _ = rgb_array.shape
             with rasterio.open(
                 path,
                 "w",
@@ -295,15 +314,14 @@ class LandsatColorizationInference:
                 height=height,
                 width=width,
                 count=3,
-                dtype=bgr_array.dtype,
+                dtype=rgb_array.dtype,
             ) as dst:
-                # Store in exact order: band 1=B, band 2=G, band 3=R
-                dst.write(bgr_array[:, :, 0], 1)
-                dst.write(bgr_array[:, :, 1], 2)
-                dst.write(bgr_array[:, :, 2], 3)
+                # Store in standard RGB order: band 1=Red, band 2=Green, band 3=Blue
+                for c in range(3):
+                    dst.write(rgb_array[:, :, c], c + 1)
         elif tifffile is not None:
             # Preserve band order as a 3-band TIFF when rasterio is unavailable.
-            tifffile.imwrite(path, np.moveaxis(bgr_array, -1, 0))
+            tifffile.imwrite(path, np.moveaxis(rgb_array, -1, 0))
         else:
             raise RuntimeError("Saving a 3-band TIFF requires rasterio or tifffile to be installed.")
 
@@ -319,5 +337,65 @@ class LandsatColorizationInference:
         Predict and save a TIFF output.
         """
         result = self.predict(image=image, use_tta=use_tta)
-        self.save_tiff(result["tiff_bgr"], output_path)
+        self.save_tiff(result["tiff_rgb"], output_path)
         return result
+
+
+class InferenceEngine:
+    """Canonical Pix2Pix inference engine with PIL and batch support.
+
+    Consolidated canonical engine backed by LandsatColorizationInference.
+    """
+
+    def __init__(
+        self,
+        checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
+        device: str | torch.device | None = None,
+        image_size: int = 128,
+        percentile_low: float = DEFAULT_PERCENTILE_LOW,
+        percentile_high: float = DEFAULT_PERCENTILE_HIGH,
+    ) -> None:
+        self.landsat_engine = LandsatColorizationInference(
+            checkpoint_path=checkpoint_path,
+            device=device,
+            image_size=image_size,
+            percentile_low=percentile_low,
+            percentile_high=percentile_high,
+        )
+        self.checkpoint_path = self.landsat_engine.checkpoint_path
+        self.image_size = self.landsat_engine.image_size
+        self.device = self.landsat_engine.device
+
+    @property
+    def model(self) -> Pix2Pix | None:
+        return self.landsat_engine.model
+
+    @property
+    def in_channels(self) -> int:
+        return self.landsat_engine.in_channels
+
+    @in_channels.setter
+    def in_channels(self, val: int) -> None:
+        self.landsat_engine.in_channels = val
+
+    def load_model(self) -> Pix2Pix:
+        return self.landsat_engine.load_model()
+
+    def predict(
+        self,
+        image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray],
+        use_tta: bool = False,
+    ) -> Image.Image:
+        result = self.landsat_engine.predict(image=image, use_tta=use_tta)
+        return result["rgb"]
+
+    def predict_batch(
+        self,
+        images: Sequence[Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]],
+        use_tta: bool = False,
+    ) -> list[Image.Image]:
+        return [self.predict(img, use_tta=use_tta) for img in images]
+
+
+__all__ = ["LandsatColorizationInference", "InferenceEngine"]
+
