@@ -50,7 +50,6 @@ function App() {
   const fileInputRef = useRef(null)
   const sliderContainerRef = useRef(null)
   const isDraggingSlider = useRef(false)
-  const loadIdRef = useRef(0)
 
   // Track blob URLs for proper cleanup
   const blobUrlsRef = useRef([])
@@ -647,16 +646,6 @@ function App() {
                     className="action-btn action-btn--ghost"
                     onClick={resetAll}
                     title="Clear current scene and reset"
-                  >
-                    Reset
-                  </button>
-                )}
-
-                {(file || displayImage) && (
-                  <button
-                    type="button"
-                    className="action-btn action-btn--ghost"
-                    onClick={resetAll}
                   >
                     Reset
                   </button>
