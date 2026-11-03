@@ -71,13 +71,13 @@ class TiledRasterInference:
         percentile_high: float = DEFAULT_PERCENTILE_HIGH,
         engine: InferenceEngine | None = None,
     ) -> None:
-        self.tile_size = int(tile_size)
-        self.overlap = int(overlap)
+        self.tile_size = tile_size
+        self.overlap = overlap
         self.stride = self.tile_size - self.overlap
         if self.stride <= 0:
             raise ValueError(f"Overlap ({overlap}) must be strictly less than tile_size ({tile_size})")
 
-        self.batch_size = int(batch_size)
+        self.batch_size = batch_size
         self.window_type = window_type
         self.window_weights = create_2d_window(self.tile_size, window_type=window_type)
         self.percentile_low = float(percentile_low)
@@ -232,7 +232,8 @@ class TiledRasterInference:
 
         # Process in batches
         num_tiles = len(tile_tensors)
-        model = self.engine.model
+        model = self.engine.load_model()
+        assert model is not None, "Pix2Pix model failed to load"
 
         for i in range(0, num_tiles, self.batch_size):
             batch_coords = tile_coords[i : i + self.batch_size]

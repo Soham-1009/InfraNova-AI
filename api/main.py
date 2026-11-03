@@ -149,6 +149,7 @@ async def colorize(
         raise HTTPException(400, "Must provide either 'file' or both 'band10' and 'band11'")
 
     try:
+        image_input: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]
         if band10 is not None and band11 is not None:
             raw_b10 = await band10.read()
             raw_b11 = await band11.read()

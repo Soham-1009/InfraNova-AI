@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 
 from src.models.pix2pix.pix2pix import Pix2Pix
@@ -65,3 +66,45 @@ class TestInference:
             output = model.generate(dummy_ir_tensor)
 
         assert not output.requires_grad
+
+    def test_inference_engine_with_torch_device_and_tuple_input(self, tmp_checkpoint):
+        """InferenceEngine accepts torch.device and tuple of numpy arrays."""
+        from PIL import Image
+
+        from demo.inference import InferenceEngine
+
+        engine = InferenceEngine(
+            checkpoint_path=str(tmp_checkpoint),
+            device=torch.device("cpu"),
+            image_size=128,
+        )
+        assert engine.device == torch.device("cpu")
+        b10 = np.random.uniform(250, 320, (128, 128)).astype(np.float32)
+        b11 = np.random.uniform(250, 320, (128, 128)).astype(np.float32)
+        out = engine.predict((b10, b11), use_tta=False)
+        assert isinstance(out, Image.Image)
+        assert out.size == (128, 128)
+
+        # Batch predict with tuple
+        batch_out = engine.predict_batch([(b10, b11)], use_tta=False)
+        assert len(batch_out) == 1
+        assert isinstance(batch_out[0], Image.Image)
+
+    def test_tiled_inference_with_torch_device(self, tmp_checkpoint):
+        """TiledRasterInference accepts torch.device and runs predict_scene."""
+        from src.inference.tiled_inference import TiledRasterInference
+
+        tiler = TiledRasterInference(
+            checkpoint_path=str(tmp_checkpoint),
+            tile_size=128,
+            overlap=32,
+            batch_size=2,
+            device=torch.device("cpu"),
+        )
+        assert tiler.tile_size == 128
+        assert tiler.overlap == 32
+        assert tiler.batch_size == 2
+        b10 = np.random.uniform(250, 320, (160, 160)).astype(np.float32)
+        b11 = np.random.uniform(250, 320, (160, 160)).astype(np.float32)
+        res = tiler.predict_scene(b10, b11, use_tta=True)
+        assert res["rgb_uint8"].shape == (160, 160, 3)

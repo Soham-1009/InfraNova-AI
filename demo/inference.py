@@ -33,7 +33,7 @@ class InferenceEngine:
     def __init__(
         self,
         checkpoint_path: str = "outputs/best/pix2pix_landsat_best.pth",
-        device: str | None = None,
+        device: str | torch.device | None = None,
         image_size: int = 128,
     ) -> None:
         self.checkpoint_path = Path(checkpoint_path)
@@ -45,7 +45,7 @@ class InferenceEngine:
                 alt_path = Path("checkpoints/best/pix2pix_landsat_best.pth")
                 if alt_path.exists():
                     self.checkpoint_path = alt_path
-        self.image_size = int(image_size)
+        self.image_size = image_size
         if self.image_size < 128 or self.image_size % 128 != 0:
             raise ValueError("image_size must be a multiple of 128 for this generator")
         self.device = torch.device(device if device is not None else ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -127,7 +127,7 @@ class InferenceEngine:
     @torch.inference_mode()
     def predict(
         self,
-        image: Image.Image | np.ndarray,
+        image: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray],
         use_tta: bool = False,
     ) -> Image.Image:
         """
@@ -182,7 +182,7 @@ class InferenceEngine:
     @torch.inference_mode()
     def predict_batch(
         self,
-        images: Sequence[Image.Image | np.ndarray],
+        images: Sequence[Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]],
         use_tta: bool = False,
     ) -> list[Image.Image]:
         """
