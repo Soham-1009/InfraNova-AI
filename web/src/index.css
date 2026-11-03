@@ -649,15 +649,6 @@ body {
   user-select: none;
 }
 
-.checkbox-control--disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.checkbox-control--disabled input[type='checkbox'] {
-  cursor: not-allowed;
-}
-
 .checkbox-control input[type='checkbox'] {
   width: 16px;
   height: 16px;

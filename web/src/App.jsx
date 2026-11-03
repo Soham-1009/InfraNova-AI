@@ -177,16 +177,37 @@ function App() {
   }
 
   const runColorization = async () => {
-    if (!file) return
+    let targetFile = file
+    if (!targetFile && activePreset) {
+      setLoading(true)
+      setLoadingMessage(`Loading ${activePreset.name} raw Landsat 9 GeoTIFF...`)
+      try {
+        const fetchRes = await fetch(`${BASE}samples/${activePreset.file}`)
+        if (!fetchRes.ok) throw new Error('Preset raster download failed')
+        const blob = await fetchRes.blob()
+        targetFile = new File([blob], activePreset.file, { type: 'image/tiff' })
+        setFile(targetFile)
+      } catch (err) {
+        setError(`Failed to fetch preset file: ${err.message}`)
+        setLoading(false)
+        return
+      }
+    }
+
+    if (!targetFile) return
 
     setLoading(true)
-    setLoadingMessage('Synthesizing optical RGB with Pix2Pix ResNet...')
+    setLoadingMessage(
+      useTTA
+        ? 'Synthesizing optical RGB with 4-Fold TTA & Tiled Inference...'
+        : 'Synthesizing optical RGB with Pix2Pix ResNet...'
+    )
     setError(null)
     setClaheApplied(false)
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', targetFile)
 
       const res = await fetch(`${API_URL}/colorize?tta=${useTTA}`, {
         method: 'POST',
@@ -206,9 +227,8 @@ function App() {
       setOutputImage(url)
       setDisplayImage(url)
     } catch (err) {
-      // If backend is offline but a preset was selected, show friendly note
       if (activePreset) {
-        setError(`Backend is offline (${err.message}). Displaying precomputed validation output for ${activePreset.name}.`)
+        setError(`Live inference unavailable (${err.message}). Displaying precomputed benchmark output for ${activePreset.name}.`)
       } else {
         setError(err.message)
       }
@@ -586,25 +606,25 @@ function App() {
 
               <div className="execution-controls">
                 <label
-                  className={`checkbox-control ${activePreset ? 'checkbox-control--disabled' : ''}`}
-                  title={activePreset ? "Preset scenes are precomputed offline" : "4-fold dihedral group Test-Time Augmentation (Identity, H-flip, V-flip, rot180)"}
+                  className="checkbox-control"
+                  title="Test-Time Augmentation: averages 4 geometric transforms (Identity, H-flip, V-flip, rot180) for maximum reconstruction fidelity"
                 >
                   <input
                     type="checkbox"
                     checked={useTTA}
                     onChange={(e) => setUseTTA(e.target.checked)}
-                    disabled={!!activePreset}
                     id="tta-toggle"
                   />
                   <span className="checkbox-label">4-Fold TTA</span>
                 </label>
 
-                {file && (
+                {(file || activePreset) && (
                   <button
                     type="button"
                     className="action-btn action-btn--primary"
                     onClick={runColorization}
                     disabled={loading}
+                    title={activePreset && !file ? "Run live model colorization on this Landsat 9 scene" : "Colorize satellite raster"}
                   >
                     Colorize Scene
                   </button>
