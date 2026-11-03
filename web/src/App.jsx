@@ -498,10 +498,10 @@ function App() {
 
                   {/* Spectral Band Labels */}
                   <div className="slider-marker slider-marker--thermal">
-                    Thermal IR (Bands 10 + 11)
+                    Thermal IR
                   </div>
                   <div className="slider-marker slider-marker--optical">
-                    Synthesized Optical RGB {claheApplied ? '(CLAHE Enhanced)' : ''}
+                    Optical RGB {claheApplied ? '(CLAHE)' : ''}
                   </div>
                 </div>
               ) : thermalSrc ? (
@@ -656,7 +656,7 @@ function App() {
         </section>
 
         {/* SECTION 2: STATS / BENCHMARK LEDGER */}
-        <section className="stats-section">
+        <section className="stats-section" aria-label="Empirical Benchmarks">
           <div className="section-header">
             <h2 className="section-title">Held-Out Empirical Benchmark</h2>
             <p className="section-intro">
@@ -665,7 +665,7 @@ function App() {
             </p>
           </div>
 
-          <div className="ledger-table">
+          <div className="ledger-table" data-ui="true">
             <div className="ledger-row">
               <div className="ledger-num-group">
                 <span className="ledger-num-whole">13</span>
