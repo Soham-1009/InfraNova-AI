@@ -666,56 +666,7 @@ function App() {
           </div>
         </section>
 
-        {/* SECTION 2: HOW IT WORKS / RADIATIVE TRANSFER */}
-        <section className="architecture-section">
-          <div className="section-header">
-            <h2 className="section-title">Split-Window Radiative Transfer</h2>
-            <p className="section-intro">
-              Cross-spectral translation from longwave thermal infrared (10.60–12.51 µm) to visible
-              spectrum optical reflectance (0.45–0.67 µm) requires physically informed inductive bias.
-            </p>
-          </div>
-
-          <div className="architecture-grid">
-            <div className="architecture-column">
-              <div className="arch-visual-box">
-                <img
-                  src={`${BASE}assets/figure1_cross_modal_decoupling.png`}
-                  alt="Cross-modal translation diagram between thermal infrared radiance and optical surface reflectance"
-                  className="arch-diagram"
-                  loading="lazy"
-                />
-              </div>
-              <h3 className="arch-heading">Split-Window Radiance</h3>
-              <p className="arch-body">
-                Single-channel thermal sensors cannot distinguish surface moisture from bare rock.
-                InfraNova AI ingests calibrated split-window radiance from Landsat 9 TIRS-2 Band 10
-                (10.60–11.19 µm) and Band 11 (11.50–12.51 µm). The differential absorption provides the
-                atmospheric moisture cues necessary to synthesize optical vegetation indices.
-              </p>
-            </div>
-
-            <div className="architecture-column">
-              <div className="arch-visual-box">
-                <img
-                  src={`${BASE}assets/figure8_seamless_tiling_reconstruction.png`}
-                  alt="2D Hann window sliding reconstruction across large satellite rasters"
-                  className="arch-diagram"
-                  loading="lazy"
-                />
-              </div>
-              <h3 className="arch-heading">2D Hann Window Blending</h3>
-              <p className="arch-body">
-                Full satellite scenes exceed memory limits when processed unsegmented. InfraNova
-                decomposes scenes into overlapping 128 x 128 patches with a 32-pixel stride, blending
-                predictions with a 2D raised-cosine Hann window to ensure zero border seams and
-                smooth transitions across whole geographic rasters.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 4: STATS / BENCHMARK LEDGER */}
+        {/* SECTION 2: STATS / BENCHMARK LEDGER */}
         <section className="stats-section">
           <div className="section-header">
             <h2 className="section-title">Held-Out Empirical Benchmark</h2>
