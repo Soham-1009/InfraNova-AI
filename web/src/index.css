@@ -190,18 +190,26 @@ body {
   font-size: var(--step-caption);
   font-weight: 600;
   color: var(--ink);
+  background-color: var(--surface);
+  border: 1px solid var(--border-ui); /* taste-skill-ignore */
   text-decoration: none;
-  padding: 7px 12px;
+  padding: 7px 15px;
   border-radius: 4px;
-  border: 1px solid transparent; /* taste-skill-ignore */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .nav-link:hover {
   color: var(--accent);
   background-color: var(--surface-hover);
-  border-color: var(--border-ui);
+  border-color: var(--muted);
   transform: translateY(-1px);
+}
+
+.nav-link:active {
+  transform: scale(0.98);
 }
 
 /* Content Flow */
@@ -353,19 +361,26 @@ body {
   font-family: var(--font-sans);
   font-size: var(--step-caption);
   font-weight: 600;
-  color: var(--muted);
+  color: var(--ink);
   text-decoration: none;
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: 4px;
   background-color: var(--surface);
   border: 1px solid var(--border-ui); /* taste-skill-ignore */
-  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .sample-download-link:hover {
-  color: var(--ink);
+  color: var(--accent);
   background-color: var(--surface-hover);
   border-color: var(--muted);
+  transform: translateY(-1px);
+}
+
+.sample-download-link:active {
+  transform: scale(0.98);
 }
 
 .upload-trigger-btn {
@@ -673,18 +688,21 @@ body {
 }
 
 .checkbox-control {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   user-select: none;
-  padding: 4px 6px;
+  padding: 6px 10px;
   border-radius: 4px;
-  transition: background-color 0.15s ease;
+  background-color: var(--surface);
+  border: 1px solid var(--border-ui); /* taste-skill-ignore */
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .checkbox-control:hover {
   background-color: var(--surface-hover);
+  border-color: var(--muted);
 }
 
 .checkbox-control input[type='checkbox'] {
@@ -788,6 +806,7 @@ body {
 
 .loading-card {
   background-color: var(--surface);
+  border: 1px solid var(--border-ui); /* taste-skill-ignore */
   padding: 32px 48px;
   border-radius: 8px;
   display: flex;
