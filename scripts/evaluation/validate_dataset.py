@@ -73,7 +73,7 @@ def validate_sample(sample_dir: Path, verbose: bool = False) -> tuple[list[str],
         file_hashes[filename] = compute_file_hash(filepath)
 
         try:
-            arr = np.load(filepath)
+            arr = np.load(filepath, allow_pickle=False)
         except Exception as exc:
             issues.append(f"Corrupted {filename}: {exc}")
             continue
@@ -242,7 +242,7 @@ def print_summary_stats(hashes_by_sample: dict[str, dict[str, str]], data_dir: P
             npy_path = filepath / filename
             if npy_path.exists():
                 try:
-                    arr = np.load(npy_path)
+                    arr = np.load(npy_path, allow_pickle=False)
                     if np.isfinite(arr).all():
                         all_values.append(
                             {

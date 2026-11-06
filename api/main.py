@@ -7,6 +7,7 @@ Serves the Pix2Pix colorization model via a REST API.
 from __future__ import annotations
 
 import io
+import logging
 import math
 import os
 import sys
@@ -15,12 +16,11 @@ from pathlib import Path
 from threading import RLock
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import tifffile
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-import tifffile
 
 # Make project root importable
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +31,10 @@ from demo.inference import InferenceEngine
 from demo.utils import to_single_band_array, visualize_tir_as_thermal
 from src.inference.tiled_inference import TiledRasterInference
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration & Security Limits
 # ---------------------------------------------------------------------------
 CHECKPOINT_PATH = Path(
     os.getenv(
@@ -47,6 +49,13 @@ CORS_ORIGINS = [orig.strip() for orig in CORS_ORIGINS_RAW.split(",") if orig.str
 if not CORS_ORIGINS:
     CORS_ORIGINS = ["*"]
 
+# DoS, decompression bomb, and upload size safeguards
+Image.MAX_IMAGE_PIXELS = 25_000_000
+MAX_UPLOAD_SIZE_MB = int(os.getenv("INFRANOVA_MAX_UPLOAD_SIZE_MB", "50"))
+MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+MAX_IMAGE_DIM = int(os.getenv("INFRANOVA_MAX_IMAGE_DIM", "4096"))
+ALLOWED_EXTENSIONS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".npy"}
+
 # ---------------------------------------------------------------------------
 # Serve built React frontend (production Docker build)
 # ---------------------------------------------------------------------------
@@ -56,20 +65,99 @@ FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
+docs_url: str | None = os.getenv("INFRANOVA_DOCS_URL", "/docs")
+redoc_url: str | None = os.getenv("INFRANOVA_REDOC_URL", "/redoc")
+openapi_url: str | None = os.getenv("INFRANOVA_OPENAPI_URL", "/openapi.json")
+if os.getenv("INFRANOVA_ENABLE_DOCS", "true").lower() in ("false", "0", "no"):
+    docs_url = None
+    redoc_url = None
+    openapi_url = None
+
 app = FastAPI(
     title="InfraNova AI",
     description="Thermal-to-RGB satellite image colorization powered by Pix2Pix.",
     version="1.0.0",
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url,
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    """Add defense-in-depth HTTP security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+    )
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-XSS-Protection"] = "0"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    response.headers["Permissions-Policy"] = (
+        "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+        "magnetometer=(), microphone=(), payment=(), usb=()"
+    )
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=False if ("*" in CORS_ORIGINS or CORS_ORIGINS == ["*"]) else True,
+    allow_credentials=not ("*" in CORS_ORIGINS or CORS_ORIGINS == ["*"]),
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Inference-Time", "X-Model", "X-Spatial-Grid", "X-Tiles-Processed"],
 )
+
+
+async def read_upload_file(upload_file: UploadFile, max_size: int | None = None) -> bytes:
+    """Read uploaded file in chunks with strict size limits to prevent memory exhaustion DoS."""
+    effective_max = MAX_UPLOAD_SIZE if max_size is None else max_size
+    chunks: list[bytes] = []
+    total_size = 0
+    chunk_size = 64 * 1024
+    while True:
+        chunk = await upload_file.read(chunk_size)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > effective_max:
+            raise HTTPException(
+                413,
+                f"Uploaded file exceeds maximum permitted size of {effective_max // (1024 * 1024)} MB.",
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if len(data) == 0:
+        raise HTTPException(400, "Uploaded file is empty (0 bytes).")
+    return data
+
+
+def _validate_tiff_dimensions(raw_bytes: bytes, max_dim: int = MAX_IMAGE_DIM) -> None:
+    """Pre-flight check TIFF IFDs to prevent allocating memory for decompression bombs."""
+    try:
+        with tifffile.TiffFile(io.BytesIO(raw_bytes)) as tif:
+            for series in tif.series:
+                shape = series.shape
+                if len(shape) >= 2:
+                    h, w = (
+                        (shape[0], shape[1])
+                        if len(shape) == 2
+                        else ((shape[1], shape[2]) if shape[0] in (1, 2, 3, 4) else (shape[0], shape[1]))
+                    )
+                    if h > max_dim or w > max_dim:
+                        raise HTTPException(
+                            400,
+                            f"Image dimensions ({w}x{h}) exceed maximum permitted dimension ({max_dim}x{max_dim}).",
+                        )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
 
 # Lazy-loaded inference engines (loaded on first request)
@@ -158,22 +246,30 @@ async def colorize(
     try:
         image_input: Image.Image | np.ndarray | tuple[np.ndarray, np.ndarray]
         if band10 is not None and band11 is not None:
-            raw_b10 = await band10.read()
-            raw_b11 = await band11.read()
-            if len(raw_b10) == 0 or len(raw_b11) == 0:
-                raise HTTPException(400, "Uploaded band10 or band11 file is empty (0 bytes).")
-            b10_fn = (band10.filename or "").lower()
-            b11_fn = (band11.filename or "").lower()
-            if b10_fn.endswith(".npy"):
-                b10_arr = np.load(io.BytesIO(raw_b10))
-            elif b10_fn.endswith((".tif", ".tiff")):
+            b10_fn = Path(band10.filename or "").name.lower()
+            b11_fn = Path(band11.filename or "").name.lower()
+            b10_suffix = Path(b10_fn).suffix
+            b11_suffix = Path(b11_fn).suffix
+            if b10_suffix not in ALLOWED_EXTENSIONS:
+                raise HTTPException(400, f"Unsupported file type for band10: '{b10_suffix}'. Allowed: {ALLOWED_EXTENSIONS}")
+            if b11_suffix not in ALLOWED_EXTENSIONS:
+                raise HTTPException(400, f"Unsupported file type for band11: '{b11_suffix}'. Allowed: {ALLOWED_EXTENSIONS}")
+
+            raw_b10 = await read_upload_file(band10)
+            raw_b11 = await read_upload_file(band11)
+
+            if b10_suffix == ".npy":
+                b10_arr = np.load(io.BytesIO(raw_b10), allow_pickle=False)
+            elif b10_suffix in {".tif", ".tiff"}:
+                _validate_tiff_dimensions(raw_b10)
                 b10_arr = tifffile.imread(io.BytesIO(raw_b10))
             else:
                 b10_arr = np.array(Image.open(io.BytesIO(raw_b10)))
 
-            if b11_fn.endswith(".npy"):
-                b11_arr = np.load(io.BytesIO(raw_b11))
-            elif b11_fn.endswith((".tif", ".tiff")):
+            if b11_suffix == ".npy":
+                b11_arr = np.load(io.BytesIO(raw_b11), allow_pickle=False)
+            elif b11_suffix in {".tif", ".tiff"}:
+                _validate_tiff_dimensions(raw_b11)
                 b11_arr = tifffile.imread(io.BytesIO(raw_b11))
             else:
                 b11_arr = np.array(Image.open(io.BytesIO(raw_b11)))
@@ -181,18 +277,16 @@ async def colorize(
             image_input = (b10_arr, b11_arr)
         else:
             assert file is not None
-            allowed = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".npy"}
             suffix = Path(file.filename or "upload.png").suffix.lower()
-            if suffix not in allowed:
-                raise HTTPException(400, f"Unsupported file type: {suffix}. Allowed: {allowed}")
+            if suffix not in ALLOWED_EXTENSIONS:
+                raise HTTPException(400, f"Unsupported file type: {suffix}. Allowed: {ALLOWED_EXTENSIONS}")
 
-            raw_bytes = await file.read()
-            if len(raw_bytes) == 0:
-                raise HTTPException(400, "Uploaded file is empty (0 bytes).")
+            raw_bytes = await read_upload_file(file)
 
             if suffix == ".npy":
-                image_input = np.load(io.BytesIO(raw_bytes))
+                image_input = np.load(io.BytesIO(raw_bytes), allow_pickle=False)
             elif suffix in {".tif", ".tiff"}:
+                _validate_tiff_dimensions(raw_bytes)
                 image_input = tifffile.imread(io.BytesIO(raw_bytes))
             else:
                 image_input = Image.open(io.BytesIO(raw_bytes))
@@ -208,6 +302,11 @@ async def colorize(
         if isinstance(image_input, (tuple, list)) and len(image_input) == 2:
             b10_arr = to_single_band_array(image_input[0])
             b11_arr = to_single_band_array(image_input[1])
+            if b10_arr.shape != b11_arr.shape:
+                raise HTTPException(
+                    400,
+                    f"Band 10 spatial shape {b10_arr.shape} does not match Band 11 shape {b11_arr.shape}.",
+                )
             H, W = b10_arr.shape
         elif isinstance(image_input, np.ndarray):
             if image_input.ndim == 2:
@@ -228,6 +327,15 @@ async def colorize(
             b10_arr = to_single_band_array(np.array(image_input))
             b11_arr = b10_arr
 
+        if H <= 0 or W <= 0:
+            raise HTTPException(400, "Image has invalid spatial dimensions (width and height must be > 0).")
+
+        if H > MAX_IMAGE_DIM or W > MAX_IMAGE_DIM:
+            raise HTTPException(
+                400,
+                f"Image dimensions ({W}x{H}) exceed maximum permitted dimension ({MAX_IMAGE_DIM}x{MAX_IMAGE_DIM}).",
+            )
+
         tiles_processed = 1
         if (H > IMAGE_SIZE or W > IMAGE_SIZE) and b10_arr is not None and b11_arr is not None:
             tiler = get_tiled_engine()
@@ -243,10 +351,9 @@ async def colorize(
         # Encode result as PNG
         buf = io.BytesIO()
         result.save(buf, format="PNG")
-        buf.seek(0)
 
-        return StreamingResponse(
-            buf,
+        return Response(
+            content=buf.getvalue(),
             media_type="image/png",
             headers={
                 "X-Inference-Time": f"{elapsed:.3f}",
@@ -258,11 +365,13 @@ async def colorize(
     except HTTPException:
         raise
     except FileNotFoundError as exc:
-        raise HTTPException(503, f"Model checkpoint unavailable: {exc}") from exc
-    except (OSError, ValueError, TypeError) as exc:
+        logger.error("Model checkpoint unavailable: %s", exc)
+        raise HTTPException(503, "Model checkpoint unavailable.") from exc
+    except (OSError, ValueError, TypeError, RuntimeError) as exc:
         raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:
-        raise HTTPException(500, f"Inference failed: {exc}") from exc
+        logger.exception("Inference processing error")
+        raise HTTPException(500, "Inference failed due to an internal server error.") from exc
 
 
 @app.post("/thermal-preview")
@@ -272,37 +381,54 @@ async def thermal_preview(file: UploadFile = File(...)):
 
     Returns: PNG image with INFERNO colormap applied.
     """
-    allowed = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".npy"}
     suffix = Path(file.filename or "upload.png").suffix.lower()
-    if suffix not in allowed:
+    if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, f"Unsupported file type: {suffix}")
 
     try:
-        raw_bytes = await file.read()
-        if len(raw_bytes) == 0:
-            raise HTTPException(400, "Uploaded file is empty (0 bytes).")
+        raw_bytes = await read_upload_file(file)
 
         if suffix == ".npy":
-            arr = np.load(io.BytesIO(raw_bytes))
+            arr = np.load(io.BytesIO(raw_bytes), allow_pickle=False)
             image_input = arr
         elif suffix in {".tif", ".tiff"}:
+            _validate_tiff_dimensions(raw_bytes)
             image_input = tifffile.imread(io.BytesIO(raw_bytes))
         else:
             image_input = Image.open(io.BytesIO(raw_bytes))
+
+        # Dimension checks
+        if isinstance(image_input, Image.Image):
+            W, H = image_input.size
+        elif isinstance(image_input, np.ndarray):
+            if image_input.ndim < 2:
+                raise HTTPException(400, "Input array must be at least 2-dimensional.")
+            H, W = image_input.shape[:2]
+        else:
+            H, W = IMAGE_SIZE, IMAGE_SIZE
+
+        if H <= 0 or W <= 0:
+            raise HTTPException(400, "Image has invalid spatial dimensions (width and height must be > 0).")
+
+        if H > MAX_IMAGE_DIM or W > MAX_IMAGE_DIM:
+            raise HTTPException(
+                400,
+                f"Image dimensions ({W}x{H}) exceed maximum permitted dimension ({MAX_IMAGE_DIM}x{MAX_IMAGE_DIM}).",
+            )
 
         thermal_vis = visualize_tir_as_thermal(image_input)
 
         buf = io.BytesIO()
         thermal_vis.save(buf, format="PNG")
-        buf.seek(0)
 
-        return StreamingResponse(buf, media_type="image/png")
+        return Response(content=buf.getvalue(), media_type="image/png")
     except HTTPException:
         raise
-    except (OSError, ValueError, TypeError) as exc:
+    except (OSError, ValueError, TypeError, RuntimeError) as exc:
         raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:
-        raise HTTPException(500, f"Preview failed: {exc}") from exc
+        logger.exception("Preview generation error")
+        raise HTTPException(500, "Preview failed due to an internal server error.") from exc
 
 
 @app.post("/postprocess/clahe")
@@ -322,16 +448,31 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
     try:
         import cv2
 
-        if not math.isfinite(clip_limit) or clip_limit < 0:
-            raise HTTPException(400, "clip_limit must be a finite value greater than or equal to zero.")
-        if grid_size <= 0:
-            raise HTTPException(400, "grid_size must be a positive integer.")
+        if not math.isfinite(clip_limit) or clip_limit < 0.0 or clip_limit > 100.0:
+            raise HTTPException(400, "clip_limit must be a finite value between 0.0 and 100.0.")
+        if grid_size <= 0 or grid_size > 128:
+            raise HTTPException(400, "grid_size must be an integer between 1 and 128.")
 
-        raw_bytes = await file.read()
-        if len(raw_bytes) == 0:
-            raise HTTPException(400, "Uploaded file is empty (0 bytes).")
+        suffix = Path(file.filename or "upload.png").suffix.lower()
+        if suffix not in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}:
+            raise HTTPException(
+                400,
+                f"Unsupported file type for CLAHE postprocessing: '{suffix}'. Allowed: .png, .jpg, .jpeg, .tif, .tiff",
+            )
+
+        raw_bytes = await read_upload_file(file)
+        if suffix in {".tif", ".tiff"}:
+            _validate_tiff_dimensions(raw_bytes)
 
         arr = np.array(Image.open(io.BytesIO(raw_bytes)).convert("RGB"))
+        H, W = arr.shape[:2]
+        if H <= 0 or W <= 0:
+            raise HTTPException(400, "Image has invalid spatial dimensions (width and height must be > 0).")
+        if H > MAX_IMAGE_DIM or W > MAX_IMAGE_DIM:
+            raise HTTPException(
+                400,
+                f"Image dimensions ({W}x{H}) exceed maximum permitted dimension ({MAX_IMAGE_DIM}x{MAX_IMAGE_DIM}).",
+            )
 
         # Convert to LAB, apply CLAHE to L channel, convert back
         lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB)
@@ -342,15 +483,15 @@ async def apply_clahe(file: UploadFile = File(...), clip_limit: float = 2.0, gri
         result = Image.fromarray(enhanced)
         buf = io.BytesIO()
         result.save(buf, format="PNG")
-        buf.seek(0)
 
-        return StreamingResponse(buf, media_type="image/png")
+        return Response(content=buf.getvalue(), media_type="image/png")
     except HTTPException:
         raise
-    except (OSError, ValueError, TypeError) as exc:
+    except (OSError, ValueError, TypeError, RuntimeError) as exc:
         raise HTTPException(400, f"Invalid input image: {exc}") from exc
     except Exception as exc:
-        raise HTTPException(500, f"CLAHE failed: {exc}") from exc
+        logger.exception("CLAHE postprocessing error")
+        raise HTTPException(500, "CLAHE failed due to an internal server error.") from exc
 
 
 # Mount static frontend assets as a catch-all route at the very end

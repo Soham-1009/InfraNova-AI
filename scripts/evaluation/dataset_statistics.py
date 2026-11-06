@@ -130,7 +130,7 @@ def generate_statistics(
                     missing[filename] += 1
                     continue
                 try:
-                    arr = np.load(filepath)
+                    arr = np.load(filepath, allow_pickle=False)
                     arrays_by_file[filename].append(arr)
                 except Exception:
                     corrupted += 1

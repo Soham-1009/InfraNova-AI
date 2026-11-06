@@ -25,6 +25,10 @@ services:
       - INFRANOVA_CHECKPOINT=${INFRANOVA_CHECKPOINT:-/app/outputs/best/pix2pix_landsat_best.pth}
       - INFRANOVA_DEVICE=${INFRANOVA_DEVICE:-}
       - INFRANOVA_CORS_ORIGINS=${INFRANOVA_CORS_ORIGINS:-*}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

@@ -52,8 +52,8 @@ def validate_dataset():
                 continue
 
             try:
-                rgb = np.load(rgb_path)
-                tir = np.load(tir_path)
+                rgb = np.load(rgb_path, allow_pickle=False)
+                tir = np.load(tir_path, allow_pickle=False)
             except Exception:
                 corrupt += 1
                 continue

@@ -226,9 +226,9 @@ class Landsat9Dataset(Dataset):
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         sample_dir = self.samples[idx]
 
-        tir_200m = np.load(sample_dir / "tir_200m.npy")
-        tir_100m = np.load(sample_dir / "tir_100m.npy")
-        rgb_100m = np.load(sample_dir / "rgb_100m.npy")
+        tir_200m = np.load(sample_dir / "tir_200m.npy", allow_pickle=False)
+        tir_100m = np.load(sample_dir / "tir_100m.npy", allow_pickle=False)
+        rgb_100m = np.load(sample_dir / "rgb_100m.npy", allow_pickle=False)
 
         # Load Band 11 if input_channels == 2
         tir_b11_100m = None
@@ -239,13 +239,13 @@ class Landsat9Dataset(Dataset):
                 raise FileNotFoundError(
                     f"Genuine Band 11 file missing in {sample_dir}: {b11_file_100} required when input_channels=2"
                 )
-            tir_b11_100m = np.load(b11_file_100)
+            tir_b11_100m = np.load(b11_file_100, allow_pickle=False)
             if tir_b11_100m.dtype != np.float32 or not np.isfinite(tir_b11_100m).all():
                 raise RuntimeError(f"Band 11 array in {sample_dir} must be float32 and contain only finite values.")
 
             b11_file_200 = sample_dir / "tir_b11_200m.npy"
             if b11_file_200.exists():
-                tir_b11_200m = np.load(b11_file_200)
+                tir_b11_200m = np.load(b11_file_200, allow_pickle=False)
 
         # SHAPE VALIDATION (Warn on resize)
         if tir_100m.shape[-2:] != (self.image_size, self.image_size) or rgb_100m.shape[-2:] != (

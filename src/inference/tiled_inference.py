@@ -105,7 +105,7 @@ class TiledRasterInference:
         meta: dict[str, Any] = {}
 
         if path.suffix.lower() == ".npy":
-            arr = np.load(path)
+            arr = np.load(path, allow_pickle=False)
             return arr, meta
 
         if rasterio is not None:

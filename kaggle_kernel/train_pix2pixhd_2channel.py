@@ -188,9 +188,9 @@ class Landsat9TwoChannelDataset(Dataset):
         if not b11_path.exists():
             raise FileNotFoundError(f"Missing genuine Band 11 in {sample_dir}")
 
-        tir = np.load(tir_path)
-        rgb = np.load(rgb_path)
-        b11 = np.load(b11_path)
+        tir = np.load(tir_path, allow_pickle=False)
+        rgb = np.load(rgb_path, allow_pickle=False)
+        b11 = np.load(b11_path, allow_pickle=False)
 
         # Separate channel local normalization to [-1, 1]
         tir_norm = self._local_norm(tir)
@@ -852,7 +852,7 @@ def main():
 
     if resume_path is not None:
         print(f"\n[Pre-Flight Safety Gate] Resuming from verified checkpoint: {resume_path}", flush=True)
-        ckpt = torch.load(resume_path, map_location="cpu", weights_only=False)
+        ckpt = torch.load(resume_path, map_location="cpu", weights_only=True)
         loaded_ep = ckpt.get("epoch", 0)
         print(f"  [Gate 1] Checkpoint Epoch: {loaded_ep}")
         print(f"  [Gate 2] Checkpoint Prior SSIM: {ckpt.get('val_ssim', 0):.6f}")

@@ -24,8 +24,6 @@ def load_torch_checkpoint(path: str | Path, map_location: Any = "cpu") -> Any:
         return torch.load(path, map_location=map_location, weights_only=True)
     except TypeError:
         return torch.load(path, map_location=map_location)
-    except Exception:
-        return torch.load(path, map_location=map_location, weights_only=False)
 
 
 def _normalize_state_dict_keys(state_dict: Mapping[str, Any]) -> dict[str, torch.Tensor]:

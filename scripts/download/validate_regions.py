@@ -36,7 +36,7 @@ EXPECTED_PATCH_FILES = {"tir_200m.npy", "tir_100m.npy", "rgb_100m.npy"}
 def _safe_load_npy(path: Path) -> np.ndarray | None:
     """Load .npy file safely, returning None on failure."""
     try:
-        return np.load(path)
+        return np.load(path, allow_pickle=False)
     except Exception:
         return None
 

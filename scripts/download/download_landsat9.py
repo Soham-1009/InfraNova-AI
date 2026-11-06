@@ -8,9 +8,12 @@ import argparse
 import concurrent.futures
 import datetime
 import io
+import ipaddress
 import logging
+import os
 import sys
 import time
+import urllib.parse
 import zipfile
 from contextlib import suppress
 from pathlib import Path
@@ -26,7 +29,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-EE_PROJECT_ID = "infranova-ai"  # Update if your project ID differs
+EE_PROJECT_ID = os.getenv("EE_PROJECT_ID", "infranova-ai")  # Update if your project ID differs
 
 REGIONS = {
     "delhi": {"lat": 28.6139, "lon": 77.2090, "name": "Delhi"},
@@ -570,30 +573,72 @@ def setup_logger(log_file: Path) -> logging.Logger:
 def download_and_extract(url: str, dest_dir: Path, out_name: str) -> Path:
     """
     Downloads data from EE url and saves to dest_dir / out_name.
-    Earth Engine may return a ZIP (PK\\x03\\x04) or a direct GeoTIFF.
+    Earth Engine may return a ZIP (PK\x03\x04) or a direct GeoTIFF.
     """
-    response = requests.get(url, timeout=120)
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Invalid URL scheme: only http and https are allowed")
+    if not parsed.hostname:
+        raise ValueError("URL must have a valid hostname")
+
+    hostname = parsed.hostname.lower()
+    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        raise ValueError("Access to loopback address is blocked")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None
+
+    if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved):
+        raise ValueError("Access to private/local network address is blocked")
+
+    clean_name = Path(out_name).name
+    if not clean_name or clean_name in (".", ".."):
+        raise ValueError("Invalid destination file name.")
+    resolved_dest = dest_dir.resolve()
+    out_path = (resolved_dest / clean_name).resolve()
+    if not out_path.is_relative_to(resolved_dest):
+        raise ValueError("Destination path traversal detected.")
+
+    MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
+    response = requests.get(url, stream=True, timeout=120)
     response.raise_for_status()
 
-    out_path = dest_dir / out_name
+    chunks: list[bytes] = []
+    total_bytes = 0
+    for chunk in response.iter_content(chunk_size=64 * 1024):
+        total_bytes += len(chunk)
+        if total_bytes > MAX_DOWNLOAD_BYTES:
+            raise ValueError(f"Download exceeds maximum safety limit of {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB.")
+        chunks.append(chunk)
+    content = b"".join(chunks)
 
     # Check if the content is a ZIP file (magic number PK)
-    if response.content[:4] == b"PK\x03\x04":
-        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-            tif_files = [f for f in z.namelist() if f.endswith(".tif")]
-            if not tif_files:
+    if content[:4] == b"PK\x03\x04":
+        with zipfile.ZipFile(io.BytesIO(content)) as z:
+            # Prevent zip bomb DoS (max 500 MB uncompressed)
+            total_uncompressed = sum(info.file_size for info in z.infolist())
+            if total_uncompressed > 500 * 1024 * 1024:
+                raise ValueError(f"Zip archive uncompressed size ({total_uncompressed} bytes) exceeds safety limit.")
+
+            tif_members = [info for info in z.infolist() if info.filename.endswith(".tif") and not info.is_dir()]
+            if not tif_members:
                 raise ValueError("No .tif file found in downloaded zip.")
 
-            # Extract the first tif file
-            extracted_path = z.extract(tif_files[0], path=dest_dir)
+            target_member = tif_members[0]
+            # Prevent Zip Slip / path traversal
+            if ".." in target_member.filename or Path(target_member.filename).is_absolute() or "\\" in target_member.filename:
+                raise ValueError("Path traversal detected in zip member name.")
 
-            # Rename if necessary
-            if Path(extracted_path).resolve() != out_path.resolve():
-                Path(extracted_path).replace(out_path)
+            # Write member bytes directly to out_path without unsafe extraction
+            data = z.read(target_member)
+            with open(out_path, "wb") as f:
+                f.write(data)
     else:
         # Save directly as tif
         with open(out_path, "wb") as f:
-            f.write(response.content)
+            f.write(content)
 
     return out_path
 

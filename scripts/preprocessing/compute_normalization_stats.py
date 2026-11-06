@@ -79,7 +79,7 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> dict[str, Any]:
         tir_path = sample_dir / "tir_100m.npy"
         if tir_path.exists():
             try:
-                arr = np.load(tir_path).astype(np.float64)
+                arr = np.load(tir_path, allow_pickle=False).astype(np.float64)
                 if np.isfinite(arr).all() and arr.size > 0:
                     tir_means.append(float(np.mean(arr)))
                     tir_stds.append(float(np.std(arr)))
@@ -98,7 +98,7 @@ def collect_stats(data_dir: str = "data/landsat9/patches") -> dict[str, Any]:
         rgb_path = sample_dir / "rgb_100m.npy"
         if rgb_path.exists():
             try:
-                arr = np.load(rgb_path).astype(np.float64)
+                arr = np.load(rgb_path, allow_pickle=False).astype(np.float64)
                 if np.isfinite(arr).all() and arr.size > 0 and arr.shape[0] == 3:
                     for band_idx in range(3):
                         band = arr[band_idx]

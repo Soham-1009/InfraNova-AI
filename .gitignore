@@ -11,6 +11,7 @@
 !.env.example
 *.key
 *.pem
+.agents/
 
 # ------------------------------------------------------------------------------
 # Model Checkpoints & Large Artifacts (NEVER commit model weights)

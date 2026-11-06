@@ -87,7 +87,7 @@ def main():
     # 2. Verify Candidate Architecture & Loadability
     print("[2/6] Validating candidate architecture & loadability...")
     try:
-        ckpt = torch.load(candidate_path, map_location="cpu", weights_only=False)
+        ckpt = torch.load(candidate_path, map_location="cpu", weights_only=True)
         sd = ckpt["model_state_dict"]
         gen_sd = {k[len("generator."):]: v for k, v in sd.items() if k.startswith("generator.")}
         netG = Pix2PixHDGlobalResNetGenerator(in_channels=2, out_channels=3, ngf=64, n_blocks=9)

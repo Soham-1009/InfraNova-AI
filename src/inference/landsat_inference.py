@@ -397,5 +397,5 @@ class InferenceEngine:
         return [self.predict(img, use_tta=use_tta) for img in images]
 
 
-__all__ = ["LandsatColorizationInference", "InferenceEngine"]
+__all__ = ["InferenceEngine", "LandsatColorizationInference"]
 
